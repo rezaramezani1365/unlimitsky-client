@@ -9,7 +9,9 @@ AMNEZIA_PARAMS="${USK_DATA_ROOT:-/var/lib/unlimitsky}/amnezia/obf.params"
 AMNEZIA_MODE_FILE="${USK_DATA_ROOT:-/var/lib/unlimitsky}/amnezia/mode"
 BIVLKED_MGMT="/root/awg/manage_amneziawg.sh"
 BIVLKED_AWG_DIR="/root/awg"
-AWG_GO_VERSION="0.2.15"
+AWG_GO_VERSION="0.2.18"
+AWG_GO_MODULE="github.com/amnezia-vpn/amneziawg-go@v${AWG_GO_VERSION}"
+AWG_DOCKER_IMAGE="amneziavpn/amneziawg-go:${AWG_GO_VERSION}"
 AWG_TOOLS_VERSION="v1.0.20260223"
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -86,22 +88,83 @@ PY
   return 1
 }
 
-usk_amnezia_install_go_binary() {
-  local arch go_bin url
-  arch=$(usk_amnezia_detect_arch)
-  go_bin="/usr/local/bin/amneziawg-go"
-  [ -x "$go_bin" ] && return 0
-  url="https://github.com/amnezia-vpn/amneziawg-go/releases/download/v${AWG_GO_VERSION}/amneziawg-go-linux-${arch}"
-  usk_amnezia_apt_optional ca-certificates curl wget
+usk_amnezia_download() {
+  local url="$1"
+  local dest="$2"
   if command -v curl >/dev/null 2>&1; then
-    curl -fsSL -o "$go_bin" "$url" 2>/dev/null || return 1
-  elif command -v wget >/dev/null 2>&1; then
-    wget -q -O "$go_bin" "$url" 2>/dev/null || return 1
-  else
-    return 1
+    curl -fsSL -o "$dest" "$url" 2>/dev/null && return 0
   fi
-  chmod +x "$go_bin"
+  if command -v wget >/dev/null 2>&1; then
+    wget -q -O "$dest" "$url" 2>/dev/null && return 0
+  fi
+  return 1
+}
+
+usk_amnezia_install_go_docker() {
+  local go_bin="/usr/local/bin/amneziawg-go"
+  command -v docker >/dev/null 2>&1 || return 1
+  docker pull "$AWG_DOCKER_IMAGE" >/dev/null 2>&1 || return 1
+  local cid path
+  cid=$(docker create "$AWG_DOCKER_IMAGE" 2>/dev/null) || return 1
+  for path in /usr/local/bin/amneziawg-go /usr/bin/amneziawg-go /amneziawg-go /bin/amneziawg-go; do
+    if docker cp "$cid:${path}" "$go_bin" 2>/dev/null; then
+      docker rm "$cid" >/dev/null 2>&1
+      chmod +x "$go_bin"
+      [ -x "$go_bin" ] && return 0
+    fi
+  done
+  docker rm "$cid" >/dev/null 2>&1
+  return 1
+}
+
+usk_amnezia_install_go_goinstall() {
+  local go_bin="/usr/local/bin/amneziawg-go"
+  [ -x "$go_bin" ] && return 0
+  if ! command -v go >/dev/null 2>&1; then
+    usk_amnezia_apt_optional golang-go
+  fi
+  command -v go >/dev/null 2>&1 || return 1
+  env GO111MODULE=on GOBIN=/usr/local/bin \
+    go install "$AWG_GO_MODULE" 2>/dev/null || \
+    go install github.com/amnezia-vpn/amneziawg-go@latest 2>/dev/null || return 1
+  chmod +x "$go_bin" 2>/dev/null || true
   [ -x "$go_bin" ]
+}
+
+usk_amnezia_install_go_bootstrap() {
+  local go_bin="/usr/local/bin/amneziawg-go"
+  [ -x "$go_bin" ] && return 0
+  local arch goarch gover td tarurl
+  arch=$(usk_amnezia_detect_arch)
+  goarch="$arch"
+  gover="1.24.2"
+  td=$(mktemp -d)
+  tarurl="https://go.dev/dl/go${gover}.linux-${goarch}.tar.gz"
+  usk_amnezia_download "$tarurl" "$td/go.tar.gz" || { rm -rf "$td"; return 1; }
+  tar -C "$td" -xzf "$td/go.tar.gz" 2>/dev/null || { rm -rf "$td"; return 1; }
+  env GO111MODULE=on GOBIN=/usr/local/bin \
+    "$td/go/bin/go" install "$AWG_GO_MODULE" 2>/dev/null || \
+    "$td/go/bin/go" install github.com/amnezia-vpn/amneziawg-go@latest 2>/dev/null || { rm -rf "$td"; return 1; }
+  rm -rf "$td"
+  chmod +x "$go_bin" 2>/dev/null || true
+  [ -x "$go_bin" ]
+}
+
+usk_amnezia_install_go_binary() {
+  local go_bin="/usr/local/bin/amneziawg-go"
+  [ -x "$go_bin" ] && return 0
+  usk_amnezia_apt_optional ca-certificates curl wget tar git
+
+  if usk_amnezia_install_go_docker; then
+    return 0
+  fi
+  if usk_amnezia_install_go_goinstall; then
+    return 0
+  fi
+  if usk_amnezia_install_go_bootstrap; then
+    return 0
+  fi
+  return 1
 }
 
 usk_amnezia_install_tools_zip() {
