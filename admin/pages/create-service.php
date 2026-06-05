@@ -273,7 +273,7 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         } else if (proto === 'wireguard') {
             if (wgTransport) wgTransport.style.display = '';
             fixed.style.display = '';
-            var tcpP = cfg.tcp_port && cfg.tcp_port > 0 ? cfg.tcp_port : 443;
+            var tcpP = cfg.tcp_port && cfg.tcp_port > 0 ? cfg.tcp_port : 51822;
             document.getElementById('create-port-fixed-text').textContent =
                 'UDP ' + (cfg.port || 51820) + ' · TCP bridge ' + tcpP;
         } else if (proto === 'l2tp') {

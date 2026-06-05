@@ -27,14 +27,32 @@ usk_wg_install_udp2raw() {
   chmod +x "$dest"
 }
 
+usk_wg_port_in_use() {
+  local port="$1"
+  if command -v ss >/dev/null 2>&1; then
+    ss -H -ltn "sport = :${port}" 2>/dev/null | grep -q .
+    return $?
+  fi
+  if command -v netstat >/dev/null 2>&1; then
+    netstat -ltn 2>/dev/null | grep -q ":${port} "
+    return $?
+  fi
+  return 1
+}
+
 usk_wg_setup_tcp_bridge() {
   local wg_port="$1"
   local tcp_port="$2"
 
   tcp_port=$(echo "$tcp_port" | tr -dc '0-9')
   wg_port=$(echo "$wg_port" | tr -dc '0-9')
-  [ -n "$tcp_port" ] && [ "$tcp_port" -ge 1 ] && [ "$tcp_port" -le 65535 ] 2>/dev/null || return 0
+  [ -n "$tcp_port" ] && [ "$tcp_port" -ge 1 ] && [ "$tcp_port" -le 65535 ] 2>/dev/null || return 1
   [ -n "$wg_port" ] && [ "$wg_port" -ge 1 ] 2>/dev/null || wg_port=51820
+
+  if usk_wg_port_in_use "$tcp_port"; then
+    echo "USK_ERR: wireguard_tcp_port_in_use port=${tcp_port}" >&2
+    return 1
+  fi
 
   usk_wg_install_udp2raw || return 1
 
@@ -63,8 +81,14 @@ UNIT
 
   systemctl daemon-reload
   systemctl enable "$WG_TCP_UNIT" 2>/dev/null || true
-  systemctl restart "$WG_TCP_UNIT" 2>/dev/null || systemctl start "$WG_TCP_UNIT" 2>/dev/null || true
+  systemctl restart "$WG_TCP_UNIT" 2>/dev/null || systemctl start "$WG_TCP_UNIT" 2>/dev/null || return 1
+  sleep 1
+  if ! systemctl is-active --quiet "$WG_TCP_UNIT" 2>/dev/null; then
+    echo "USK_ERR: wireguard_tcp_bridge_start_failed port=${tcp_port}" >&2
+    return 1
+  fi
   ensure_ufw_port "$tcp_port" tcp wireguard-tcp
+  return 0
 }
 
 usk_wg_tcp_enabled() {

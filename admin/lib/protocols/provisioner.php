@@ -235,6 +235,8 @@ class USK_ProtocolProvisioner
             'openvpn_not_installed' => 'err_openvpn_not_installed',
             'openvpn_tcp_not_installed' => 'err_openvpn_tcp_not_installed',
             'wireguard_tcp_not_installed' => 'err_wireguard_tcp_not_installed',
+            'wireguard_tcp_port_in_use' => 'err_wireguard_tcp_port_in_use',
+            'wireguard_tcp_bridge_start_failed' => 'err_wireguard_tcp_bridge_failed',
             'l2tp_packages_failed' => 'err_l2tp_install_failed',
             'l2tp_config_failed' => 'err_l2tp_install_failed',
             'l2tp_service_failed' => 'err_l2tp_service_failed',

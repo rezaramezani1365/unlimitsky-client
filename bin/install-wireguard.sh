@@ -6,14 +6,14 @@ source "$DIR/wireguard-common.sh"
 set +e
 
 PORT="${1:-51820}"
-TCP_PORT="${2:-443}"
+TCP_PORT="${2:-51822}"
 PORT=$(echo "$PORT" | tr -dc '0-9')
 TCP_PORT=$(echo "$TCP_PORT" | tr -dc '0-9')
 if [ -z "$PORT" ] || [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ] 2>/dev/null; then
   PORT=51820
 fi
 if [ -z "$TCP_PORT" ] || [ "$TCP_PORT" -lt 1 ] || [ "$TCP_PORT" -gt 65535 ] 2>/dev/null; then
-  TCP_PORT=443
+  TCP_PORT=51822
 fi
 
 MAIN_IFACE=$(usk_wg_main_iface)
@@ -47,9 +47,13 @@ systemctl restart wg-quick@wg0 || systemctl start wg-quick@wg0
 
 ensure_ufw_port "$PORT" udp wireguard-udp
 
+BRIDGE_OK=0
 if usk_wg_setup_tcp_bridge "$PORT" "$TCP_PORT"; then
-  echo "USK_META:port=${PORT};tcp_port=${TCP_PORT}"
-else
-  echo "USK_META:port=${PORT};tcp_port=0"
+  BRIDGE_OK=1
+fi
+
+echo "USK_META:port=${PORT};tcp_port=${TCP_PORT}"
+if [ "$BRIDGE_OK" -ne 1 ]; then
+  echo "USK_WARN:wireguard_tcp_bridge"
 fi
 usk_ok

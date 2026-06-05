@@ -11,7 +11,7 @@ class USK_ProtocolManager
                 'icon' => 'fa-shield',
                 'port_fields' => array(
                     array('key' => 'port', 'label' => 'Listen port (UDP)', 'default' => 51820),
-                    array('key' => 'tcp_port', 'label' => 'TCP bridge port (udp2raw)', 'default' => 443),
+                    array('key' => 'tcp_port', 'label' => 'TCP bridge port (udp2raw)', 'default' => 51822),
                 ),
             ),
             'openvpn' => array(
@@ -173,6 +173,15 @@ class USK_ProtocolManager
         return USK_ROOT . '/bin/install-' . $proto . '.sh';
     }
 
+    public static function effective_port($value, $default)
+    {
+        $v = (int) $value;
+        if ($v < 1 || $v > 65535) {
+            return (int) $default;
+        }
+        return $v;
+    }
+
     public static function parse_ports($proto, array $input)
     {
         $meta = self::list()[$proto] ?? null;
@@ -186,16 +195,14 @@ class USK_ProtocolManager
             if ($raw === null || $raw === '') {
                 $st = self::get_status($proto);
                 if (isset($st[$key])) {
-                    $val = (int) $st[$key];
+                    $val = self::effective_port($st[$key], $field['default']);
                 } else {
                     $val = (int) $field['default'];
                 }
             } else {
                 $val = (int) $raw;
             }
-            if ($val < 1 || $val > 65535) {
-                $val = (int) $field['default'];
-            }
+            $val = self::effective_port($val, $field['default']);
             $ports[$key] = $val;
         }
         return $ports;
@@ -211,7 +218,9 @@ class USK_ProtocolManager
         $out = array();
         foreach ($meta['port_fields'] ?? array() as $field) {
             $key = $field['key'];
-            $out[$key] = isset($st[$key]) ? (int) $st[$key] : (int) $field['default'];
+            $out[$key] = isset($st[$key])
+                ? self::effective_port($st[$key], $field['default'])
+                : (int) $field['default'];
         }
         if (!empty($meta['fixed_ports'])) {
             $out['fixed_ports'] = $meta['fixed_ports'];
@@ -229,7 +238,7 @@ class USK_ProtocolManager
             case 'l2tp':
                 return escapeshellarg(USK_ROOT);
             case 'wireguard':
-                return escapeshellarg($ports['port'] ?? 51820) . ' ' . escapeshellarg($ports['tcp_port'] ?? 443);
+                return escapeshellarg($ports['port'] ?? 51820) . ' ' . escapeshellarg($ports['tcp_port'] ?? 51822);
             default:
                 return isset($ports['port']) ? escapeshellarg($ports['port']) : '';
         }
@@ -321,11 +330,21 @@ class USK_ProtocolManager
             $status['firewall_note'] = 'Open UDP ' . $m[1] . ' and TCP ' . $m[2] . ' in your VPS cloud firewall.';
         } elseif ($proto === 'wireguard' && preg_match('/USK_META:port=(\d+);tcp_port=(\d+)/', $out, $m)) {
             $status['port'] = (int) $m[1];
-            $status['tcp_port'] = (int) $m[2];
-            if ((int) $m[2] > 0) {
-                $status['firewall_note'] = 'Open UDP ' . $m[1] . ' and TCP ' . $m[2] . ' (WireGuard TCP bridge) in your VPS cloud firewall.';
+            $requestedTcp = (int) $m[2];
+            if ($requestedTcp < 1 && isset($ports['tcp_port'])) {
+                $requestedTcp = self::effective_port($ports['tcp_port'], 51822);
+            }
+            $status['tcp_port'] = $requestedTcp > 0 ? $requestedTcp : self::effective_port($ports['tcp_port'] ?? 0, 51822);
+            if (strpos((string) $out, 'USK_WARN:wireguard_tcp_bridge') !== false) {
+                $status['tcp_bridge_active'] = false;
+                $status['last_install_warning'] = 'TCP bridge (udp2raw) did not start — check port conflict (OpenVPN TCP uses 443; use 51822 for WireGuard).';
             } else {
-                $status['firewall_note'] = 'Open UDP ' . $m[1] . ' in your VPS cloud firewall (security group).';
+                $status['tcp_bridge_active'] = $requestedTcp > 0;
+            }
+            if ((int) $status['tcp_port'] > 0) {
+                $status['firewall_note'] = 'Open UDP ' . $status['port'] . ' and TCP ' . $status['tcp_port'] . ' (WireGuard TCP bridge) in your VPS cloud firewall.';
+            } else {
+                $status['firewall_note'] = 'Open UDP ' . $status['port'] . ' in your VPS cloud firewall (security group).';
             }
         } elseif ($proto === 'l2tp' && $ok) {
             $status['port'] = 1701;

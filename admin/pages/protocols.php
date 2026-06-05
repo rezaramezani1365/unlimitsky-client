@@ -62,6 +62,9 @@ $protocols = USK_ProtocolManager::list();
                         UDP: <code class="usk-code"><?= (int) ($st['port'] ?? 51820) ?></code>
                         <?php if (!empty($st['tcp_port']) && (int) $st['tcp_port'] > 0) : ?>
                         · TCP bridge: <code class="usk-code"><?= (int) $st['tcp_port'] ?></code>
+                        <?php if (isset($st['tcp_bridge_active']) && !$st['tcp_bridge_active']) : ?>
+                        <span class="text-danger">(<?= __('protocol_tcp_bridge_inactive') ?>)</span>
+                        <?php endif; ?>
                         <?php endif; ?>
                     </p>
                     <?php elseif (!empty($st['port'])) : ?>
@@ -93,7 +96,7 @@ $protocols = USK_ProtocolManager::list();
                     <input type="hidden" name="install_protocol" value="<?= usk_esc($key) ?>">
                     <?php foreach ($portFields as $field) :
                         $fkey = $field['key'];
-                        $fval = isset($st[$fkey]) ? (int) $st[$fkey] : (int) $field['default'];
+                        $fval = USK_ProtocolManager::effective_port($st[$fkey] ?? null, $field['default']);
                     ?>
                     <div class="form-group mb-2">
                         <label class="small mb-1"><?= usk_esc($field['label']) ?></label>
@@ -101,6 +104,9 @@ $protocols = USK_ProtocolManager::list();
                                min="1" max="65535" value="<?= $fval ?>" required>
                     </div>
                     <?php endforeach; ?>
+                    <?php if ($key === 'wireguard') : ?>
+                    <p class="text-muted small mb-2"><?= __('protocol_wg_tcp_port_hint') ?></p>
+                    <?php endif; ?>
                     <?php if (!$installed) : ?>
                     <button type="submit" class="btn btn-usk-primary btn-sm w-100 mt-2" onclick="return confirm('<?= __('protocol_install_confirm') ?>')">
                         <i class="fa-solid fa-download"></i> <?= __('protocol_install') ?>
