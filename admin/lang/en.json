@@ -129,6 +129,8 @@
   "recommended": "recommended",
   "err_xray_restart_failed": "Xray could not restart after adding user — check: systemctl status xray and ensure ports 2053/8443 are free",
   "err_cisco_not_installed": "Cisco AnyConnect is not installed — install it from Protocols first",
+  "err_openvpn_not_installed": "OpenVPN is not installed — install it from Protocols first",
+  "err_openvpn_tcp_not_installed": "OpenVPN TCP server is not installed — reinstall OpenVPN from Protocols (UDP + TCP)",
   "protocol_failed": "Install failed",
   "protocol_sudo_title": "sudo access",
   "protocol_sudo_note": "Add these lines to visudo for panel installs and WooCommerce provisioning:",

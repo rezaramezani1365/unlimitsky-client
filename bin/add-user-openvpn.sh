@@ -15,24 +15,34 @@ if [ "$DURATION_DAYS" -gt 0 ] 2>/dev/null; then
   EXPIRES=$(date -Iseconds -d "+${DURATION_DAYS} days" 2>/dev/null || date -Iseconds)
 fi
 
-PROTO="${USK_OPENVPN_PROTO:-udp}"
+PROTO="${USK_OPENVPN_PROTO:-${4:-udp}}"
 PROTO=$(echo "$PROTO" | tr '[:upper:]' '[:lower:]')
 if [ "$PROTO" != "tcp" ]; then
   PROTO="udp"
 fi
 
-CFG=$(usk_openvpn_server_conf "$PROTO")
-if [ ! -f "$CFG" ]; then
+EASYRSA="/etc/openvpn/easy-rsa"
+if [ ! -d "$EASYRSA/pki" ]; then
   usk_json_fail "openvpn_not_installed"
 fi
 
-usk_openvpn_read_proto_port "$PROTO" || usk_json_fail "openvpn_config_invalid"
-PORT="$USK_OVPN_PORT"
-PROTO="$USK_OVPN_PROTO"
+PORT=""
+CFG=$(usk_openvpn_server_conf "$PROTO" 2>/dev/null || true)
+if [ -n "$CFG" ] && [ -f "$CFG" ]; then
+  usk_openvpn_read_proto_port "$PROTO"
+  PORT="$USK_OVPN_PORT"
+  PROTO="$USK_OVPN_PROTO"
+fi
+if [ -z "$PORT" ]; then
+  if [ "$PROTO" = "tcp" ]; then
+    PORT="${USK_OPENVPN_TCP_PORT:-443}"
+  else
+    PORT="${USK_OPENVPN_UDP_PORT:-1194}"
+  fi
+fi
 
-EASYRSA="/etc/openvpn/easy-rsa"
-if [ ! -d "$EASYRSA/pki" ]; then
-  usk_json_fail "openvpn_pki_missing"
+if [ "$PROTO" = "tcp" ] && [ ! -f /etc/openvpn/server-tcp.conf ]; then
+  usk_json_fail "openvpn_tcp_not_installed"
 fi
 
 cd "$EASYRSA"

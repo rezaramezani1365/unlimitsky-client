@@ -77,14 +77,19 @@ OVPN
 usk_openvpn_server_conf() {
   local proto="$1"
   proto=$(echo "$proto" | tr '[:upper:]' '[:lower:]')
-  if [ "$proto" = "tcp" ] && [ -f /etc/openvpn/server-tcp.conf ]; then
-    echo /etc/openvpn/server-tcp.conf
-  elif [ -f /etc/openvpn/server-udp.conf ]; then
+  if [ "$proto" = "tcp" ]; then
+    if [ -f /etc/openvpn/server-tcp.conf ]; then
+      echo /etc/openvpn/server-tcp.conf
+      return 0
+    fi
+    return 1
+  fi
+  if [ -f /etc/openvpn/server-udp.conf ]; then
     echo /etc/openvpn/server-udp.conf
   elif [ -f /etc/openvpn/server.conf ]; then
     echo /etc/openvpn/server.conf
   else
-    echo /etc/openvpn/server-udp.conf
+    return 1
   fi
 }
 

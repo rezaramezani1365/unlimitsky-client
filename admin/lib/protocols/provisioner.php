@@ -2,6 +2,35 @@
 
 class USK_ProtocolProvisioner
 {
+    private static function env_pair($key, $value)
+    {
+        $key = preg_replace('/[^A-Z0-9_]/', '', (string) $key);
+        if ($key === '') {
+            return '';
+        }
+        return $key . '=' . escapeshellarg((string) $value);
+    }
+
+    private static function sudo_script_cmd($script, array $env, array $args)
+    {
+        $envParts = array();
+        foreach ($env as $k => $v) {
+            if ($v === null || $v === '') {
+                continue;
+            }
+            $pair = self::env_pair($k, $v);
+            if ($pair !== '') {
+                $envParts[] = $pair;
+            }
+        }
+        $argStr = implode(' ', array_map('escapeshellarg', $args));
+        if (!empty($envParts)) {
+            return 'sudo -n env ' . implode(' ', $envParts) . ' bash '
+                . escapeshellarg($script) . ' ' . $argStr . ' 2>&1';
+        }
+        return 'sudo -n bash ' . escapeshellarg($script) . ' ' . $argStr . ' 2>&1';
+    }
+
     private static function interpret_output($out, $fallback = 'provision_error')
     {
         $out = (string) $out;
@@ -52,31 +81,27 @@ class USK_ProtocolProvisioner
         }
 
         $st = USK_ProtocolManager::get_status($protocol);
-        $envParts = array();
+        $env = array();
+        $scriptArgs = array($username, (string) (int) $volume_gb, (string) (int) $duration_days);
         if ($server_ip !== '') {
-            $envParts[] = 'USK_SERVER_IP=' . escapeshellarg($server_ip);
-        }
-        if (!empty($meta['port']) && (int) $meta['port'] > 0) {
-            $envParts[] = 'USK_PORT=' . (int) $meta['port'];
-        } elseif ($protocol !== 'xray' && !empty($st['port'])) {
-            $envParts[] = 'USK_PORT=' . (int) $st['port'];
+            $env['USK_SERVER_IP'] = $server_ip;
         }
         if ($protocol === 'openvpn') {
             $ovpnProto = strtolower((string) ($meta['openvpn_proto'] ?? 'udp'));
             if (!in_array($ovpnProto, array('udp', 'tcp'), true)) {
                 $ovpnProto = 'udp';
             }
-            $envParts[] = 'USK_OPENVPN_PROTO=' . $ovpnProto;
-        }
-        $env = implode(' ', $envParts);
-        if ($env !== '') {
-            $env .= ' ';
+            $env['USK_OPENVPN_PROTO'] = $ovpnProto;
+            $env['USK_OPENVPN_UDP_PORT'] = (int) ($st['udp_port'] ?? 1194);
+            $env['USK_OPENVPN_TCP_PORT'] = (int) ($st['tcp_port'] ?? 443);
+            $scriptArgs[] = $ovpnProto;
+        } elseif (!empty($meta['port']) && (int) $meta['port'] > 0) {
+            $env['USK_PORT'] = (int) $meta['port'];
+        } elseif ($protocol !== 'xray' && !empty($st['port'])) {
+            $env['USK_PORT'] = (int) $st['port'];
         }
 
-        $cmd = $env . 'sudo -n bash ' . escapeshellarg($script) . ' '
-            . escapeshellarg($username) . ' '
-            . (int) $volume_gb . ' '
-            . (int) $duration_days . ' 2>&1';
+        $cmd = self::sudo_script_cmd($script, $env, $scriptArgs);
         $out = shell_exec($cmd);
         if ($out === null || trim($out) === '') {
             return array('ok' => false, 'error' => 'provision_failed', 'log' => '');
@@ -230,6 +255,8 @@ class USK_ProtocolProvisioner
             'xray_restart_failed' => 'err_xray_restart_failed',
             'cisco_not_installed' => 'err_cisco_not_installed',
             'cisco_user_create_failed' => 'err_provision_failed',
+            'openvpn_not_installed' => 'err_openvpn_not_installed',
+            'openvpn_tcp_not_installed' => 'err_openvpn_tcp_not_installed',
             'provision_failed' => 'err_provision_failed',
             'invalid_provision_output' => 'err_sudo_denied',
         );

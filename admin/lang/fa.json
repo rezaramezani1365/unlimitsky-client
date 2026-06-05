@@ -129,6 +129,8 @@
   "recommended": "پیشنهادی",
   "err_xray_restart_failed": "Xray بعد از افزودن کاربر restart نشد — systemctl status xray را چک کن و مطمئن شو پورت‌های 2053 و 8443 آزادند",
   "err_cisco_not_installed": "Cisco AnyConnect نصب نیست — از بخش پروتکل‌ها نصب کن",
+  "err_openvpn_not_installed": "OpenVPN نصب نیست — از بخش پروتکل‌ها نصب کن",
+  "err_openvpn_tcp_not_installed": "سرور TCP OpenVPN نصب نیست — از بخش پروتکل‌ها OpenVPN را دوباره نصب کن (UDP + TCP)",
   "protocol_failed": "نصب ناموفق",
   "protocol_sudo_title": "دسترسی sudo",
   "protocol_sudo_note": "برای نصب از پنل و ساخت خودکار کانفیگ، این خطوط را در visudo اضافه کنید:",
