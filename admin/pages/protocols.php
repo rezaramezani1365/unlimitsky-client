@@ -3,7 +3,12 @@ $GLOBALS['page_title'] = __('nav_protocols');
 $GLOBALS['active_nav'] = 'protocols';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['install_protocol'])) {
-    $proto = preg_replace('/[^a-z]/', '', $_POST['install_protocol']);
+    $proto = USK_ProtocolManager::sanitize_key($_POST['install_protocol'] ?? '');
+    if ($proto === '') {
+        usk_flash(__('protocol_failed') . ': invalid_protocol', 'error');
+        header('Location: ' . usk_admin_url('protocols'));
+        exit;
+    }
     $wasInstalled = !empty(USK_ProtocolManager::get_status($proto)['installed']);
     $ports = USK_ProtocolManager::parse_ports($proto, $_POST);
     $res = USK_ProtocolManager::install($proto, $ports);

@@ -66,7 +66,7 @@ if ($action === 'create-service') {
         usk_api_response(400, array('ok' => false, 'error' => 'invalid_json'));
     }
 
-    $protocol = preg_replace('/[^a-z]/', '', $body['protocol'] ?? '');
+    $protocol = USK_ProtocolManager::sanitize_key($body['protocol'] ?? '');
     $volume_gb = (int) ($body['volume_gb'] ?? 0);
     $duration_days = (int) ($body['duration_days'] ?? 0);
     $wc_order_id = isset($body['wc_order_id']) ? (int) $body['wc_order_id'] : null;

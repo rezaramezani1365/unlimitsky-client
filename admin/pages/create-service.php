@@ -41,7 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($plan) {
         if ($mode === 'native') {
             $installed = USK_ProtocolManager::installed_protocols();
-            $protocol = preg_replace('/[^a-z]/', '', $_POST['protocol'] ?? '');
+            $protocol = USK_ProtocolManager::sanitize_key($_POST['protocol'] ?? '');
             if ($protocol === '' || !isset($installed[$protocol])) {
                 usk_flash(__('create_protocol_invalid'), 'error');
             } else {

@@ -49,6 +49,13 @@ class USK_ProtocolManager
         );
     }
 
+    public static function sanitize_key($proto)
+    {
+        $proto = strtolower(trim((string) $proto));
+        $allowed = array_keys(self::list());
+        return in_array($proto, $allowed, true) ? $proto : '';
+    }
+
     public static function status_file($proto)
     {
         return USK_ROOT . '/data/protocols/' . $proto . '.json';
@@ -66,7 +73,10 @@ class USK_ProtocolManager
 
     public static function probe_marker($proto)
     {
-        $marker = USK_ROOT . '/data/protocol-installed/' . preg_replace('/[^a-z]/', '', $proto);
+        $marker = USK_ROOT . '/data/protocol-installed/' . self::sanitize_key($proto);
+        if ($marker === USK_ROOT . '/data/protocol-installed/') {
+            return false;
+        }
         return is_file($marker);
     }
 
