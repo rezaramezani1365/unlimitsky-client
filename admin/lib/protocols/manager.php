@@ -184,6 +184,9 @@ class USK_ProtocolManager
             $status['tcp_port'] = (int) $m[2];
             $status['port'] = (int) $m[1];
             $status['firewall_note'] = 'Open UDP ' . $m[1] . ' and TCP ' . $m[2] . ' in your VPS cloud firewall.';
+        } elseif ($proto === 'l2tp' && $ok) {
+            $status['port'] = 1701;
+            $status['firewall_note'] = 'Open UDP 500, 4500, and 1701 in your VPS cloud firewall (security group).';
         } elseif (isset($status['port'])) {
             $p = (int) $status['port'];
             $protoLabel = $proto === 'wireguard' ? 'UDP' : ($proto === 'openvpn' ? 'UDP' : 'TCP');

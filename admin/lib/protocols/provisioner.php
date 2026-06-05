@@ -228,6 +228,10 @@ class USK_ProtocolProvisioner
             'cisco_user_create_failed' => 'err_provision_failed',
             'openvpn_not_installed' => 'err_openvpn_not_installed',
             'openvpn_tcp_not_installed' => 'err_openvpn_tcp_not_installed',
+            'l2tp_packages_failed' => 'err_l2tp_install_failed',
+            'l2tp_config_failed' => 'err_l2tp_install_failed',
+            'l2tp_service_failed' => 'err_l2tp_service_failed',
+            'l2tp_not_installed' => 'err_l2tp_not_installed',
             'provision_failed' => 'err_provision_failed',
             'invalid_provision_output' => 'err_sudo_denied',
         );
