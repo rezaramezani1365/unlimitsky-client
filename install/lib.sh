@@ -1,10 +1,22 @@
 #!/bin/bash
-# Shared helpers for UnlimitSky Ubuntu installers
+# Shared helpers for UnlimitSky Ubuntu installers (fresh Ubuntu VPS)
 # shellcheck disable=SC2034
 
 usk_rand_alnum() {
     local len="${1:-16}"
-    tr -dc 'a-zA-Z0-9' </dev/urandom | head -c "$len"
+    local raw=""
+    if command -v openssl >/dev/null 2>&1; then
+        raw=$(openssl rand -base64 256 | tr -dc 'a-zA-Z0-9')
+    else
+        set +o pipefail
+        raw=$(tr -dc 'a-zA-Z0-9' </dev/urandom 2>/dev/null | head -c "$len")
+        set -o pipefail
+    fi
+    if [ -z "$raw" ]; then
+        echo "ERROR: cannot generate random string" >&2
+        return 1
+    fi
+    printf '%s' "${raw:0:len}"
 }
 
 usk_rand_pass() {
@@ -27,23 +39,39 @@ usk_detect_php_sock() {
 }
 
 usk_mysql_cmd() {
-    if mysql -e "SELECT 1" >/dev/null 2>&1; then
+    # Fresh Ubuntu: root connects via unix socket (auth_socket) — no password needed.
+    if [ "$(id -u)" -eq 0 ] && mysql -e "SELECT 1" >/dev/null 2>&1; then
         mysql "$@"
-    elif mysql -uroot -e "SELECT 1" >/dev/null 2>&1; then
-        mysql -uroot "$@"
-    else
-        echo "ERROR: Cannot connect to MySQL. Run: sudo mysql" >&2
-        return 1
+        return $?
     fi
+    if mysql -uroot -e "SELECT 1" >/dev/null 2>&1; then
+        mysql -uroot "$@"
+        return $?
+    fi
+    if command -v sudo >/dev/null 2>&1 && sudo mysql -e "SELECT 1" >/dev/null 2>&1; then
+        sudo mysql "$@"
+        return $?
+    fi
+    echo "ERROR: Cannot connect to MySQL. Is mysql-server installed and running?" >&2
+    return 1
+}
+
+usk_mysql_wait() {
+    local i
+    for i in $(seq 1 45); do
+        if usk_mysql_cmd -e "SELECT 1" >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 1
+    done
+    echo "ERROR: MySQL did not become ready in time." >&2
+    return 1
 }
 
 usk_mysql_ensure() {
     systemctl enable mysql >/dev/null 2>&1 || systemctl enable mariadb >/dev/null 2>&1 || true
     systemctl start mysql >/dev/null 2>&1 || systemctl start mariadb >/dev/null 2>&1 || true
-    usk_mysql_cmd -e "SELECT 1" >/dev/null 2>&1 || {
-        echo "ERROR: MySQL is not running. Try: sudo systemctl start mysql" >&2
-        return 1
-    }
+    usk_mysql_wait
 }
 
 usk_mysql_create_app_db() {
@@ -51,18 +79,24 @@ usk_mysql_create_app_db() {
     usk_mysql_ensure || return 1
 
     local suffix
-    suffix=$(usk_rand_alnum 8 | tr '[:upper:]' '[:lower:]')
+    suffix="$(usk_rand_alnum 8)" || return 1
+    suffix="${suffix,,}"
+
     USK_DB_NAME="${prefix}_${suffix}"
     USK_DB_USER="${prefix}_u_${suffix}"
-    USK_DB_PASS="$(usk_rand_pass)"
+    USK_DB_PASS="$(usk_rand_pass)" || return 1
 
-    usk_mysql_cmd <<SQL
+    if ! usk_mysql_cmd <<SQL
 CREATE DATABASE IF NOT EXISTS \`${USK_DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER IF NOT EXISTS '${USK_DB_USER}'@'localhost' IDENTIFIED BY '${USK_DB_PASS}';
 ALTER USER '${USK_DB_USER}'@'localhost' IDENTIFIED BY '${USK_DB_PASS}';
 GRANT ALL PRIVILEGES ON \`${USK_DB_NAME}\`.* TO '${USK_DB_USER}'@'localhost';
 FLUSH PRIVILEGES;
 SQL
+    then
+        echo "ERROR: MySQL failed to create database/user." >&2
+        return 1
+    fi
 }
 
 usk_mysql_harden() {
@@ -77,6 +111,23 @@ usk_mysql_harden() {
         fi
     done
     systemctl restart mysql >/dev/null 2>&1 || systemctl restart mariadb >/dev/null 2>&1 || true
+    usk_mysql_wait || true
+}
+
+usk_config_incomplete() {
+    local web_root="$1"
+    [ -f "${web_root}/config.php" ] && grep -q '\[\*DB-USER\*\]' "${web_root}/config.php"
+}
+
+usk_reset_incomplete_install() {
+    local web_root="$1"
+    if usk_config_incomplete "$web_root"; then
+        echo "[*] Incomplete install detected — resetting config for a clean setup..."
+        rm -f "${web_root}/install/unlimitsky.install"
+        if [ -f "${web_root}/config.sample.php" ]; then
+            cp "${web_root}/config.sample.php" "${web_root}/config.php"
+        fi
+    fi
 }
 
 usk_save_db_provision() {

@@ -79,9 +79,12 @@ if [ "$AUTO" -eq 1 ] && [ -z "$ADMIN_PASS" ]; then
 fi
 
 export DEBIAN_FRONTEND=noninteractive
-echo "[*] Installing packages..."
+echo "[*] Installing packages (nginx, mysql, php)..."
 apt-get update -qq
-apt-get install -y nginx mysql-server php-cli php-fpm php-mysql php-curl php-json php-mbstring php-xml unzip curl sudo rsync
+apt-get install -y nginx mysql-server php-cli php-fpm php-mysql php-curl php-json php-mbstring php-xml unzip curl sudo rsync openssl git
+
+echo "[*] Starting MySQL..."
+usk_mysql_ensure
 
 echo "[*] Hardening MySQL (localhost only)..."
 usk_mysql_harden
@@ -94,6 +97,8 @@ echo "[*] Deploying files to ${WEB_ROOT}..."
 mkdir -p "$WEB_ROOT"
 rsync -a --exclude '.git' --exclude 'install-ubuntu.sh' --exclude 'REPOSITORY.md' "$SCRIPT_DIR/" "$WEB_ROOT/" 2>/dev/null \
     || cp -r "$SCRIPT_DIR"/* "$WEB_ROOT/"
+
+usk_reset_incomplete_install "$WEB_ROOT"
 
 if [ ! -f "$WEB_ROOT/config.php" ] && [ -f "$WEB_ROOT/config.sample.php" ]; then
     cp "$WEB_ROOT/config.sample.php" "$WEB_ROOT/config.php"
@@ -162,15 +167,28 @@ done
 
 [ "$OPEN_FW" -eq 1 ] && usk_firewall_allow_port "$PORT"
 
+# Already installed and healthy — update files only
+if [ "$AUTO" -eq 1 ] && [ -f "$WEB_ROOT/install/unlimitsky.install" ] && ! usk_config_incomplete "$WEB_ROOT"; then
+    usk_secure_app_files "$WEB_ROOT"
+    usk_print_box \
+        "UnlimitSky Client updated" \
+        "" \
+        "URL:        ${PUBLIC_URL}" \
+        "Admin:      ${PUBLIC_URL}/admin/login.php" \
+        "" \
+        "Install marker present — database left unchanged."
+    exit 0
+fi
+
 echo "[*] Creating MySQL database..."
-usk_mysql_create_app_db "usk_client"
+usk_mysql_create_app_db "usk_client" || exit 1
 DB_NAME="$USK_DB_NAME"
 DB_USER="$USK_DB_USER"
 DB_PASS="$USK_DB_PASS"
 usk_save_db_provision "$WEB_ROOT/install/.db-provision.json" "$DB_NAME" "$DB_USER" "$DB_PASS"
 
 if [ "$AUTO" -eq 1 ]; then
-    echo "[*] Running CLI install..."
+    echo "[*] Running CLI install (database + admin)..."
     MC_FLAG=""
     [ "$MUST_CHANGE" -eq 1 ] && MC_FLAG="--must-change=1"
     php "$WEB_ROOT/install/cli-install.php" \
@@ -186,8 +204,7 @@ if [ "$AUTO" -eq 1 ]; then
         $MC_FLAG
 
     if [ ! -f "$WEB_ROOT/install/unlimitsky.install" ]; then
-        echo "ERROR: CLI install did not complete. Check output above." >&2
-        echo "Retry: sudo bash $WEB_ROOT/install/finish-install.sh '$ADMIN_PASS'" >&2
+        echo "ERROR: Install did not finish. DB credentials: $WEB_ROOT/install/.db-provision.json" >&2
         exit 1
     fi
 
@@ -206,8 +223,7 @@ if [ "$AUTO" -eq 1 ]; then
         echo "LICENSE_URL=$LICENSE_URL" \
         echo "LICENSE_TOKEN=$LICENSE_TOKEN"
 else
-    usk_save_db_provision "$WEB_ROOT/install/.db-provision.json" "$DB_NAME" "$DB_USER" "$DB_PASS"
-    echo "[*] Database provisioned for web installer (credentials not shown — stored securely on server)."
+    echo "[*] Database provisioned for web installer (credentials stored on server)."
 fi
 
 usk_print_box \

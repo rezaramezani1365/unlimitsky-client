@@ -161,10 +161,12 @@ if ($config_file === false) {
     );
 }
 
+$install_domain = rtrim(usk_install_domain(), '/');
+
 $replace = str_replace(
-    array('[*TOKEN*]', '[*DEV*]', '[*DB-NAME*]', '[*DB-USER*]', '[*DB-PASS*]', '[*LICENSE-SERVER*]', '[*LICENSE-TOKEN*]'),
+    array('[*DOMAIN*]', '[*TOKEN*]', '[*DEV*]', '[*DB-NAME*]', '[*DB-USER*]', '[*DB-PASS*]', '[*LICENSE-SERVER*]', '[*LICENSE-TOKEN*]'),
     array(
-        'none', '0', $db_name, $db_user, $db_pass,
+        $install_domain, 'none', '0', $db_name, $db_user, $db_pass,
         trim(isset($_POST['license-server']) ? $_POST['license-server'] : ''),
         trim(isset($_POST['license-token']) ? $_POST['license-token'] : ''),
     ),
@@ -182,7 +184,6 @@ if (@file_put_contents($config_path, $replace) === false) {
 $connect = usk_run_sql_setup($db_name, $db_user, $db_pass);
 
 if (empty($connect['status'])) {
-    @file_put_contents($config_path, $config_file);
     $msg = isset($connect['msg']) ? htmlspecialchars($connect['msg']) : ($lang === 'en' ? 'Database setup failed' : 'راه‌اندازی دیتابیس ناموفق');
     usk_install_message(
         ($lang === 'en' ? '<h2>Database setup failed</h2>' : '<h2>راه‌اندازی دیتابیس ناموفق</h2>') . '<p style="color:#888;font-size:14px">' . $msg . '</p>',

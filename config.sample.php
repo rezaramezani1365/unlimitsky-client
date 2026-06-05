@@ -1,23 +1,18 @@
 <?php
 /**
  * Copy to config.php on first install (install-ubuntu.sh does this automatically).
- * Placeholders are replaced by the install wizard / cli-install.php.
+ * Placeholders are replaced by cli-install.php.
  */
 
 date_default_timezone_set('Asia/Tehran');
 error_reporting(E_ALL ^ E_NOTICE);
 
-$script_path = str_replace('\\', '/', $_SERVER['SCRIPT_FILENAME'] ?? __FILE__);
-$folder = basename(dirname($script_path));
-if ($folder === 'lib' || $folder === 'admin') {
-    $folder = basename(dirname(dirname($script_path)));
-}
 $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-$base_domain = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . ($folder && $folder !== '.' ? '/' . $folder : '');
+$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
 
 $config = [
     'version' => '3.0',
-    'domain' => $base_domain,
+    'domain' => '[*DOMAIN*]',
     'token' => '[*TOKEN*]',
     'dev' => '[*DEV*]',
     'license_server' => '[*LICENSE-SERVER*]',
@@ -30,6 +25,10 @@ $config = [
     ],
 ];
 
+if (strpos($config['domain'], '[*') === 0) {
+    $config['domain'] = $scheme . '://' . $host;
+}
+
 $db_cfg = $config['database'];
 $config_incomplete = (
     strpos($db_cfg['db_name'], '[*') === 0
@@ -38,36 +37,33 @@ $config_incomplete = (
 );
 
 $sql = null;
+$connect_error = '';
+
 if (!$config_incomplete) {
     try {
+        mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
         $sql = new mysqli(
             'localhost',
             $db_cfg['db_username'],
             $db_cfg['db_password'],
             $db_cfg['db_name']
         );
+        mysqli_report(MYSQLI_REPORT_OFF);
     } catch (mysqli_sql_exception $e) {
-        $sql = null;
+        mysqli_report(MYSQLI_REPORT_OFF);
         $connect_error = $e->getMessage();
     }
+} else {
+    $connect_error = 'Install not finished yet.';
 }
 
-if ($config_incomplete) {
-    $connect_error = 'Install not finished — database credentials are not configured yet.';
-} elseif (!($sql instanceof mysqli) || !empty($sql->connect_error)) {
-    $connect_error = ($sql instanceof mysqli && $sql->connect_error)
-        ? $sql->connect_error
-        : ($connect_error ?? 'Database connection failed');
-}
-
-if (!empty($connect_error)) {
-    $install_url = preg_replace('#/admin(/.*)?$#', '', rtrim($base_domain, '/')) . '/install/index.php';
+if ($connect_error !== '') {
     if (defined('USK_ADMIN')) {
         http_response_code(503);
-        die('<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="UTF-8"><title>Database error</title></head><body style="font-family:tahoma;padding:40px;">'
-            . '<h2>Database connection failed</h2><p>' . htmlspecialchars($connect_error) . '</p>'
-            . '<p>Run on the server: <code>sudo bash install/finish-install.sh \'YourPass123\'</code></p>'
-            . '<p><a href="' . htmlspecialchars($install_url) . '">Install wizard</a></p></body></html>');
+        die('<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="UTF-8"><title>Setup required</title></head><body style="font-family:tahoma;padding:40px;">'
+            . '<h2>Setup not complete</h2><p>' . htmlspecialchars($connect_error) . '</p>'
+            . '<p>Re-run the install command on the server, or open the install wizard.</p>'
+            . '<p><a href="' . htmlspecialchars(rtrim($config['domain'], '/') . '/install/index.php') . '">Install wizard</a></p></body></html>');
     }
     die(json_encode(array('status' => false, 'msg' => $connect_error, 'error' => 'database')));
 }

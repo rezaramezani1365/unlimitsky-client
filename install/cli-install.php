@@ -29,26 +29,42 @@ function usk_cli_flag($name)
 
 function usk_cli_run_sql_setup($db_name, $db_user, $db_pass)
 {
-    define('USK_INSTALL', true);
+    if (!defined('USK_INSTALL')) {
+        define('USK_INSTALL', true);
+    }
     $_GET['db_name'] = $db_name;
     $_GET['db_username'] = $db_user;
     $_GET['db_password'] = $db_pass;
 
     ob_start();
-    include dirname(__DIR__) . '/sql/sql.php';
+    try {
+        include dirname(__DIR__) . '/sql/sql.php';
+    } catch (Throwable $e) {
+        ob_end_clean();
+        return array('status' => false, 'msg' => $e->getMessage());
+    }
     $output = ob_get_clean();
     $data = json_decode($output, true);
     if (!is_array($data)) {
-        return array('status' => false, 'msg' => 'Invalid SQL setup response');
+        $snippet = trim(substr($output, 0, 300));
+        return array('status' => false, 'msg' => 'Invalid SQL setup response' . ($snippet !== '' ? ': ' . $snippet : ''));
     }
     return $data;
 }
 
 $root = dirname(__DIR__);
+$config_path = $root . '/config.php';
 
-if (file_exists(__DIR__ . '/unlimitsky.install')) {
-    fwrite(STDERR, "Already installed. Remove install/unlimitsky.install to reinstall.\n");
-    exit(1);
+$config_raw = file_exists($config_path) ? file_get_contents($config_path) : '';
+$config_incomplete = ($config_raw === false || strpos($config_raw, '[*DB-USER*]') !== false);
+
+if (file_exists(__DIR__ . '/unlimitsky.install') && $config_incomplete) {
+    @unlink(__DIR__ . '/unlimitsky.install');
+}
+
+if (file_exists(__DIR__ . '/unlimitsky.install') && !$config_incomplete) {
+    fwrite(STDERR, "Already installed.\n");
+    exit(0);
 }
 
 $domain = rtrim(trim(usk_cli_arg('domain')), '/');
@@ -79,17 +95,22 @@ if (strlen($admin_pass) < 6 && !($admin_pass === 'admin' && $must_change)) {
     exit(1);
 }
 
-$config_path = $root . '/config.php';
-$config_file = file_get_contents($config_path);
-if ($config_file === false) {
-    fwrite(STDERR, "Cannot read config.php\n");
-    exit(1);
+if ($config_raw === false) {
+    if (!file_exists($root . '/config.sample.php')) {
+        fwrite(STDERR, "Cannot read config.php or config.sample.php\n");
+        exit(1);
+    }
+    $config_raw = file_get_contents($root . '/config.sample.php');
+    if ($config_raw === false || file_put_contents($config_path, $config_raw) === false) {
+        fwrite(STDERR, "Cannot create config.php\n");
+        exit(1);
+    }
 }
 
 $replace = str_replace(
-    array('[*TOKEN*]', '[*DEV*]', '[*DB-NAME*]', '[*DB-USER*]', '[*DB-PASS*]', '[*LICENSE-SERVER*]', '[*LICENSE-TOKEN*]'),
-    array('none', '0', $db_name, $db_user, $db_pass, $license_server, $license_token),
-    $config_file
+    array('[*DOMAIN*]', '[*TOKEN*]', '[*DEV*]', '[*DB-NAME*]', '[*DB-USER*]', '[*DB-PASS*]', '[*LICENSE-SERVER*]', '[*LICENSE-TOKEN*]'),
+    array($domain, 'none', '0', $db_name, $db_user, $db_pass, $license_server, $license_token),
+    $config_raw
 );
 
 if (file_put_contents($config_path, $replace) === false) {
@@ -99,15 +120,13 @@ if (file_put_contents($config_path, $replace) === false) {
 
 $connect = usk_cli_run_sql_setup($db_name, $db_user, $db_pass);
 if (empty($connect['status'])) {
-    $provision = array(
+    @file_put_contents(__DIR__ . '/.db-provision.json', json_encode(array(
         'db_name' => $db_name,
         'db_user' => $db_user,
         'db_pass' => $db_pass,
         'created_at' => date('c'),
-    );
-    @file_put_contents(__DIR__ . '/.db-provision.json', json_encode($provision, JSON_PRETTY_PRINT));
+    ), JSON_PRETTY_PRINT));
     fwrite(STDERR, 'Database setup failed: ' . ($connect['msg'] ?? 'unknown') . "\n");
-    fwrite(STDERR, "Credentials kept in config.php and install/.db-provision.json — fix schema then re-run.\n");
     exit(1);
 }
 
@@ -137,9 +156,6 @@ echo json_encode(array(
     'ok' => true,
     'domain' => $domain,
     'admin_url' => $domain . '/admin/login.php',
-    'install_url' => $domain . '/install/index.php',
-    'db_name' => $db_name,
-    'db_user' => $db_user,
     'admin_user' => $admin_user,
     'must_change_password' => $must_change,
     'language' => $lang,

@@ -1,7 +1,6 @@
 #!/bin/bash
-# Finish client install (DB + config + admin) — no browser needed
-# Usage: sudo bash install/finish-install.sh
-#        sudo bash install/finish-install.sh 'YourPass123'
+# Finish incomplete install — normally not needed; curl install handles everything.
+# Usage: sudo bash install/finish-install.sh 'YourPass123'
 set -euo pipefail
 
 if [ "$EUID" -ne 0 ]; then
@@ -10,14 +9,13 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CLIENT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 WEB_ROOT="/var/www/unlimitsky"
-[ -d "$WEB_ROOT/install" ] || WEB_ROOT="$CLIENT_ROOT"
+[ -d "$WEB_ROOT/install" ] || WEB_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # shellcheck source=/dev/null
 source "$SCRIPT_DIR/lib.sh"
 
-ADMIN_PASS="${1:-admin}"
+ADMIN_PASS="${1:-Pass123}"
 ADMIN_USER="admin"
 MUST_CHANGE=0
 PORT="${USK_PORT:-8082}"
@@ -29,15 +27,16 @@ if [ "$ADMIN_PASS" = "admin" ] || [ -z "${1:-}" ]; then
     MUST_CHANGE=1
 fi
 
-if [ -f "$WEB_ROOT/install/unlimitsky.install" ]; then
-    echo "Already installed."
-    echo "Admin: ${PUBLIC_URL}/admin/login.php"
+if [ -f "$WEB_ROOT/install/unlimitsky.install" ] && ! usk_config_incomplete "$WEB_ROOT"; then
+    echo "Already installed: ${PUBLIC_URL}/admin/login.php"
     exit 0
 fi
 
+usk_reset_incomplete_install "$WEB_ROOT"
+
 if [ ! -f "$WEB_ROOT/install/.db-provision.json" ]; then
     echo "[*] Creating MySQL database..."
-    usk_mysql_create_app_db "usk_client"
+    usk_mysql_create_app_db "usk_client" || exit 1
     usk_save_db_provision "$WEB_ROOT/install/.db-provision.json" "$USK_DB_NAME" "$USK_DB_USER" "$USK_DB_PASS"
 else
     USK_DB_NAME="$(php -r 'echo json_decode(file_get_contents($argv[1]), true)["db_name"];' "$WEB_ROOT/install/.db-provision.json")"
@@ -76,6 +75,6 @@ usk_print_box \
     "" \
     "Admin:  ${PUBLIC_URL}/admin/login.php" \
     "User:   ${ADMIN_USER}" \
-    "Pass:   ${ADMIN_PASS}$([ "$MUST_CHANGE" -eq 1 ] && echo ' (change on first login)')" \
+    "Pass:   ${ADMIN_PASS}" \
     "" \
     "Saved: /root/unlimitsky-client.credentials"
