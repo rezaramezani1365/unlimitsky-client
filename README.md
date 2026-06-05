@@ -604,6 +604,10 @@ After installation, the running panel lives at `/var/www/unlimitsky`.
 - **Install** issues → see troubleshooting above
 
 Extended guide: [docs/RESELLER-GUIDE.md](docs/RESELLER-GUIDE.md)
+<<<<<<< HEAD
 #   u n l i m i t s k y - c l i e n t 
  
  
+=======
+#
+>>>>>>> 91c16102e4c78ef11c44ca334b50222e0600869f
