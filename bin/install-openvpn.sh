@@ -3,6 +3,12 @@
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$DIR/usk-common.sh"
 
+PORT="${1:-1194}"
+PORT=$(echo "$PORT" | tr -dc '0-9')
+if [ -z "$PORT" ] || [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ] 2>/dev/null; then
+  PORT=1194
+fi
+
 apt-get update -qq
 apt-get install -y openvpn easy-rsa
 
@@ -18,8 +24,8 @@ if [ ! -f pki/ca.crt ]; then
   ./easyrsa gen-dh
 fi
 
-cat > /etc/openvpn/server.conf <<'OVPN'
-port 1194
+cat > /etc/openvpn/server.conf <<OVPN
+port ${PORT}
 proto udp
 dev tun
 ca /etc/openvpn/easy-rsa/pki/ca.crt
@@ -41,5 +47,6 @@ sysctl -w net.ipv4.ip_forward=1
 systemctl enable openvpn@server
 systemctl restart openvpn@server || systemctl start openvpn@server
 
-ensure_ufw_port 1194 udp openvpn
+ensure_ufw_port "$PORT" udp openvpn
+echo "USK_META:port=${PORT}"
 usk_ok

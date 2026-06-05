@@ -1,5 +1,7 @@
 #!/bin/bash
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_PROV_VLESS="${USK_XRAY_VLESS_PORT:-}"
+_PROV_VMESS="${USK_XRAY_VMESS_PORT:-}"
 source "$DIR/provision-common.sh"
 source "$DIR/xray-common.sh"
 
@@ -30,6 +32,8 @@ fi
 usk_xray_ports_from_config "$XRAY_CFG"
 VLESS_PORT="$USK_XRAY_VLESS_PORT"
 VMESS_PORT="$USK_XRAY_VMESS_PORT"
+[ -n "$_PROV_VLESS" ] && VLESS_PORT="$_PROV_VLESS"
+[ -n "$_PROV_VMESS" ] && VMESS_PORT="$_PROV_VMESS"
 
 UUID=$(cat /proc/sys/kernel/random/uuid)
 SERVER_IP=$(usk_server_ip)

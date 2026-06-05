@@ -5,7 +5,8 @@ $GLOBALS['active_nav'] = 'protocols';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['install_protocol'])) {
     $proto = preg_replace('/[^a-z]/', '', $_POST['install_protocol']);
     $wasInstalled = !empty(USK_ProtocolManager::get_status($proto)['installed']);
-    $res = USK_ProtocolManager::install($proto);
+    $ports = USK_ProtocolManager::parse_ports($proto, $_POST);
+    $res = USK_ProtocolManager::install($proto, $ports);
     if (!empty($res['ok'])) {
         usk_flash($wasInstalled ? __('protocol_reinstalled') : __('protocol_installed'));
     } else {
@@ -25,6 +26,7 @@ $protocols = USK_ProtocolManager::list();
 <?php foreach ($protocols as $key => $meta) :
     $st = USK_ProtocolManager::get_status($key);
     $installed = !empty($st['installed']);
+    $portFields = $meta['port_fields'] ?? array();
 ?>
     <div class="col-md-6 col-lg-4">
         <div class="usk-card h-100">
@@ -33,14 +35,23 @@ $protocols = USK_ProtocolManager::list();
             </div>
             <div class="p-3">
                 <p class="text-muted small mb-2"><?= __('protocol_port') ?>: <code class="usk-code"><?= (int) $meta['port'] ?></code></p>
-                <?php if ($installed && $key === 'xray' && !empty($st['vless_port'])) : ?>
-                <p class="text-muted small mb-2">
-                    VLESS: <code class="usk-code"><?= (int) $st['vless_port'] ?></code>
-                    · VMess: <code class="usk-code"><?= (int) ($st['vmess_port'] ?? 8443) ?></code>
-                </p>
-                <?php if (!empty($st['firewall_note'])) : ?>
-                <p class="small text-warning mb-2"><i class="fa-solid fa-triangle-exclamation"></i> <?= usk_esc($st['firewall_note']) ?></p>
-                <?php endif; ?>
+                <?php if ($installed) : ?>
+                    <?php if ($key === 'xray' && !empty($st['vless_port'])) : ?>
+                    <p class="text-muted small mb-2">
+                        VLESS: <code class="usk-code"><?= (int) $st['vless_port'] ?></code>
+                        · VMess: <code class="usk-code"><?= (int) ($st['vmess_port'] ?? 8443) ?></code>
+                    </p>
+                    <?php elseif (!empty($st['port'])) : ?>
+                    <p class="text-muted small mb-2"><?= __('protocol_active_port') ?>: <code class="usk-code"><?= (int) $st['port'] ?></code></p>
+                    <?php endif; ?>
+                    <?php if (!empty($meta['fixed_ports'])) : ?>
+                    <p class="text-muted small mb-2"><?= __('protocol_fixed_ports') ?>: <?= usk_esc($meta['fixed_ports']) ?></p>
+                    <?php endif; ?>
+                    <?php if (!empty($st['firewall_note'])) : ?>
+                    <p class="small text-warning mb-2"><i class="fa-solid fa-triangle-exclamation"></i> <?= usk_esc($st['firewall_note']) ?></p>
+                    <?php endif; ?>
+                <?php elseif (!empty($meta['fixed_ports'])) : ?>
+                    <p class="text-muted small mb-2"><?= __('protocol_fixed_ports') ?>: <?= usk_esc($meta['fixed_ports']) ?></p>
                 <?php endif; ?>
                 <p class="mb-3">
                     <?php if ($installed) : ?>
@@ -49,24 +60,31 @@ $protocols = USK_ProtocolManager::list();
                         <span class="badge badge-danger"><?= __('protocol_not_installed') ?></span>
                     <?php endif; ?>
                 </p>
-                <?php if (!$installed) : ?>
                 <form method="post">
                     <input type="hidden" name="install_protocol" value="<?= usk_esc($key) ?>">
-                    <button type="submit" class="btn btn-usk-primary btn-sm w-100" onclick="return confirm('<?= __('protocol_install_confirm') ?>')">
+                    <?php foreach ($portFields as $field) :
+                        $fkey = $field['key'];
+                        $fval = isset($st[$fkey]) ? (int) $st[$fkey] : (int) $field['default'];
+                    ?>
+                    <div class="form-group mb-2">
+                        <label class="small mb-1"><?= usk_esc($field['label']) ?></label>
+                        <input type="number" class="form-control form-control-sm" name="port_<?= usk_esc($fkey) ?>"
+                               min="1" max="65535" value="<?= $fval ?>" required>
+                    </div>
+                    <?php endforeach; ?>
+                    <?php if (!$installed) : ?>
+                    <button type="submit" class="btn btn-usk-primary btn-sm w-100 mt-2" onclick="return confirm('<?= __('protocol_install_confirm') ?>')">
                         <i class="fa-solid fa-download"></i> <?= __('protocol_install') ?>
                     </button>
-                </form>
-                <?php else : ?>
-                <?php if (!empty($st['updated_at'])) : ?>
-                <p class="text-muted small mb-2"><?= __('protocol_last_install') ?>: <?= usk_esc(date('Y-m-d H:i', strtotime($st['updated_at']))) ?></p>
-                <?php endif; ?>
-                <form method="post">
-                    <input type="hidden" name="install_protocol" value="<?= usk_esc($key) ?>">
-                    <button type="submit" class="btn btn-outline-secondary btn-sm w-100" onclick="return confirm('<?= __('protocol_reinstall_confirm') ?>')">
+                    <?php else : ?>
+                    <?php if (!empty($st['updated_at'])) : ?>
+                    <p class="text-muted small mb-2 mt-2"><?= __('protocol_last_install') ?>: <?= usk_esc(date('Y-m-d H:i', strtotime($st['updated_at']))) ?></p>
+                    <?php endif; ?>
+                    <button type="submit" class="btn btn-outline-secondary btn-sm w-100 mt-2" onclick="return confirm('<?= __('protocol_reinstall_confirm') ?>')">
                         <i class="fa-solid fa-rotate"></i> <?= __('protocol_reinstall') ?>
                     </button>
+                    <?php endif; ?>
                 </form>
-                <?php endif; ?>
             </div>
         </div>
     </div>

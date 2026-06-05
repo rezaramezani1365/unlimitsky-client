@@ -29,7 +29,7 @@ if [ ! -f "pki/issued/${USERNAME}.crt" ]; then
 fi
 
 SERVER_IP=$(usk_server_ip)
-PORT=1194
+PORT=$(usk_protocol_port /etc/openvpn/server.conf '^port ' 1194)
 CA=$(cat pki/ca.crt)
 CERT=$(cat "pki/issued/${USERNAME}.crt")
 KEY=$(cat "pki/private/${USERNAME}.key")
@@ -78,9 +78,10 @@ if command -v jq >/dev/null 2>&1; then
     --arg cfg "$CONFIG" \
     --arg ip "$SERVER_IP" \
     --arg exp "$EXPIRES" \
+    --argjson port "$PORT" \
     --argjson vol "$VOLUME_GB" \
     --argjson days "$DURATION_DAYS" \
-    '{ok:true, username:$u, protocol:"openvpn", config:$cfg, links:$cfg, server_ip:$ip, port:1194, expires_at:$exp, volume_gb:$vol, duration_days:$days}'
+    '{ok:true, username:$u, protocol:"openvpn", config:$cfg, links:$cfg, server_ip:$ip, port:$port, expires_at:$exp, volume_gb:$vol, duration_days:$days}'
   exit 0
 fi
 

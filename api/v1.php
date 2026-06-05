@@ -43,10 +43,14 @@ if ($action === 'protocols') {
     $installed = USK_ProtocolManager::installed_protocols();
     $list = array();
     foreach ($installed as $key => $meta) {
+        $st = USK_ProtocolManager::get_status($key);
+        $ports = USK_ProtocolManager::port_defaults_for_create($key);
         $list[] = array(
             'id' => $key,
             'name' => $meta['name'],
             'port' => $meta['port'],
+            'ports' => $ports,
+            'installed_port' => $st['port'] ?? null,
         );
     }
     usk_api_response(200, array('ok' => true, 'protocols' => $list));
@@ -91,6 +95,9 @@ if ($action === 'create-service') {
         'source' => 'woocommerce',
         'wc_order_id' => $wc_order_id,
         'server_ip' => $server_ip,
+        'port' => isset($body['port']) ? (int) $body['port'] : null,
+        'vless_port' => isset($body['vless_port']) ? (int) $body['vless_port'] : null,
+        'vmess_port' => isset($body['vmess_port']) ? (int) $body['vmess_port'] : null,
     ));
 
     if (empty($created['ok'])) {

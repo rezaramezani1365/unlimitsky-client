@@ -53,3 +53,22 @@ usk_next_ip() {
 ensure_jq() {
   command -v jq >/dev/null 2>&1 || apt-get install -y jq >/dev/null 2>&1 || true
 }
+
+usk_protocol_port() {
+  local file="$1"
+  local pattern="$2"
+  local default="$3"
+  if [ -n "$USK_PORT" ]; then
+    echo "$USK_PORT"
+    return
+  fi
+  if [ -f "$file" ]; then
+    local p
+    p=$(grep -E "$pattern" "$file" 2>/dev/null | head -1 | grep -oE '[0-9]+' | head -1)
+    if [ -n "$p" ]; then
+      echo "$p"
+      return
+    fi
+  fi
+  echo "$default"
+}

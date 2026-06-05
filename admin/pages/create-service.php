@@ -7,6 +7,12 @@ $GLOBALS['active_nav'] = 'create-service';
 
 $result = null;
 $installed = USK_ProtocolManager::installed_protocols();
+$protocolPortDefaults = array();
+foreach (USK_ProtocolManager::list() as $pkey => $pmeta) {
+    if (isset($installed[$pkey])) {
+        $protocolPortDefaults[$pkey] = USK_ProtocolManager::port_defaults_for_create($pkey);
+    }
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $mode = $_POST['mode'] ?? 'native';
@@ -39,7 +45,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $code = (string) rand(111111, 999999);
                 $username = usk_service_name($code, 'admin');
-                $created = USK_Service::create_native($protocol, $volume_gb, $duration_days, $username);
+                $provisionMeta = array();
+                if (!empty($_POST['custom_port'])) {
+                    $provisionMeta['port'] = (int) $_POST['custom_port'];
+                }
+                if (!empty($_POST['custom_vless_port'])) {
+                    $provisionMeta['vless_port'] = (int) $_POST['custom_vless_port'];
+                }
+                if (!empty($_POST['custom_vmess_port'])) {
+                    $provisionMeta['vmess_port'] = (int) $_POST['custom_vmess_port'];
+                }
+                $created = USK_Service::create_native($protocol, $volume_gb, $duration_days, $username, $provisionMeta);
 
                 if (!$created['ok']) {
                     usk_flash($created['error'] ?? __('create_failed'), 'error');
@@ -152,6 +168,28 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
                     <p class="text-muted small mt-1"><?= __('create_no_protocols') ?> <a href="<?= usk_admin_url('protocols') ?>"><?= __('nav_protocols') ?></a></p>
                 <?php endif; ?>
             </div>
+            <div class="form-group native-field" id="create-port-fields" style="display:none;">
+                <label><?= __('create_config_port') ?></label>
+                <div id="create-port-single" style="display:none;">
+                    <input type="number" class="form-control" name="custom_port" id="custom-port" min="1" max="65535">
+                    <p class="text-muted small mt-1"><?= __('create_config_port_hint') ?></p>
+                </div>
+                <div id="create-port-xray" style="display:none;">
+                    <div class="form-row">
+                        <div class="col-md-6 mb-2">
+                            <label class="small">VLESS</label>
+                            <input type="number" class="form-control" name="custom_vless_port" id="custom-vless-port" min="1" max="65535">
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <label class="small">VMess</label>
+                            <input type="number" class="form-control" name="custom_vmess_port" id="custom-vmess-port" min="1" max="65535">
+                        </div>
+                    </div>
+                </div>
+                <div id="create-port-fixed" style="display:none;">
+                    <p class="text-muted small mb-0" id="create-port-fixed-text"></p>
+                </div>
+            </div>
             <div class="form-group panel-field" style="display:none;">
                 <label><?= __('create_panel_select') ?></label>
                 <select class="form-control" name="panel_id">
@@ -170,6 +208,34 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
 (function(){
     var mode = document.getElementById('create-mode');
     var planSource = document.getElementById('plan-source');
+    var protocolPorts = <?= json_encode($protocolPortDefaults, JSON_UNESCAPED_UNICODE) ?>;
+    function updatePortFields() {
+        var proto = document.getElementById('native-protocol').value;
+        var wrap = document.getElementById('create-port-fields');
+        var single = document.getElementById('create-port-single');
+        var xray = document.getElementById('create-port-xray');
+        var fixed = document.getElementById('create-port-fixed');
+        if (!wrap || !proto || !protocolPorts[proto]) {
+            if (wrap) wrap.style.display = 'none';
+            return;
+        }
+        wrap.style.display = '';
+        single.style.display = 'none';
+        xray.style.display = 'none';
+        fixed.style.display = 'none';
+        var cfg = protocolPorts[proto];
+        if (proto === 'xray') {
+            xray.style.display = '';
+            document.getElementById('custom-vless-port').value = cfg.vless_port || 2053;
+            document.getElementById('custom-vmess-port').value = cfg.vmess_port || 8443;
+        } else if (cfg.fixed_ports) {
+            fixed.style.display = '';
+            document.getElementById('create-port-fixed-text').textContent = cfg.fixed_ports;
+        } else if (cfg.port) {
+            single.style.display = '';
+            document.getElementById('custom-port').value = cfg.port;
+        }
+    }
     function toggle() {
         var isNative = mode.value === 'native';
         var isManual = planSource.value === 'manual';
@@ -183,9 +249,12 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         if (panel) panel.required = !isNative;
         var planSel = document.getElementById('plan-select');
         if (planSel) planSel.required = !isManual;
+        if (isNative) updatePortFields();
     }
     mode.addEventListener('change', toggle);
     planSource.addEventListener('change', toggle);
+    var protoEl = document.getElementById('native-protocol');
+    if (protoEl) protoEl.addEventListener('change', updatePortFields);
     toggle();
 })();
 </script>

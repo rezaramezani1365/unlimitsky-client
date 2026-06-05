@@ -28,7 +28,7 @@ CLIENT_PRIV=$(wg genkey)
 CLIENT_PUB=$(echo "$CLIENT_PRIV" | wg pubkey)
 SERVER_PUB=$(cat /etc/wireguard/server_public.key)
 ENDPOINT=$(usk_server_ip)
-PORT=51820
+PORT=$(usk_protocol_port /etc/wireguard/wg0.conf '^ListenPort' 51820)
 
 wg set wg0 peer "$CLIENT_PUB" allowed-ips "${CLIENT_IP}/32"
 

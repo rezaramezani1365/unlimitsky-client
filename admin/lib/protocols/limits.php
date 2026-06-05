@@ -41,7 +41,7 @@ class USK_ProtocolLimits
             'details' => array(),
         );
 
-        foreach (array('wireguard', 'openvpn', 'xray', 'l2tp') as $protocol) {
+        foreach (array('wireguard', 'openvpn', 'xray', 'l2tp', 'cisco') as $protocol) {
             $clients = self::load_protocol_clients($protocol);
             foreach ($clients as $username => $rec) {
                 if (!is_array($rec) || !self::is_active_status($rec['status'] ?? 'active')) {
@@ -208,10 +208,12 @@ class USK_ProtocolLimits
             $cmd .= ' ' . escapeshellarg($m['uuid'] ?? '');
         } elseif ($protocol === 'l2tp') {
             $cmd .= ' ' . escapeshellarg($m['password'] ?? '');
+        } elseif ($protocol === 'cisco') {
+            $cmd .= ' ' . escapeshellarg($m['password'] ?? '');
         }
 
         $out = shell_exec($cmd . ' 2>&1');
-        if ($protocol === 'openvpn' && $out && preg_match('/USK_JSON:(.+)$/s', $out, $match)) {
+        if (($protocol === 'openvpn' || $protocol === 'cisco') && $out && preg_match('/USK_JSON:(.+)$/s', $out, $match)) {
             $data = json_decode(trim($match[1]), true);
             if (is_array($data)) {
                 return $data;

@@ -4,8 +4,15 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$DIR/usk-common.sh"
 source "$DIR/xray-common.sh"
 
-VLESS_PORT="${USK_XRAY_VLESS_PORT}"
-VMESS_PORT="${USK_XRAY_VMESS_PORT}"
+VLESS_PORT="${1:-${USK_XRAY_VLESS_PORT:-2053}}"
+VMESS_PORT="${2:-${USK_XRAY_VMESS_PORT:-8443}}"
+VLESS_PORT=$(echo "$VLESS_PORT" | tr -dc '0-9')
+VMESS_PORT=$(echo "$VMESS_PORT" | tr -dc '0-9')
+[ -n "$VLESS_PORT" ] && [ "$VLESS_PORT" -ge 1 ] && [ "$VLESS_PORT" -le 65535 ] 2>/dev/null || VLESS_PORT=2053
+[ -n "$VMESS_PORT" ] && [ "$VMESS_PORT" -ge 1 ] && [ "$VMESS_PORT" -le 65535 ] 2>/dev/null || VMESS_PORT=8443
+
+export USK_XRAY_VLESS_PORT="$VLESS_PORT"
+export USK_XRAY_VMESS_PORT="$VMESS_PORT"
 
 apt-get update -qq
 apt-get install -y curl unzip jq

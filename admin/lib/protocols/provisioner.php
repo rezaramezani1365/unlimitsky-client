@@ -51,9 +51,25 @@ class USK_ProtocolProvisioner
             $server_ip = preg_replace('/[^0-9a-fA-F.:]/', '', $meta['server_ip']);
         }
 
-        $env = '';
+        $st = USK_ProtocolManager::get_status($protocol);
+        $envParts = array();
         if ($server_ip !== '') {
-            $env = 'USK_SERVER_IP=' . escapeshellarg($server_ip) . ' ';
+            $envParts[] = 'USK_SERVER_IP=' . escapeshellarg($server_ip);
+        }
+        if (!empty($meta['port']) && (int) $meta['port'] > 0) {
+            $envParts[] = 'USK_PORT=' . (int) $meta['port'];
+        } elseif (!empty($st['port'])) {
+            $envParts[] = 'USK_PORT=' . (int) $st['port'];
+        }
+        if (!empty($meta['vless_port']) && (int) $meta['vless_port'] > 0) {
+            $envParts[] = 'USK_XRAY_VLESS_PORT=' . (int) $meta['vless_port'];
+        }
+        if (!empty($meta['vmess_port']) && (int) $meta['vmess_port'] > 0) {
+            $envParts[] = 'USK_XRAY_VMESS_PORT=' . (int) $meta['vmess_port'];
+        }
+        $env = implode(' ', $envParts);
+        if ($env !== '') {
+            $env .= ' ';
         }
 
         $cmd = $env . 'sudo -n bash ' . escapeshellarg($script) . ' '
@@ -189,6 +205,8 @@ class USK_ProtocolProvisioner
             'xray_vless_port_not_listening' => 'err_xray_not_running',
             'xray_vmess_port_not_listening' => 'err_xray_not_running',
             'xray_config_test_failed' => 'err_xray_config_invalid',
+            'cisco_not_installed' => 'err_cisco_not_installed',
+            'cisco_user_create_failed' => 'err_provision_failed',
             'provision_failed' => 'err_provision_failed',
             'invalid_provision_output' => 'err_sudo_denied',
         );
