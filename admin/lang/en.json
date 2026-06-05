@@ -208,7 +208,7 @@
   "err_sudo_denied": "Panel cannot run VPN scripts (sudo). Re-run the install command or fix /etc/sudoers.d/unlimitsky",
   "err_xray_not_installed": "Xray is not installed on the server — install it from Protocols first",
   "err_jq_required": "jq is missing on the server — run: apt install jq",
-  "err_xray_not_running": "Xray is not listening on the server — reinstall Xray from Protocols and open ports 2053 + 8443 in VPS firewall",
+  "err_xray_not_running": "Xray is not listening on the server — reinstall Xray from Protocols and open ports 2053 + 2087 in VPS firewall",
   "err_xray_config_invalid": "Xray config is invalid — reinstall Xray from Protocols",
   "err_provision_failed": "Could not run provisioning script on the server",
   "create_plan_invalid": "Invalid plan selected",

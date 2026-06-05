@@ -39,7 +39,7 @@ $protocols = USK_ProtocolManager::list();
                     <?php if ($key === 'xray' && !empty($st['vless_port'])) : ?>
                     <p class="text-muted small mb-2">
                         VLESS: <code class="usk-code"><?= (int) $st['vless_port'] ?></code>
-                        · VMess: <code class="usk-code"><?= (int) ($st['vmess_port'] ?? 8443) ?></code>
+                        · VMess: <code class="usk-code"><?= (int) ($st['vmess_port'] ?? 2087) ?></code>
                     </p>
                     <?php elseif (!empty($st['port'])) : ?>
                     <p class="text-muted small mb-2"><?= __('protocol_active_port') ?>: <code class="usk-code"><?= (int) $st['port'] ?></code></p>

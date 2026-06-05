@@ -5,11 +5,21 @@ source "$DIR/usk-common.sh"
 source "$DIR/xray-common.sh"
 
 VLESS_PORT="${1:-${USK_XRAY_VLESS_PORT:-2053}}"
-VMESS_PORT="${2:-${USK_XRAY_VMESS_PORT:-8443}}"
+VMESS_PORT="${2:-${USK_XRAY_VMESS_PORT:-2087}}"
 VLESS_PORT=$(echo "$VLESS_PORT" | tr -dc '0-9')
 VMESS_PORT=$(echo "$VMESS_PORT" | tr -dc '0-9')
 [ -n "$VLESS_PORT" ] && [ "$VLESS_PORT" -ge 1 ] && [ "$VLESS_PORT" -le 65535 ] 2>/dev/null || VLESS_PORT=2053
-[ -n "$VMESS_PORT" ] && [ "$VMESS_PORT" -ge 1 ] && [ "$VMESS_PORT" -le 65535 ] 2>/dev/null || VMESS_PORT=8443
+[ -n "$VMESS_PORT" ] && [ "$VMESS_PORT" -ge 1 ] && [ "$VMESS_PORT" -le 65535 ] 2>/dev/null || VMESS_PORT=2087
+
+if [ "$VLESS_PORT" = "$VMESS_PORT" ]; then
+  VMESS_PORT=$((VLESS_PORT + 1))
+fi
+
+VLESS_PORT=$(usk_xray_pick_free_port "$VLESS_PORT")
+VMESS_PORT=$(usk_xray_pick_free_port "$VMESS_PORT")
+if [ "$VLESS_PORT" = "$VMESS_PORT" ]; then
+  VMESS_PORT=$(usk_xray_pick_free_port $((VMESS_PORT + 1)))
+fi
 
 export USK_XRAY_VLESS_PORT="$VLESS_PORT"
 export USK_XRAY_VMESS_PORT="$VMESS_PORT"
@@ -17,58 +27,37 @@ export USK_XRAY_VMESS_PORT="$VMESS_PORT"
 apt-get update -qq
 apt-get install -y curl unzip jq
 
-bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
+bash -c "$(curl -fsSL https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install || usk_fail "xray_binary_install_failed"
 
 UUID=$(cat /proc/sys/kernel/random/uuid)
 mkdir -p /usr/local/etc/xray
 
-EXISTING_VLESS='[]'
-EXISTING_VMESS='[]'
-if [ -f "$XRAY_CFG" ] && command -v jq >/dev/null 2>&1; then
-  EXISTING_VLESS=$(jq -c '[.inbounds[0].settings.clients[]? | del(.flow) | {id, email}]' "$XRAY_CFG" 2>/dev/null || echo '[]')
-  EXISTING_VMESS=$(jq -c '[.inbounds[1].settings.clients[]? | {id, email, alterId: (.alterId // 0)}]' "$XRAY_CFG" 2>/dev/null || echo '[]')
+if [ -f "$XRAY_CFG" ]; then
+  cp "$XRAY_CFG" "${XRAY_CFG}.bak.$(date +%s)" 2>/dev/null || true
 fi
+
+EXISTING_VLESS=$(usk_xray_load_clients "$XRAY_CFG" "vless")
+EXISTING_VMESS=$(usk_xray_load_clients "$XRAY_CFG" "vmess")
 
 if [ "$EXISTING_VLESS" = "[]" ] || [ "$EXISTING_VLESS" = "null" ]; then
   EXISTING_VLESS="[{\"id\":\"$UUID\",\"email\":\"bootstrap\"}]"
 fi
 if [ "$EXISTING_VMESS" = "[]" ] || [ "$EXISTING_VMESS" = "null" ]; then
-  EXISTING_VMESS="[{\"id\":\"$UUID\",\"alterId\":0,\"email\":\"bootstrap\"}]"
+  EXISTING_VMESS="[{\"id\":\"$UUID\",\"email\":\"bootstrap\"}]"
 fi
 
-jq -n \
-  --argjson vless "$EXISTING_VLESS" \
-  --argjson vmess "$EXISTING_VMESS" \
-  --argjson vless_port "$VLESS_PORT" \
-  --argjson vmess_port "$VMESS_PORT" \
-  '{
-    log: { loglevel: "warning" },
-    inbounds: [
-      {
-        listen: "0.0.0.0",
-        port: $vless_port,
-        protocol: "vless",
-        tag: "vless-in",
-        settings: { clients: $vless, decryption: "none" },
-        streamSettings: {
-          network: "tcp",
-          security: "none",
-          tcpSettings: { header: { type: "none" } }
-        },
-        sniffing: { enabled: true, destOverride: ["http", "tls"] }
-      },
-      {
-        listen: "0.0.0.0",
-        port: $vmess_port,
-        protocol: "vmess",
-        tag: "vmess-in",
-        settings: { clients: $vmess },
-        streamSettings: { network: "tcp", security: "none" },
-        sniffing: { enabled: true, destOverride: ["http", "tls"] }
-      }
-    ],
-    outbounds: [{ protocol: "freedom", tag: "direct" }]
-  }' > "$XRAY_CFG"
+if ! usk_xray_write_config "$XRAY_CFG" "$EXISTING_VLESS" "$EXISTING_VMESS" "$VLESS_PORT" "$VMESS_PORT"; then
+  usk_fail "xray_config_json_failed"
+fi
+
+if ! usk_xray_test_config "$XRAY_CFG"; then
+  UUID=$(cat /proc/sys/kernel/random/uuid)
+  EXISTING_VLESS="[{\"id\":\"$UUID\",\"email\":\"bootstrap\"}]"
+  EXISTING_VMESS="[{\"id\":\"$UUID\",\"email\":\"bootstrap\"}]"
+  usk_xray_write_config "$XRAY_CFG" "$EXISTING_VLESS" "$EXISTING_VMESS" "$VLESS_PORT" "$VMESS_PORT" \
+    || usk_fail "xray_config_json_failed"
+  usk_xray_test_config "$XRAY_CFG" || usk_fail "xray_config_test_failed"
+fi
 
 systemctl enable xray 2>/dev/null || systemctl enable xray.service 2>/dev/null || true
 

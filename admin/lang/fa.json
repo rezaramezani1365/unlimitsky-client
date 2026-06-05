@@ -208,7 +208,7 @@
   "err_sudo_denied": "پنل اجازه اجرای اسکریپت VPN (sudo) را ندارد — دستور نصب را دوباره بزن یا /etc/sudoers.d/unlimitsky را اصلاح کن",
   "err_xray_not_installed": "Xray روی سرور نصب نیست — از بخش پروتکل‌ها نصب کن",
   "err_jq_required": "jq روی سرور نیست — apt install jq",
-  "err_xray_not_running": "Xray روی سرور listen نمی‌کند — Xray را از پروتکل‌ها دوباره نصب کن و پورت‌های 2053 و 8443 را در فایروال VPS باز کن",
+  "err_xray_not_running": "Xray روی سرور listen نمی‌کند — Xray را از پروتکل‌ها دوباره نصب کن و پورت‌های 2053 و 2087 را در فایروال VPS باز کن",
   "err_xray_config_invalid": "کانفیگ Xray نامعتبر است — Xray را از پروتکل‌ها دوباره نصب کن",
   "err_provision_failed": "اجرای اسکریپت ساخت کانفیگ روی سرور ناموفق بود",
   "create_plan_invalid": "پلن انتخاب‌شده نامعتبر است",

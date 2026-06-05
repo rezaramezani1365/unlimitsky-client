@@ -46,7 +46,7 @@ if ! jq --arg id "$UUID" --arg email "$USERNAME" \
    .inbounds[0].port = $vless_port |
    .inbounds[1].port = $vmess_port |
    .inbounds[0].settings.clients = ((.inbounds[0].settings.clients // []) | map(del(.flow)) + [{"id":$id,"email":$email}]) |
-   .inbounds[1].settings.clients = ((.inbounds[1].settings.clients // []) + [{"id":$id,"email":$email,"alterId":0}]) |
+   .inbounds[1].settings.clients = ((.inbounds[1].settings.clients // []) + [{"id":$id,"email":$email}]) |
    .inbounds[0].streamSettings = {"network":"tcp","security":"none","tcpSettings":{"header":{"type":"none"}}} |
    .inbounds[1].streamSettings = {"network":"tcp","security":"none"}' \
   "$XRAY_CFG" > "$tmp"; then

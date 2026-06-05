@@ -227,7 +227,7 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         if (proto === 'xray') {
             xray.style.display = '';
             document.getElementById('custom-vless-port').value = cfg.vless_port || 2053;
-            document.getElementById('custom-vmess-port').value = cfg.vmess_port || 8443;
+            document.getElementById('custom-vmess-port').value = cfg.vmess_port || 2087;
         } else if (cfg.fixed_ports) {
             fixed.style.display = '';
             document.getElementById('create-port-fixed-text').textContent = cfg.fixed_ports;
