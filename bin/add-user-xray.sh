@@ -22,18 +22,27 @@ fi
 ensure_jq
 command -v jq >/dev/null 2>&1 || usk_json_fail "jq_required"
 
+INBOUND_COUNT=$(jq -r '.inbounds | length // 0' "$XRAY_CFG" 2>/dev/null || echo 0)
+if [ "$INBOUND_COUNT" -lt 2 ]; then
+  usk_json_fail "xray_config_invalid"
+fi
+
 UUID=$(cat /proc/sys/kernel/random/uuid)
 SERVER_IP=$(usk_server_ip)
 VLESS_PORT=443
 VMESS_PORT=8443
 
 tmp=$(mktemp)
-jq --arg id "$UUID" --arg email "$USERNAME" \
-  '.inbounds[0].settings.clients += [{"id":$id,"email":$email,"flow":"xtls-rprx-vision"}] |
-   .inbounds[1].settings.clients += [{"id":$id,"email":$email,"alterId":0}]' \
-  "$XRAY_CFG" > "$tmp" && mv "$tmp" "$XRAY_CFG"
+if ! jq --arg id "$UUID" --arg email "$USERNAME" \
+  '.inbounds[0].settings.clients = ((.inbounds[0].settings.clients // []) + [{"id":$id,"email":$email,"flow":"xtls-rprx-vision"}]) |
+   .inbounds[1].settings.clients = ((.inbounds[1].settings.clients // []) + [{"id":$id,"email":$email,"alterId":0}])' \
+  "$XRAY_CFG" > "$tmp"; then
+  rm -f "$tmp"
+  usk_json_fail "xray_config_update_failed"
+fi
+mv "$tmp" "$XRAY_CFG"
 
-systemctl restart xray || systemctl restart xray.service
+systemctl restart xray 2>/dev/null || systemctl restart xray.service 2>/dev/null || usk_json_fail "xray_restart_failed"
 
 VLESS="vless://${UUID}@${SERVER_IP}:${VLESS_PORT}?encryption=none&security=none&type=tcp#${USERNAME}-vless"
 VMESS_JSON=$(jq -n \
@@ -50,9 +59,14 @@ REGISTRY="$DATA_ROOT/xray/clients.json"
 mkdir -p "$(dirname "$REGISTRY")"
 [ -f "$REGISTRY" ] || echo "[]" > "$REGISTRY"
 tmp2=$(mktemp)
-jq --arg u "$USERNAME" --arg id "$UUID" --arg ts "$(date -Iseconds)" --arg exp "$EXPIRES" \
+if ! jq --arg u "$USERNAME" --arg id "$UUID" --arg ts "$(date -Iseconds)" --arg exp "$EXPIRES" \
    --argjson vol "$VOLUME_GB" --argjson days "$DURATION_DAYS" \
-  '. += [{"username":$u,"uuid":$id,"created":$ts,"volume_gb":$vol,"duration_days":$days,"expires_at":$exp,"status":"active"}]' "$REGISTRY" > "$tmp2" && mv "$tmp2" "$REGISTRY"
+  '. += [{"username":$u,"uuid":$id,"created":$ts,"volume_gb":$vol,"duration_days":$days,"expires_at":$exp,"status":"active"}]' \
+  "$REGISTRY" > "$tmp2"; then
+  rm -f "$tmp2"
+  usk_json_fail "xray_registry_failed"
+fi
+mv "$tmp2" "$REGISTRY"
 
 echo -n "USK_JSON:"
 jq -n \

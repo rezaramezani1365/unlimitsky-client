@@ -14,7 +14,15 @@ Admin panel for **VPN resellers** — install on your Ubuntu VPS, create plans, 
 
 **Repository:** [github.com/rezaramezani1365/unlimitsky-client](https://github.com/rezaramezani1365/unlimitsky-client)
 
+### Install on Ubuntu (one command)
 
+```bash
+curl -fsSL https://raw.githubusercontent.com/rezaramezani1365/unlimitsky-client/main/scripts/install.sh | sudo bash -s -- \
+  --port 8082 --admin-pass 'Pass123' --open-firewall
+```
+
+Then open `http://YOUR_SERVER_IP:8082/admin/login.php` — login: **admin** / **Pass123**.  
+Full guide: [Installation](#installation-guide--zero-to-production) below.
 
 ```
 You (VPN reseller)
@@ -136,7 +144,35 @@ From **Panel → Protocols**, the installer script sets up each protocol **on th
 
 ## Quick start — one command
 
-SSH into your Ubuntu VPS and run (get `license-url` and `license-token` from your **UnlimitSky platform vendor**):
+Works on a **fresh Ubuntu VPS** (22.04 or 24.04). SSH in as root and run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/rezaramezani1365/unlimitsky-client/main/scripts/install.sh | sudo bash -s -- \
+  --port 8082 --admin-pass 'Pass123' --open-firewall
+```
+
+The script installs **nginx, MySQL, PHP**, creates the database, sets up the admin account, and opens the firewall — no manual steps.
+
+**When it finishes**, open:
+
+| | |
+|---|---|
+| **Panel** | `http://YOUR_SERVER_IP:8082/admin/login.php` |
+| **Username** | `admin` |
+| **Password** | `Pass123` (or whatever you passed to `--admin-pass`) |
+| **Saved on server** | `sudo cat /root/unlimitsky-client.credentials` |
+
+Replace `Pass123` with your own password (at least 6 characters). Omit `--admin-pass` to use `admin` / `admin` and **change password on first login**.
+
+| Flag | Meaning |
+|------|---------|
+| `--port 8082` | Panel web port |
+| `--admin-pass 'Pass123'` | Admin password |
+| `--open-firewall` | Allow the port in ufw if ufw is active |
+
+### Optional — Pro license (from vendor)
+
+If you have a **Pro license** from the UnlimitSky platform owner, add:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/rezaramezani1365/unlimitsky-client/main/scripts/install.sh | sudo bash -s -- \
@@ -145,30 +181,15 @@ curl -fsSL https://raw.githubusercontent.com/rezaramezani1365/unlimitsky-client/
   --license-token 'SECRET'
 ```
 
-| Flag | Meaning |
-|------|---------|
-| `--port 8082` | Panel web port |
-| `--admin-pass` | Admin password (omit for `admin` / forced change on first login) |
-| `--open-firewall` | Open port in ufw if active |
-| `--license-url` | Vendor license API (required for Pro) |
-| `--license-token` | Vendor `api_secret` (required for Pro) |
+MySQL is created with a **random password** on `localhost` only — not reachable from the internet.
 
 ### Or clone + install
 
 ```bash
 sudo git clone https://github.com/rezaramezani1365/unlimitsky-client.git /opt/unlimitsky
 cd /opt/unlimitsky
-sudo bash install-ubuntu.sh --auto --port 8082 --open-firewall \
-  --license-url 'https://license.yourdomain.com/api/v1.php' \
-  --license-token 'SECRET'
+sudo bash install-ubuntu.sh --auto --port 8082 --admin-pass 'Pass123' --open-firewall
 ```
-
-**After install:**
-- Panel URL: `http://YOUR_SERVER_IP:8082/admin/login.php`
-- Default login: `admin` / `admin` — **change password on first login**
-- Full credentials: `sudo cat /root/unlimitsky-client.credentials`
-
-MySQL is created with a **random 20-character password** on `localhost` only — not reachable from the internet.
 
 ---
 
@@ -364,11 +385,11 @@ sudo visudo -f /etc/sudoers.d/unlimitsky
 Paste (replace the path if your panel is not under `/var/www/unlimitsky` — check **Panel → Protocols** for the exact path):
 
 ```
-www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/install-*.sh
-www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/add-user-*.sh
-www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/disable-user-*.sh
-www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/enable-user-*.sh
-www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/remove-user-*.sh
+www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/install-*.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/add-user-*.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/disable-user-*.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/enable-user-*.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/remove-user-*.sh *
 ```
 
 Save and exit. Then:

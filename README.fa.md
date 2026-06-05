@@ -8,6 +8,16 @@
 
 **ریپازیتوری:** [github.com/rezaramezani1365/unlimitsky-client](https://github.com/rezaramezani1365/unlimitsky-client)
 
+### نصب روی اوبونتو (یک دستور)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/rezaramezani1365/unlimitsky-client/main/scripts/install.sh | sudo bash -s -- \
+  --port 8082 --admin-pass 'Pass123' --open-firewall
+```
+
+بعد `http://YOUR_SERVER_IP:8082/admin/login.php` — ورود: **admin** / **Pass123**.  
+راهنمای کامل: [راهنمای نصب](#راهنمای-نصب--از-صفر-تا-صد) پایین صفحه.
+
 ```
 شما (فروشنده VPN)
     ├── VPS اوبونتو  →  پنل UnlimitSky (این پروژه)
@@ -126,7 +136,35 @@ UnlimitSky **پروتکل‌های VPN را مستقیم روی VPS اوبونت
 
 ## شروع سریع — یک دستور
 
-SSH به VPS اوبونتو بزن و اجرا کن (`license-url` و `license-token` را از **فروشنده پل UnlimitSky** بگیر):
+روی **VPS اوبونتو خام** (۲۲.۰۴ یا ۲۴.۰۴) با SSH وصل شو و اجرا کن:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/rezaramezani1365/unlimitsky-client/main/scripts/install.sh | sudo bash -s -- \
+  --port 8082 --admin-pass 'Pass123' --open-firewall
+```
+
+اسکریپت خودش **nginx، MySQL، PHP** را نصب می‌کند، دیتابیس و اکانت admin را می‌سازد و فایروال را باز می‌کند — **هیچ کار دستی لازم نیست**.
+
+**بعد از اتمام نصب:**
+
+| | |
+|---|---|
+| **پنل** | `http://YOUR_SERVER_IP:8082/admin/login.php` |
+| **نام کاربری** | `admin` |
+| **رمز** | `Pass123` (یا همان چیزی که در `--admin-pass` دادی) |
+| **ذخیره روی سرور** | `sudo cat /root/unlimitsky-client.credentials` |
+
+به‌جای `Pass123` رمز دلخواه بگذار (حداقل ۶ کاراکتر). اگر `--admin-pass` ندهی، ورود `admin` / `admin` است و **در اولین ورود باید رمز را عوض کنی**.
+
+| فلگ | معنی |
+|-----|------|
+| `--port 8082` | پورت وب پنل |
+| `--admin-pass 'Pass123'` | رمز مدیر |
+| `--open-firewall` | باز کردن پورت در ufw (اگر فعال باشد) |
+
+### اختیاری — لایسنس Pro (از vendor)
+
+اگر **لایسنس Pro** از صاحب پل UnlimitSky داری، این فلگ‌ها را اضافه کن:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/rezaramezani1365/unlimitsky-client/main/scripts/install.sh | sudo bash -s -- \
@@ -135,30 +173,15 @@ curl -fsSL https://raw.githubusercontent.com/rezaramezani1365/unlimitsky-client/
   --license-token 'SECRET'
 ```
 
-| فلگ | معنی |
-|-----|------|
-| `--port 8082` | پورت وب پنل |
-| `--admin-pass` | رمز مدیر (بدون آن = admin + تغییر اجباری در اولین ورود) |
-| `--open-firewall` | باز کردن پورت در ufw |
-| `--license-url` | API لایسنس vendor (برای Pro لازم) |
-| `--license-token` | `api_secret` vendor (برای Pro لازم) |
+دیتابیس MySQL با **رمز تصادفی** فقط روی `localhost` ساخته می‌شود — از اینترنت در دسترس نیست.
 
 ### یا clone + نصب
 
 ```bash
 sudo git clone https://github.com/rezaramezani1365/unlimitsky-client.git /opt/unlimitsky
 cd /opt/unlimitsky
-sudo bash install-ubuntu.sh --auto --port 8082 --open-firewall \
-  --license-url 'https://license.yourdomain.com/api/v1.php' \
-  --license-token 'SECRET'
+sudo bash install-ubuntu.sh --auto --port 8082 --admin-pass 'Pass123' --open-firewall
 ```
-
-**بعد از نصب:**
-- آدرس پنل: `http://YOUR_SERVER_IP:8082/admin/login.php`
-- ورود پیش‌فرض: `admin` / `admin` — **در اولین ورود رمز را عوض کن**
-- اطلاعات کامل: `sudo cat /root/unlimitsky-client.credentials`
-
-دیتابیس MySQL با **رمز تصادفی ۲۰ کاراکteri** فقط روی `localhost` ساخته می‌شود — از اینترنت قابل دسترسی نیست.
 
 ---
 
@@ -354,11 +377,11 @@ sudo visudo -f /etc/sudoers.d/unlimitsky
 این‌ها را paste کن (اگر مسیر پنل `/var/www/unlimitsky` نیست عوض کن — مسیر دقیق در **پنل → پروتکل‌ها** هست):
 
 ```
-www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/install-*.sh
-www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/add-user-*.sh
-www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/disable-user-*.sh
-www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/enable-user-*.sh
-www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/remove-user-*.sh
+www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/install-*.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/add-user-*.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/disable-user-*.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/enable-user-*.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/remove-user-*.sh *
 ```
 
 ذخیره و خروج. سپس:

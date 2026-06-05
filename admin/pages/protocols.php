@@ -63,9 +63,9 @@ $protocols = USK_ProtocolManager::list();
         </ul>
         <p class="text-muted small"><?= __('limits_cron_manual_note') ?></p>
         <pre class="usk-code p-2" style="white-space:pre-wrap;direction:ltr;text-align:left">*/15 * * * * php <?= usk_esc(USK_ROOT) ?>/cron/native-limits.php >> /var/log/unlimitsky-limits.log 2>&1</pre>
-        <pre class="usk-code p-2 mt-2" style="white-space:pre-wrap;direction:ltr;text-align:left">www-data ALL=(root) NOPASSWD: /bin/bash <?= usk_esc(USK_ROOT) ?>/bin/disable-user-*.sh
-www-data ALL=(root) NOPASSWD: /bin/bash <?= usk_esc(USK_ROOT) ?>/bin/enable-user-*.sh
-www-data ALL=(root) NOPASSWD: /bin/bash <?= usk_esc(USK_ROOT) ?>/bin/remove-user-*.sh</pre>
+        <pre class="usk-code p-2 mt-2" style="white-space:pre-wrap;direction:ltr;text-align:left">www-data ALL=(root) NOPASSWD: /bin/bash <?= usk_esc(USK_ROOT) ?>/bin/disable-user-*.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash <?= usk_esc(USK_ROOT) ?>/bin/enable-user-*.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash <?= usk_esc(USK_ROOT) ?>/bin/remove-user-*.sh *</pre>
         <?php
         $last = USK_ProtocolLimits::get_last_run();
         if ($last) :
@@ -81,7 +81,7 @@ www-data ALL=(root) NOPASSWD: /bin/bash <?= usk_esc(USK_ROOT) ?>/bin/remove-user
     <div class="usk-card-header"><?= __('protocol_sudo_title') ?></div>
     <div class="p-3 text-muted small">
         <p><?= __('protocol_sudo_note') ?></p>
-        <pre class="usk-code p-2" style="white-space:pre-wrap;direction:ltr;text-align:left">www-data ALL=(root) NOPASSWD: /bin/bash <?= usk_esc(USK_ROOT) ?>/bin/install-*.sh
-www-data ALL=(root) NOPASSWD: /bin/bash <?= usk_esc(USK_ROOT) ?>/bin/add-user-*.sh</pre>
+        <pre class="usk-code p-2" style="white-space:pre-wrap;direction:ltr;text-align:left">www-data ALL=(root) NOPASSWD: /bin/bash <?= usk_esc(USK_ROOT) ?>/bin/install-*.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash <?= usk_esc(USK_ROOT) ?>/bin/add-user-*.sh *</pre>
     </div>
 </div>

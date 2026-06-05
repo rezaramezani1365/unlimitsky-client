@@ -2,6 +2,28 @@
 
 class USK_ProtocolProvisioner
 {
+    private static function interpret_output($out, $fallback = 'provision_error')
+    {
+        $out = (string) $out;
+        if ($out === '') {
+            return $fallback;
+        }
+        if (stripos($out, 'sudo:') !== false) {
+            if (stripos($out, 'password is required') !== false || stripos($out, 'a password is required') !== false) {
+                return 'sudo_denied';
+            }
+            if (stripos($out, 'not allowed') !== false) {
+                return 'sudo_denied';
+            }
+        }
+        if (strpos($out, 'USK_ERR:') !== false) {
+            if (preg_match('/USK_ERR:\s*(.+)/', $out, $m)) {
+                return trim($m[1]);
+            }
+        }
+        return $fallback;
+    }
+
     public static function create($protocol, $username, $volume_gb = 0, $duration_days = 0, array $meta = array())
     {
         $allowed = array_keys(USK_ProtocolManager::list());
@@ -34,22 +56,25 @@ class USK_ProtocolProvisioner
             $env = 'USK_SERVER_IP=' . escapeshellarg($server_ip) . ' ';
         }
 
-        $cmd = $env . 'sudo bash ' . escapeshellarg($script) . ' '
+        $cmd = $env . 'sudo -n bash ' . escapeshellarg($script) . ' '
             . escapeshellarg($username) . ' '
             . (int) $volume_gb . ' '
             . (int) $duration_days . ' 2>&1';
         $out = shell_exec($cmd);
-        if ($out === null || $out === '') {
+        if ($out === null || trim($out) === '') {
             return array('ok' => false, 'error' => 'provision_failed', 'log' => '');
         }
 
         if (strpos($out, 'USK_ERR:') !== false) {
-            preg_match('/USK_ERR:\s*(.+)/', $out, $m);
-            return array('ok' => false, 'error' => trim($m[1] ?? 'provision_error'), 'log' => $out);
+            return array('ok' => false, 'error' => self::interpret_output($out, 'provision_error'), 'log' => $out);
         }
 
         if (!preg_match('/USK_JSON:(.+)$/s', $out, $m)) {
-            return array('ok' => false, 'error' => 'invalid_provision_output', 'log' => $out);
+            return array(
+                'ok' => false,
+                'error' => self::interpret_output($out, 'invalid_provision_output'),
+                'log' => $out,
+            );
         }
 
         $data = json_decode(trim($m[1]), true);
@@ -148,5 +173,21 @@ class USK_ProtocolProvisioner
     private static function save_protocol_clients($protocol, array $clients)
     {
         USK_ProtocolLimits::save_protocol_clients($protocol, $clients);
+    }
+
+    public static function error_label($code)
+    {
+        $map = array(
+            'sudo_denied' => 'err_sudo_denied',
+            'xray_not_installed' => 'err_xray_not_installed',
+            'jq_required' => 'err_jq_required',
+            'xray_config_invalid' => 'err_xray_config_invalid',
+            'xray_config_update_failed' => 'err_xray_config_invalid',
+            'xray_restart_failed' => 'err_xray_config_invalid',
+            'provision_failed' => 'err_provision_failed',
+            'invalid_provision_output' => 'err_sudo_denied',
+        );
+        $key = isset($map[$code]) ? $map[$code] : 'create_failed';
+        return __($key, $code);
     }
 }

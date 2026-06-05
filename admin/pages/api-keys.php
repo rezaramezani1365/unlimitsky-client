@@ -148,6 +148,6 @@ $installed = USK_ProtocolManager::installed_protocols();
     <div class="usk-card-header"><?= __('protocol_sudo_title') ?></div>
     <div class="p-3 text-muted small">
         <p><?= __('protocol_sudo_provision_note') ?></p>
-        <pre class="usk-code p-2" style="white-space:pre-wrap;direction:ltr;text-align:left">www-data ALL=(root) NOPASSWD: /bin/bash <?= usk_esc(USK_ROOT) ?>/bin/add-user-*.sh</pre>
+        <pre class="usk-code p-2" style="white-space:pre-wrap;direction:ltr;text-align:left">www-data ALL=(root) NOPASSWD: /bin/bash <?= usk_esc(USK_ROOT) ?>/bin/add-user-*.sh *</pre>
     </div>
 </div>

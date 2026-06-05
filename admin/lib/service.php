@@ -19,8 +19,8 @@ class USK_Service
     {
         $created = USK_ProtocolProvisioner::create($protocol, $username, $volume_gb, $duration_days, $meta);
         if (empty($created['ok'])) {
-            $err = $created['error'] ?? 'خطا در ساخت کانفیگ';
-            return array('ok' => false, 'error' => $err);
+            $code = $created['error'] ?? 'create_failed';
+            return array('ok' => false, 'error' => USK_ProtocolProvisioner::error_label($code), 'code' => $code, 'log' => $created['log'] ?? '');
         }
         $links = $created['links'] ?: $created['config'];
         $sub = $created['subscription'] ?: $links;
