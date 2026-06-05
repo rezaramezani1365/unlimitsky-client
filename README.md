@@ -1,12 +1,20 @@
 # UnlimitSky — VPN Reseller Panel (Client)
 
+
+
 [![GitHub](https://img.shields.io/badge/GitHub-unlimitsky--client-blue?logo=github)](https://github.com/rezaramezani1365/unlimitsky-client)
+
+
 
 > **فارسی:** [README.fa.md](README.fa.md)
 
 Admin panel for **VPN resellers** — install on your Ubuntu VPS, create plans, and sell to your customers via **WooCommerce**.
 
+
+
 **Repository:** [github.com/rezaramezani1365/unlimitsky-client](https://github.com/rezaramezani1365/unlimitsky-client)
+
+
 
 ```
 You (VPN reseller)
@@ -17,6 +25,8 @@ You (VPN reseller)
 ```
 
 ---
+
+
 
 ## What this panel does
 
@@ -594,5 +604,4 @@ After installation, the running panel lives at `/var/www/unlimitsky`.
 - **Install** issues → see troubleshooting above
 
 Extended guide: [docs/RESELLER-GUIDE.md](docs/RESELLER-GUIDE.md)
-#   u n l i m i t s k y - c l i e n t  
- 
+#
