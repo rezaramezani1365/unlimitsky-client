@@ -51,12 +51,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $duration_days,
                         $created['links'] ?: $created['subscription']
                     );
-                    $result = $created;
-                    $result['code'] = $order['code'];
-                    $result['protocol'] = $protocol;
-                    $result['qr_png'] = $created['qr_png'] ?? '';
-                    $result['expires_at'] = $created['expires_at'] ?? null;
-                    usk_flash(__('create_success'));
+                    if (empty($order['ok'])) {
+                        usk_flash(__('create_order_save_failed') . ' (' . ($order['error'] ?? '') . ')', 'error');
+                    } else {
+                        $result = $created;
+                        $result['code'] = $order['code'];
+                        $result['protocol'] = $protocol;
+                        $result['qr_png'] = $created['qr_png'] ?? '';
+                        $result['expires_at'] = $created['expires_at'] ?? null;
+                        usk_flash(__('create_success'));
+                    }
                 }
             }
         } else {
@@ -207,5 +211,6 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         <p class="mt-2"><strong><?= __('links') ?>:</strong></p>
         <code class="d-block p-3" style="white-space:pre-wrap;direction:ltr;text-align:left;"><?= usk_esc($result['links']) ?></code>
     <?php endif; ?>
+    <p class="mt-3"><a class="btn btn-outline" href="<?= usk_admin_url('services') ?>"><?= __('nav_services') ?></a></p>
 </div>
 <?php endif; ?>

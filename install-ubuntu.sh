@@ -107,7 +107,7 @@ fi
 chmod +x "$WEB_ROOT"/bin/*.sh 2>/dev/null || true
 chown -R www-data:www-data "$WEB_ROOT"
 chmod -R 755 "$WEB_ROOT"
-mkdir -p "$WEB_ROOT/data/protocols" "$WEB_ROOT/admin/data"
+mkdir -p "$WEB_ROOT/data/protocols" "$WEB_ROOT/admin/data" "$WEB_ROOT/data/clients"
 chmod -R 775 "$WEB_ROOT/admin/data" "$WEB_ROOT/data" "$WEB_ROOT/install" 2>/dev/null || true
 chown -R www-data:www-data "$WEB_ROOT/data" "$WEB_ROOT/admin/data"
 

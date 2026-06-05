@@ -110,6 +110,14 @@ if ($action === 'create-service') {
         $wc_order_id
     );
 
+    if (empty($order['ok'])) {
+        usk_api_response(500, array(
+            'ok' => false,
+            'error' => $order['error'] ?? 'order_save_failed',
+            'provisioned' => true,
+        ));
+    }
+
     usk_api_response(200, array(
         'ok' => true,
         'username' => $username,

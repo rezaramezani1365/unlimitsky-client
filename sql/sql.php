@@ -81,7 +81,7 @@ try {
 
     usk_schema_query($sql, "CREATE TABLE IF NOT EXISTS `orders` (
     `row` int(200) AUTO_INCREMENT PRIMARY KEY,
-    `from_id` varchar(20) COLLATE utf8mb4_bin NOT NULL,
+    `from_id` varchar(128) COLLATE utf8mb4_bin NOT NULL,
     `location` varchar(50) COLLATE utf8mb4_bin NOT NULL,
     `protocol` varchar(50) COLLATE utf8mb4_bin DEFAULT NULL,
     `date` varchar(20) COLLATE utf8mb4_bin NOT NULL,
@@ -95,7 +95,7 @@ try {
 
     usk_schema_query($sql, "CREATE TABLE IF NOT EXISTS `factors` (
     `row` int(200) AUTO_INCREMENT PRIMARY KEY,
-    `from_id` varchar(20) COLLATE utf8mb4_bin NOT NULL,
+    `from_id` varchar(128) COLLATE utf8mb4_bin NOT NULL,
     `price` varchar(50) COLLATE utf8mb4_bin NOT NULL,
     `code` varchar(20) COLLATE utf8mb4_bin NOT NULL,
     `status` varchar(15) COLLATE utf8mb4_bin NOT NULL
@@ -139,7 +139,7 @@ try {
 
     usk_schema_query($sql, "CREATE TABLE IF NOT EXISTS `service_factors` (
     `row` int(200) AUTO_INCREMENT PRIMARY KEY,
-    `from_id` varchar(20) COLLATE utf8mb4_bin NOT NULL,
+    `from_id` varchar(128) COLLATE utf8mb4_bin NOT NULL,
     `location` varchar(50) COLLATE utf8mb4_bin NOT NULL,
     `protocol` varchar(50) COLLATE utf8mb4_bin NOT NULL,
     `plan` varchar(50) COLLATE utf8mb4_bin NOT NULL,
@@ -175,7 +175,7 @@ try {
 
     usk_schema_query($sql, "CREATE TABLE IF NOT EXISTS `test_account` (
     `row` int(200) AUTO_INCREMENT PRIMARY KEY,
-    `from_id` varchar(20) COLLATE utf8mb4_bin NOT NULL,
+    `from_id` varchar(128) COLLATE utf8mb4_bin NOT NULL,
     `location` varchar(50) COLLATE utf8mb4_bin NOT NULL,
     `date` varchar(20) COLLATE utf8mb4_bin NOT NULL,
     `volume` varchar(20) COLLATE utf8mb4_bin NOT NULL,
@@ -245,6 +245,17 @@ try {
         if ($check && $check->num_rows === 0) {
             usk_schema_query($sql, $seed[1]);
         }
+    }
+
+    // Upgrade legacy installs (from_id was varchar(20) — too short for native VPN usernames)
+    $migrations = array(
+        "ALTER TABLE `orders` MODIFY `from_id` varchar(128) COLLATE utf8mb4_bin NOT NULL",
+        "ALTER TABLE `factors` MODIFY `from_id` varchar(128) COLLATE utf8mb4_bin NOT NULL",
+        "ALTER TABLE `service_factors` MODIFY `from_id` varchar(128) COLLATE utf8mb4_bin NOT NULL",
+        "ALTER TABLE `test_account` MODIFY `from_id` varchar(128) COLLATE utf8mb4_bin NOT NULL",
+    );
+    foreach ($migrations as $migration) {
+        @$sql->query($migration);
     }
 
     mysqli_report(MYSQLI_REPORT_OFF);

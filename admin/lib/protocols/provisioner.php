@@ -154,7 +154,10 @@ class USK_ProtocolProvisioner
         $proto = $sql->real_escape_string($protocol);
         $from_esc = $sql->real_escape_string($from_id);
 
-        $sql->query("INSERT INTO `orders` (`from_id`,`location`,`protocol`,`date`,`volume`,`link`,`price`,`code`,`status`,`type`) VALUES ('$from_esc','$location','$proto','$date','$volume','$link_esc','0','$code','active','$ptype')");
+        $ok = $sql->query("INSERT INTO `orders` (`from_id`,`location`,`protocol`,`date`,`volume`,`link`,`price`,`code`,`status`,`type`) VALUES ('$from_esc','$location','$proto','$date','$volume','$link_esc','0','$code','active','$ptype')");
+        if (!$ok) {
+            return array('ok' => false, 'error' => $sql->error ?: 'order_insert_failed', 'code' => $code);
+        }
 
         $clients = self::load_protocol_clients($protocol);
         if (isset($clients[$username])) {
@@ -162,7 +165,7 @@ class USK_ProtocolProvisioner
             self::save_protocol_clients($protocol, $clients);
         }
 
-        return array('code' => $code, 'order_id' => $sql->insert_id);
+        return array('ok' => true, 'code' => $code, 'order_id' => $sql->insert_id);
     }
 
     private static function load_protocol_clients($protocol)

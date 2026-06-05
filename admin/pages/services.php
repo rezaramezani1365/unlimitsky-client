@@ -69,6 +69,7 @@ if ($filter === 'active') {
 }
 
 $list = $sql->query("SELECT * FROM `orders` WHERE $where ORDER BY `row` DESC LIMIT 200");
+$list_count = $list ? $list->num_rows : 0;
 
 function usk_service_status_badge($status)
 {
@@ -200,6 +201,9 @@ function usk_service_status_badge($status)
                 </tr>
             </thead>
             <tbody>
+            <?php if ($list_count === 0) : ?>
+                <tr><td colspan="5" class="text-muted text-center py-4"><?= __('services_empty') ?></td></tr>
+            <?php endif; ?>
             <?php while ($r = $list->fetch_assoc()) :
                 $badge = usk_service_status_badge($r['status']);
             ?>
