@@ -85,7 +85,7 @@ class USK_UnlimitSky_Panel
     /**
      * @return array{success:bool, subscription_url?:string, config_links?:string, username?:string, error?:string}
      */
-    public static function create_service(array $panel, int $volume_gb, int $duration_days, string $username, string $protocol = '', int $wc_order_id = 0, string $plan_code = '', string $openvpn_proto = 'udp'): array
+    public static function create_service(array $panel, int $volume_gb, int $duration_days, string $username, string $protocol = '', int $wc_order_id = 0, string $plan_code = '', string $openvpn_proto = 'tcp', string $wireguard_transport = 'tcp'): array
     {
         $api_key = $panel['token'] ?? '';
         if ($api_key === '') {
@@ -113,7 +113,11 @@ class USK_UnlimitSky_Panel
         }
         if ($protocol === 'openvpn') {
             $openvpn_proto = strtolower($openvpn_proto);
-            $payload['openvpn_proto'] = in_array($openvpn_proto, ['udp', 'tcp'], true) ? $openvpn_proto : 'udp';
+            $payload['openvpn_proto'] = in_array($openvpn_proto, ['udp', 'tcp'], true) ? $openvpn_proto : 'tcp';
+        }
+        if ($protocol === 'wireguard') {
+            $wireguard_transport = strtolower($wireguard_transport);
+            $payload['wireguard_transport'] = in_array($wireguard_transport, ['udp', 'tcp'], true) ? $wireguard_transport : 'tcp';
         }
 
         $result = self::request($panel['login_link'], $api_key, 'create-service', $payload, 'POST');
@@ -132,7 +136,9 @@ class USK_UnlimitSky_Panel
             'config_links'     => $config,
             'download_url'     => $downloadUrl,
             'ovpn_filename'    => $data['ovpn_filename'] ?? ($username . '.ovpn'),
-            'openvpn_proto'    => $data['openvpn_proto'] ?? '',
+            'openvpn_proto'       => $data['openvpn_proto'] ?? '',
+            'wireguard_transport' => $data['wireguard_transport'] ?? '',
+            'tcp_client_cmd'      => $data['tcp_client_cmd'] ?? '',
             'username'         => $data['username'] ?? $username,
             'panel'            => $panel,
             'protocol'         => $data['protocol'] ?? $protocol,

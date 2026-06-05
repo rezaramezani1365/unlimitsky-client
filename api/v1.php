@@ -92,10 +92,26 @@ if ($action === 'create-service') {
     }
 
     $ovpnProto = null;
-    if ($protocol === 'openvpn' && isset($body['openvpn_proto'])) {
-        $ovpnProto = strtolower((string) $body['openvpn_proto']);
-        if (!in_array($ovpnProto, array('udp', 'tcp'), true)) {
-            $ovpnProto = 'udp';
+    if ($protocol === 'openvpn') {
+        if (isset($body['openvpn_proto'])) {
+            $ovpnProto = strtolower((string) $body['openvpn_proto']);
+            if (!in_array($ovpnProto, array('udp', 'tcp'), true)) {
+                $ovpnProto = 'tcp';
+            }
+        } else {
+            $ovpnProto = 'tcp';
+        }
+    }
+
+    $wgTransport = null;
+    if ($protocol === 'wireguard') {
+        if (isset($body['wireguard_transport'])) {
+            $wgTransport = strtolower((string) $body['wireguard_transport']);
+            if (!in_array($wgTransport, array('udp', 'tcp'), true)) {
+                $wgTransport = 'tcp';
+            }
+        } else {
+            $wgTransport = 'tcp';
         }
     }
 
@@ -107,6 +123,7 @@ if ($action === 'create-service') {
         'vless_port' => isset($body['vless_port']) ? (int) $body['vless_port'] : null,
         'vmess_port' => isset($body['vmess_port']) ? (int) $body['vmess_port'] : null,
         'openvpn_proto' => $ovpnProto,
+        'wireguard_transport' => $wgTransport,
     ));
 
     if (empty($created['ok'])) {
@@ -154,6 +171,8 @@ if ($action === 'create-service') {
         'download_url' => $downloadUrl,
         'ovpn_filename' => $raw['ovpn_filename'] ?? ($username . '.ovpn'),
         'openvpn_proto' => $raw['proto'] ?? $ovpnProto,
+        'wireguard_transport' => $raw['wireguard_transport'] ?? $wgTransport,
+        'tcp_client_cmd' => $raw['tcp_client_cmd'] ?? '',
         'volume_gb' => $volume_gb,
         'duration_days' => $duration_days,
         'qr_png' => $created['qr_png'] ?? '',

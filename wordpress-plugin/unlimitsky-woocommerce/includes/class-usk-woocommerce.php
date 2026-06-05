@@ -97,12 +97,24 @@ class USK_WooCommerce
             'id'          => '_usk_openvpn_proto',
             'label'       => __('OpenVPN: UDP یا TCP', 'unlimitsky-wc'),
             'options'     => [
-                'udp' => 'UDP (' . __('پیشنهادی', 'unlimitsky-wc') . ')',
-                'tcp' => 'TCP',
+                'tcp' => 'TCP (' . __('پیشنهادی ایران', 'unlimitsky-wc') . ')',
+                'udp' => 'UDP',
             ],
             'wrapper_class' => 'usk-openvpn-proto-field',
             'desc_tip'      => true,
-            'description'   => __('فقط برای محصولات OpenVPN — UDP سریع‌تر است؛ TCP برای شبکه‌های فیلترشده.', 'unlimitsky-wc'),
+            'description'   => __('فقط برای محصولات OpenVPN — در ایران TCP معمولاً بهتر کار می‌کند.', 'unlimitsky-wc'),
+        ]);
+
+        woocommerce_wp_select([
+            'id'          => '_usk_wireguard_transport',
+            'label'       => __('WireGuard: UDP یا TCP', 'unlimitsky-wc'),
+            'options'     => [
+                'tcp' => 'TCP (' . __('پیشنهادی ایران', 'unlimitsky-wc') . ')',
+                'udp' => 'UDP',
+            ],
+            'wrapper_class' => 'usk-wireguard-transport-field',
+            'desc_tip'      => true,
+            'description'   => __('TCP نیاز به udp2raw روی کلاینت دارد — فقط برای WireGuard.', 'unlimitsky-wc'),
         ]);
 
         echo '</div>';
@@ -122,10 +134,21 @@ class USK_WooCommerce
                     $('.usk-openvpn-proto-field').hide();
                 }
             }
+            function UnlimitSkyToggleWireguardTransport() {
+                if ($('#_usk_protocol').val() === 'wireguard') {
+                    $('.usk-wireguard-transport-field').show();
+                } else {
+                    $('.usk-wireguard-transport-field').hide();
+                }
+            }
             $('#_usk_is_vpn').change(UnlimitSkyToggleFields);
-            $('#_usk_protocol').change(UnlimitSkyToggleOpenvpnProto);
+            $('#_usk_protocol').change(function(){
+                UnlimitSkyToggleOpenvpnProto();
+                UnlimitSkyToggleWireguardTransport();
+            });
             UnlimitSkyToggleFields();
             UnlimitSkyToggleOpenvpnProto();
+            UnlimitSkyToggleWireguardTransport();
         ");
     }
 
@@ -138,8 +161,10 @@ class USK_WooCommerce
         update_post_meta($post_id, '_usk_duration_days', absint($_POST['_usk_duration_days'] ?? 0));
         update_post_meta($post_id, '_usk_plan_code', preg_replace('/[^0-9]/', '', (string) ($_POST['_usk_plan_code'] ?? '')));
         update_post_meta($post_id, '_usk_protocol', sanitize_text_field($_POST['_usk_protocol'] ?? ''));
-        $ovpnProto = strtolower(sanitize_text_field($_POST['_usk_openvpn_proto'] ?? 'udp'));
-        update_post_meta($post_id, '_usk_openvpn_proto', in_array($ovpnProto, ['udp', 'tcp'], true) ? $ovpnProto : 'udp');
+        $ovpnProto = strtolower(sanitize_text_field($_POST['_usk_openvpn_proto'] ?? 'tcp'));
+        update_post_meta($post_id, '_usk_openvpn_proto', in_array($ovpnProto, ['udp', 'tcp'], true) ? $ovpnProto : 'tcp');
+        $wgTransport = strtolower(sanitize_text_field($_POST['_usk_wireguard_transport'] ?? 'tcp'));
+        update_post_meta($post_id, '_usk_wireguard_transport', in_array($wgTransport, ['udp', 'tcp'], true) ? $wgTransport : 'tcp');
     }
 
     public function add_product_tab(array $tabs): array

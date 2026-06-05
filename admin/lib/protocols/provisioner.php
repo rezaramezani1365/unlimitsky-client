@@ -60,9 +60,9 @@ class USK_ProtocolProvisioner
         $st = USK_ProtocolManager::get_status($protocol);
         $scriptArgs = array($username, (string) (int) $volume_gb, (string) (int) $duration_days);
         if ($protocol === 'openvpn') {
-            $ovpnProto = strtolower((string) ($meta['openvpn_proto'] ?? 'udp'));
+            $ovpnProto = strtolower((string) ($meta['openvpn_proto'] ?? 'tcp'));
             if (!in_array($ovpnProto, array('udp', 'tcp'), true)) {
-                $ovpnProto = 'udp';
+                $ovpnProto = 'tcp';
             }
             $scriptArgs[] = $ovpnProto;
             $scriptArgs[] = (string) (int) ($st['udp_port'] ?? 1194);
@@ -70,6 +70,12 @@ class USK_ProtocolProvisioner
             if ($server_ip !== '') {
                 $scriptArgs[] = $server_ip;
             }
+        } elseif ($protocol === 'wireguard') {
+            $wgTransport = strtolower((string) ($meta['wireguard_transport'] ?? 'tcp'));
+            if (!in_array($wgTransport, array('udp', 'tcp'), true)) {
+                $wgTransport = 'tcp';
+            }
+            $scriptArgs[] = $wgTransport;
         }
 
         $cmd = self::sudo_script_cmd($script, $scriptArgs);
@@ -228,6 +234,7 @@ class USK_ProtocolProvisioner
             'cisco_user_create_failed' => 'err_provision_failed',
             'openvpn_not_installed' => 'err_openvpn_not_installed',
             'openvpn_tcp_not_installed' => 'err_openvpn_tcp_not_installed',
+            'wireguard_tcp_not_installed' => 'err_wireguard_tcp_not_installed',
             'l2tp_packages_failed' => 'err_l2tp_install_failed',
             'l2tp_config_failed' => 'err_l2tp_install_failed',
             'l2tp_service_failed' => 'err_l2tp_service_failed',

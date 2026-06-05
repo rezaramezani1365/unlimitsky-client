@@ -57,17 +57,30 @@ $protocols = USK_ProtocolManager::list();
                         UDP: <code class="usk-code"><?= (int) ($st['udp_port'] ?? 1194) ?></code>
                         · TCP: <code class="usk-code"><?= (int) ($st['tcp_port'] ?? 443) ?></code>
                     </p>
+                    <?php elseif ($key === 'wireguard' && (!empty($st['port']) || !empty($st['tcp_port']))) : ?>
+                    <p class="text-muted small mb-2">
+                        UDP: <code class="usk-code"><?= (int) ($st['port'] ?? 51820) ?></code>
+                        <?php if (!empty($st['tcp_port']) && (int) $st['tcp_port'] > 0) : ?>
+                        · TCP bridge: <code class="usk-code"><?= (int) $st['tcp_port'] ?></code>
+                        <?php endif; ?>
+                    </p>
                     <?php elseif (!empty($st['port'])) : ?>
                     <p class="text-muted small mb-2"><?= __('protocol_active_port') ?>: <code class="usk-code"><?= (int) $st['port'] ?></code></p>
                     <?php endif; ?>
                     <?php if (!empty($meta['fixed_ports'])) : ?>
                     <p class="text-muted small mb-2"><?= __('protocol_fixed_ports') ?>: <?= usk_esc($meta['fixed_ports']) ?></p>
                     <?php endif; ?>
+                    <?php if (!empty($meta['note_key'])) : ?>
+                    <p class="small text-danger mb-2"><i class="fa-solid fa-circle-info"></i> <?= __($meta['note_key']) ?></p>
+                    <?php endif; ?>
                     <?php if (!empty($st['firewall_note'])) : ?>
                     <p class="small text-warning mb-2"><i class="fa-solid fa-triangle-exclamation"></i> <?= usk_esc($st['firewall_note']) ?></p>
                     <?php endif; ?>
                 <?php elseif (!empty($meta['fixed_ports'])) : ?>
                     <p class="text-muted small mb-2"><?= __('protocol_fixed_ports') ?>: <?= usk_esc($meta['fixed_ports']) ?></p>
+                <?php endif; ?>
+                <?php if (!$installed && !empty($meta['note_key'])) : ?>
+                    <p class="small text-danger mb-2"><i class="fa-solid fa-circle-info"></i> <?= __($meta['note_key']) ?></p>
                 <?php endif; ?>
                 <p class="mb-3">
                     <?php if ($installed) : ?>

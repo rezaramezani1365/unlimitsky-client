@@ -52,8 +52,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $provisionMeta['port'] = (int) $_POST['custom_port'];
                 }
                 if ($protocol === 'openvpn') {
-                    $ovpnProto = strtolower((string) ($_POST['openvpn_proto'] ?? 'udp'));
-                    $provisionMeta['openvpn_proto'] = in_array($ovpnProto, array('udp', 'tcp'), true) ? $ovpnProto : 'udp';
+                    $ovpnProto = strtolower((string) ($_POST['openvpn_proto'] ?? 'tcp'));
+                    $provisionMeta['openvpn_proto'] = in_array($ovpnProto, array('udp', 'tcp'), true) ? $ovpnProto : 'tcp';
+                }
+                if ($protocol === 'wireguard') {
+                    $wgTransport = strtolower((string) ($_POST['wireguard_transport'] ?? 'tcp'));
+                    $provisionMeta['wireguard_transport'] = in_array($wgTransport, array('udp', 'tcp'), true) ? $wgTransport : 'tcp';
                 }
                 $created = USK_Service::create_native($protocol, $volume_gb, $duration_days, $username, $provisionMeta);
 
@@ -86,7 +90,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $result['expires_at'] = $created['expires_at'] ?? null;
                         $result['download_url'] = $downloadUrl;
                         $result['ovpn_filename'] = $raw['ovpn_filename'] ?? ($username . '.ovpn');
-                        $result['openvpn_proto'] = $raw['proto'] ?? ($provisionMeta['openvpn_proto'] ?? 'udp');
+                        $result['openvpn_proto'] = $raw['proto'] ?? ($provisionMeta['openvpn_proto'] ?? 'tcp');
+                        $result['wireguard_transport'] = $raw['wireguard_transport'] ?? ($provisionMeta['wireguard_transport'] ?? '');
                         usk_flash(__('create_success'));
                     }
                 }
@@ -196,10 +201,21 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
                 <div id="create-openvpn-proto" style="display:none;">
                     <label class="small mb-1"><?= __('create_openvpn_proto') ?></label>
                     <select class="form-control" name="openvpn_proto" id="openvpn-proto-select">
-                        <option value="udp">UDP (<?= __('recommended') ?>)</option>
-                        <option value="tcp">TCP</option>
+                        <option value="tcp" selected>TCP (<?= __('recommended_iran') ?>)</option>
+                        <option value="udp">UDP</option>
                     </select>
                     <p class="text-muted small mt-1 mb-0"><?= __('create_openvpn_proto_hint') ?></p>
+                </div>
+                <div id="create-wireguard-transport" style="display:none;">
+                    <label class="small mb-1"><?= __('create_wireguard_transport') ?></label>
+                    <select class="form-control" name="wireguard_transport" id="wireguard-transport-select">
+                        <option value="tcp" selected>TCP (<?= __('recommended_iran') ?>)</option>
+                        <option value="udp">UDP</option>
+                    </select>
+                    <p class="text-muted small mt-1 mb-0"><?= __('create_wireguard_transport_hint') ?></p>
+                </div>
+                <div id="create-l2tp-warning" class="alert alert-warning small py-2 px-3 mb-0 mt-2" style="display:none;">
+                    <i class="fa-solid fa-triangle-exclamation"></i> <?= __('protocol_l2tp_iran_note') ?>
                 </div>
             </div>
             <div class="form-group panel-field" style="display:none;">
@@ -228,9 +244,13 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         var xray = document.getElementById('create-port-xray');
         var fixed = document.getElementById('create-port-fixed');
         var openvpnProto = document.getElementById('create-openvpn-proto');
+        var wgTransport = document.getElementById('create-wireguard-transport');
+        var l2tpWarn = document.getElementById('create-l2tp-warning');
         if (!wrap || !proto || !protocolPorts[proto]) {
             if (wrap) wrap.style.display = 'none';
             if (openvpnProto) openvpnProto.style.display = 'none';
+            if (wgTransport) wgTransport.style.display = 'none';
+            if (l2tpWarn) l2tpWarn.style.display = 'none';
             return;
         }
         wrap.style.display = '';
@@ -238,6 +258,8 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         xray.style.display = 'none';
         fixed.style.display = 'none';
         if (openvpnProto) openvpnProto.style.display = 'none';
+        if (wgTransport) wgTransport.style.display = 'none';
+        if (l2tpWarn) l2tpWarn.style.display = 'none';
         var cfg = protocolPorts[proto];
         if (proto === 'xray') {
             xray.style.display = '';
@@ -248,6 +270,16 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
             fixed.style.display = '';
             document.getElementById('create-port-fixed-text').textContent =
                 'UDP ' + (cfg.udp_port || 1194) + ' · TCP ' + (cfg.tcp_port || 443);
+        } else if (proto === 'wireguard') {
+            if (wgTransport) wgTransport.style.display = '';
+            fixed.style.display = '';
+            var tcpP = cfg.tcp_port && cfg.tcp_port > 0 ? cfg.tcp_port : 443;
+            document.getElementById('create-port-fixed-text').textContent =
+                'UDP ' + (cfg.port || 51820) + ' · TCP bridge ' + tcpP;
+        } else if (proto === 'l2tp') {
+            fixed.style.display = '';
+            if (l2tpWarn) l2tpWarn.style.display = '';
+            document.getElementById('create-port-fixed-text').textContent = cfg.fixed_ports || '500, 4500, 1701 (UDP)';
         } else if (cfg.fixed_ports) {
             fixed.style.display = '';
             document.getElementById('create-port-fixed-text').textContent = cfg.fixed_ports;
@@ -295,6 +327,8 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         <p><strong><?= __('protocol') ?>:</strong> <?= usk_esc($result['protocol']) ?>
         <?php if (!empty($result['openvpn_proto'])) : ?>
             (<?= strtoupper(usk_esc($result['openvpn_proto'])) ?>)
+        <?php elseif (!empty($result['wireguard_transport'])) : ?>
+            (<?= strtoupper(usk_esc($result['wireguard_transport'])) ?>)
         <?php endif; ?>
         </p>
     <?php endif; ?>

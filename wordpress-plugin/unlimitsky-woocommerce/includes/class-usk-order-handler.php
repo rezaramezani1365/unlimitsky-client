@@ -48,7 +48,8 @@ class USK_Order_Handler
             $volume_gb     = (int) $product->get_meta('_usk_volume_gb');
             $duration_days = (int) $product->get_meta('_usk_duration_days');
             $protocol      = sanitize_text_field($product->get_meta('_usk_protocol') ?: '');
-            $openvpn_proto = sanitize_text_field($product->get_meta('_usk_openvpn_proto') ?: 'udp');
+            $openvpn_proto = sanitize_text_field($product->get_meta('_usk_openvpn_proto') ?: 'tcp');
+            $wireguard_transport = sanitize_text_field($product->get_meta('_usk_wireguard_transport') ?: 'tcp');
             $plan_code     = preg_replace('/[^0-9]/', '', (string) $product->get_meta('_usk_plan_code'));
 
             $panel = USK_Panel_Manager::get_panel($panel_id);
@@ -60,7 +61,7 @@ class USK_Order_Handler
             $code     = USK_generate_code();
             $username = USK_service_username($order_id, $item_id, $code);
 
-            $result = USK_Service_Creator::create($panel, $volume_gb, $duration_days, $username, $protocol, $order_id, $plan_code, $openvpn_proto);
+            $result = USK_Service_Creator::create($panel, $volume_gb, $duration_days, $username, $protocol, $order_id, $plan_code, $openvpn_proto, $wireguard_transport);
             $result = USK_Service_Creator::apply_dns_wrap($result);
 
             if (!$result['success']) {
@@ -87,6 +88,7 @@ class USK_Order_Handler
                 'service_code'              => $code,
                 'price'                     => $item->get_total(),
                 'openvpn_proto'             => $result['openvpn_proto'] ?? ($protocol === 'openvpn' ? $openvpn_proto : ''),
+                'wireguard_transport'       => $result['wireguard_transport'] ?? ($protocol === 'wireguard' ? $wireguard_transport : ''),
                 'qr_png'                    => $result['qr_png'] ?? '',
                 'expires_at'                => $result['expires_at'] ?? null,
             ]);

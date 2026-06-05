@@ -11,6 +11,7 @@ class USK_ProtocolManager
                 'icon' => 'fa-shield',
                 'port_fields' => array(
                     array('key' => 'port', 'label' => 'Listen port (UDP)', 'default' => 51820),
+                    array('key' => 'tcp_port', 'label' => 'TCP bridge port (udp2raw)', 'default' => 443),
                 ),
             ),
             'openvpn' => array(
@@ -36,6 +37,7 @@ class USK_ProtocolManager
                 'icon' => 'fa-network-wired',
                 'port_fields' => array(),
                 'fixed_ports' => '500, 4500, 1701 (UDP)',
+                'note_key' => 'protocol_l2tp_iran_note',
             ),
             'xray' => array(
                 'name' => 'Xray (VLESS/VMess)',
@@ -226,6 +228,8 @@ class USK_ProtocolManager
                 return escapeshellarg($ports['udp_port'] ?? 1194) . ' ' . escapeshellarg($ports['tcp_port'] ?? 443);
             case 'l2tp':
                 return escapeshellarg(USK_ROOT);
+            case 'wireguard':
+                return escapeshellarg($ports['port'] ?? 51820) . ' ' . escapeshellarg($ports['tcp_port'] ?? 443);
             default:
                 return isset($ports['port']) ? escapeshellarg($ports['port']) : '';
         }
@@ -315,13 +319,21 @@ class USK_ProtocolManager
             $status['tcp_port'] = (int) $m[2];
             $status['port'] = (int) $m[1];
             $status['firewall_note'] = 'Open UDP ' . $m[1] . ' and TCP ' . $m[2] . ' in your VPS cloud firewall.';
+        } elseif ($proto === 'wireguard' && preg_match('/USK_META:port=(\d+);tcp_port=(\d+)/', $out, $m)) {
+            $status['port'] = (int) $m[1];
+            $status['tcp_port'] = (int) $m[2];
+            if ((int) $m[2] > 0) {
+                $status['firewall_note'] = 'Open UDP ' . $m[1] . ' and TCP ' . $m[2] . ' (WireGuard TCP bridge) in your VPS cloud firewall.';
+            } else {
+                $status['firewall_note'] = 'Open UDP ' . $m[1] . ' in your VPS cloud firewall (security group).';
+            }
         } elseif ($proto === 'l2tp' && $ok) {
             $status['port'] = 1701;
             $status['firewall_note'] = 'Open UDP 500, 4500, and 1701 in your VPS cloud firewall (security group).';
         } elseif (isset($status['port'])) {
             $p = (int) $status['port'];
-            $protoLabel = $proto === 'wireguard' ? 'UDP' : ($proto === 'openvpn' ? 'UDP' : 'TCP');
-            if ($proto === 'wireguard' || $proto === 'openvpn') {
+            $protoLabel = $proto === 'openvpn' ? 'UDP' : 'TCP';
+            if ($proto === 'openvpn') {
                 $status['firewall_note'] = 'Open ' . $protoLabel . ' ' . $p . ' in your VPS cloud firewall (security group).';
             }
         }
