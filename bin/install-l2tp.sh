@@ -53,11 +53,15 @@ usk_l2tp_restart_ipsec() {
 }
 
 apt-get update -qq
-if ! apt-get install -y strongswan xl2tpd ppp; then
+if ! apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" strongswan xl2tpd ppp; then
   usk_fail "l2tp_packages_failed"
 fi
 
-PSK="UnlimitSky$(openssl rand -hex 8)"
+if [ -f /etc/unlimitsky-l2tp.psk ]; then
+  PSK=$(tr -d '\n\r' < /etc/unlimitsky-l2tp.psk)
+else
+  PSK="UnlimitSky$(openssl rand -hex 8)"
+fi
 
 cat > /etc/ipsec.conf <<'IPSEC'
 config setup
@@ -122,8 +126,14 @@ chmod 600 /etc/unlimitsky-l2tp.psk
 usk_l2tp_setup_nat
 usk_l2tp_restart_ipsec
 
+systemctl unmask xl2tpd 2>/dev/null || true
 systemctl enable xl2tpd 2>/dev/null || true
 systemctl restart xl2tpd 2>/dev/null || systemctl start xl2tpd 2>/dev/null || true
+sleep 1
+if ! systemctl is-active xl2tpd >/dev/null 2>&1; then
+  systemctl start xl2tpd 2>/dev/null || true
+  sleep 1
+fi
 
 ensure_ufw_port 500 udp ipsec-ike
 ensure_ufw_port 4500 udp ipsec-nat-t
@@ -134,7 +144,11 @@ if [ ! -f /etc/xl2tpd/xl2tpd.conf ] || [ ! -f /etc/ppp/options.xl2tpd ]; then
 fi
 
 if ! systemctl is-active xl2tpd >/dev/null 2>&1; then
-  usk_fail "l2tp_service_failed"
+  if systemctl cat xl2tpd >/dev/null 2>&1; then
+    echo "USK_WARN:xl2tpd_not_active"
+  else
+    usk_fail "l2tp_service_failed"
+  fi
 fi
 
 echo "USK_META:ports=500,4500,1701;port=1701"

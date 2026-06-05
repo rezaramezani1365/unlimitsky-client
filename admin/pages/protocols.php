@@ -10,11 +10,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['install_protocol'])) 
     if (!empty($res['ok'])) {
         usk_flash($wasInstalled ? __('protocol_reinstalled') : __('protocol_installed'));
     } else {
-        usk_flash(__('protocol_failed') . (isset($res['log']) ? ': ' . substr($res['log'], -200) : ''), 'error');
+        usk_flash(__('protocol_failed') . (isset($res['log']) ? ': ' . substr($res['log'], -400) : ''), 'error');
     }
     header('Location: ' . usk_admin_url('protocols'));
     exit;
 }
+
+USK_ProtocolManager::sync_all_probe_status();
 
 $protocols = USK_ProtocolManager::list();
 ?>

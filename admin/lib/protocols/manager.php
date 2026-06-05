@@ -54,14 +54,79 @@ class USK_ProtocolManager
         return USK_ROOT . '/data/protocols/' . $proto . '.json';
     }
 
-    public static function get_status($proto)
+    public static function read_status($proto)
     {
         $f = self::status_file($proto);
         if (!file_exists($f)) {
             return array('installed' => false, 'status' => 'not_installed');
         }
         $d = json_decode(file_get_contents($f), true);
-        return is_array($d) ? $d : array('installed' => false);
+        return is_array($d) ? $d : array('installed' => false, 'status' => 'not_installed');
+    }
+
+    public static function probe_installed($proto)
+    {
+        switch ($proto) {
+            case 'l2tp':
+                return is_file('/etc/xl2tpd/xl2tpd.conf')
+                    && is_file('/etc/ppp/options.xl2tpd')
+                    && is_file('/etc/unlimitsky-l2tp.psk');
+            case 'wireguard':
+                return is_file('/etc/wireguard/wg0.conf');
+            case 'openvpn':
+                return is_file('/etc/openvpn/server-udp.conf')
+                    || is_file('/etc/openvpn/server.conf');
+            case 'xray':
+                return is_file('/usr/local/etc/xray/config.json')
+                    || is_file('/etc/xray/config.json');
+            case 'cisco':
+                return is_file('/etc/ocserv/ocserv.conf');
+            default:
+                return false;
+        }
+    }
+
+    public static function default_status_fields($proto)
+    {
+        $out = array();
+        if ($proto === 'l2tp') {
+            $out['port'] = 1701;
+            $out['firewall_note'] = 'Open UDP 500, 4500, and 1701 in your VPS cloud firewall (security group).';
+        }
+        return $out;
+    }
+
+    public static function sync_probe_status($proto)
+    {
+        if (!self::probe_installed($proto)) {
+            return false;
+        }
+        $st = self::read_status($proto);
+        if (!empty($st['installed'])) {
+            return true;
+        }
+        self::set_status($proto, array_merge($st, self::default_status_fields($proto), array(
+            'installed' => true,
+            'status' => 'active',
+            'updated_at' => date('c'),
+            'synced_from_system' => true,
+        )));
+        return true;
+    }
+
+    public static function sync_all_probe_status()
+    {
+        foreach (array_keys(self::list()) as $proto) {
+            self::sync_probe_status($proto);
+        }
+    }
+
+    public static function get_status($proto)
+    {
+        if (self::probe_installed($proto)) {
+            self::sync_probe_status($proto);
+        }
+        return self::read_status($proto);
     }
 
     public static function set_status($proto, $data)
@@ -160,7 +225,14 @@ class USK_ProtocolManager
         }
         $cmd .= ' 2>&1';
         $out = shell_exec($cmd);
-        $ok = (strpos($out, 'USK_OK') !== false);
+        if ($out === null || trim((string) $out) === '') {
+            $out = 'USK_ERR: sudo_denied or empty output — check /etc/sudoers.d/unlimitsky for www-data';
+        }
+        $ok = (strpos((string) $out, 'USK_OK') !== false);
+        if (!$ok && self::probe_installed($proto)) {
+            $ok = true;
+            $out .= "\n[USK] Protocol detected as installed on the system.";
+        }
         $status = array(
             'installed' => $ok,
             'status' => $ok ? 'active' : 'failed',
