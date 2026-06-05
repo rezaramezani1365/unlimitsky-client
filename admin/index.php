@@ -25,9 +25,14 @@ if (USK_Admin_Auth::must_change_password() && ($_GET['page'] ?? 'dashboard') !==
 require_once __DIR__ . '/lib/service.php';
 
 $page = preg_replace('/[^a-z-]/', '', $_GET['page'] ?? 'dashboard');
-if ($page === 'payments' || $page === 'password' || $page === 'coupons') {
-    header('Location: ' . usk_admin_url($page === 'payments' ? 'settings' : ($page === 'coupons' ? 'dashboard' : 'settings')));
+if (in_array($page, usk_admin_removed_pages(), true)) {
+    $target = in_array($page, array('payments', 'password'), true) ? 'settings' : 'dashboard';
+    header('Location: ' . usk_admin_url($target));
     exit;
+}
+$allowed = array_keys(usk_admin_nav());
+if (!in_array($page, $allowed, true)) {
+    $page = 'dashboard';
 }
 $file = __DIR__ . '/pages/' . $page . '.php';
 if (!file_exists($file)) {

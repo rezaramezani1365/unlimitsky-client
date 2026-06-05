@@ -14,19 +14,7 @@ $flash = usk_get_flash();
 
 $base = usk_admin_base();
 
-$nav = array(
-    'dashboard' => array('icon' => 'fa-gauge-high', 'label' => __('nav_dashboard')),
-    'protocols' => array('icon' => 'fa-network-wired', 'label' => __('nav_protocols')),
-    'panels' => array('icon' => 'fa-server', 'label' => __('nav_panels')),
-    'guides' => array('icon' => 'fa-book', 'label' => __('nav_guides')),
-    'api-keys' => array('icon' => 'fa-key', 'label' => __('nav_api_keys')),
-    'plans' => array('icon' => 'fa-tags', 'label' => __('nav_plans')),
-    'create-service' => array('icon' => 'fa-plus-circle', 'label' => __('nav_create')),
-    'services' => array('icon' => 'fa-shield-halved', 'label' => __('nav_services')),
-    'users' => array('icon' => 'fa-users', 'label' => __('nav_users')),
-    'license' => array('icon' => 'fa-crown', 'label' => __('nav_license')),
-    'settings' => array('icon' => 'fa-gear', 'label' => __('nav_settings')),
-);
+$nav = usk_admin_nav();
 
 $dir = usk_dir();
 
@@ -64,7 +52,7 @@ $lang = usk_lang();
 
                 <a class="usk-brand text-decoration-none d-block" href="<?= usk_admin_url('dashboard') ?>">
 
-                    Unlimited<span>Sky</span>
+                    <?= __('brand') ?>
 
                 </a>
 

@@ -77,3 +77,27 @@ function usk_panel_version()
     global $config;
     return (string) ($config['version'] ?? '2.5');
 }
+
+/** Legacy pages removed from the web admin panel. */
+function usk_admin_removed_pages()
+{
+    return array('coupons', 'payments', 'password');
+}
+
+/** Sidebar navigation (single source of truth). */
+function usk_admin_nav()
+{
+    return array(
+        'dashboard' => array('icon' => 'fa-gauge-high', 'label' => __('nav_dashboard')),
+        'protocols' => array('icon' => 'fa-network-wired', 'label' => __('nav_protocols')),
+        'panels' => array('icon' => 'fa-server', 'label' => __('nav_panels')),
+        'guides' => array('icon' => 'fa-book', 'label' => __('nav_guides')),
+        'api-keys' => array('icon' => 'fa-key', 'label' => __('nav_api_keys')),
+        'plans' => array('icon' => 'fa-tags', 'label' => __('nav_plans')),
+        'create-service' => array('icon' => 'fa-plus-circle', 'label' => __('nav_create')),
+        'services' => array('icon' => 'fa-shield-halved', 'label' => __('nav_services')),
+        'users' => array('icon' => 'fa-users', 'label' => __('nav_users')),
+        'license' => array('icon' => 'fa-crown', 'label' => __('nav_license')),
+        'settings' => array('icon' => 'fa-gear', 'label' => __('nav_settings')),
+    );
+}
