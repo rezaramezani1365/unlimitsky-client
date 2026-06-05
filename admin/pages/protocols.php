@@ -8,7 +8,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['install_protocol'])) 
     $ports = USK_ProtocolManager::parse_ports($proto, $_POST);
     $res = USK_ProtocolManager::install($proto, $ports);
     if (!empty($res['ok'])) {
-        usk_flash($wasInstalled ? __('protocol_reinstalled') : __('protocol_installed'));
+        if (!empty($res['warn'])) {
+            usk_flash(__('protocol_reinstalled_warn'), 'warning');
+        } else {
+            usk_flash($wasInstalled ? __('protocol_reinstalled') : __('protocol_installed'));
+        }
     } else {
         usk_flash(__('protocol_failed') . (isset($res['log']) ? ': ' . substr($res['log'], -400) : ''), 'error');
     }

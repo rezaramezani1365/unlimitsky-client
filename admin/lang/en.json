@@ -117,6 +117,7 @@
   "protocol_reinstall": "Reinstall on server",
   "protocol_reinstall_confirm": "Reinstall this protocol? Server config will be refreshed (existing users kept where possible). Port settings below will be applied.",
   "protocol_reinstalled": "Reinstalled successfully",
+  "protocol_reinstalled_warn": "Service is active on the server; the panel script did not return a full OK (often sudo or timeout). See data/protocols/l2tp-last.log",
   "protocol_last_install": "Last install",
   "protocol_active_port": "Active port",
   "protocol_fixed_ports": "Fixed ports",

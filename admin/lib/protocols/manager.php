@@ -64,8 +64,17 @@ class USK_ProtocolManager
         return is_array($d) ? $d : array('installed' => false, 'status' => 'not_installed');
     }
 
+    public static function probe_marker($proto)
+    {
+        $marker = USK_ROOT . '/data/protocol-installed/' . preg_replace('/[^a-z]/', '', $proto);
+        return is_file($marker);
+    }
+
     public static function probe_installed($proto)
     {
+        if (self::probe_marker($proto)) {
+            return true;
+        }
         switch ($proto) {
             case 'l2tp':
                 return is_file('/etc/xl2tpd/xl2tpd.conf')
@@ -197,10 +206,20 @@ class USK_ProtocolManager
             case 'openvpn':
                 return escapeshellarg($ports['udp_port'] ?? 1194) . ' ' . escapeshellarg($ports['tcp_port'] ?? 443);
             case 'l2tp':
-                return '';
+                return escapeshellarg(USK_ROOT);
             default:
                 return isset($ports['port']) ? escapeshellarg($ports['port']) : '';
         }
+    }
+
+    private static function write_install_log($proto, $cmd, $out)
+    {
+        $dir = USK_ROOT . '/data/protocols';
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+        $log = date('c') . "\nCMD: " . $cmd . "\n---\n" . (string) $out . "\n";
+        @file_put_contents($dir . '/' . $proto . '-last.log', $log);
     }
 
     public static function install($proto, array $ports = array())
@@ -224,21 +243,28 @@ class USK_ProtocolManager
             $cmd .= ' ' . $argv;
         }
         $cmd .= ' 2>&1';
+        $prev = self::read_status($proto);
         $out = shell_exec($cmd);
+        self::write_install_log($proto, $cmd, $out);
         if ($out === null || trim((string) $out) === '') {
             $out = 'USK_ERR: sudo_denied or empty output — check /etc/sudoers.d/unlimitsky for www-data';
         }
-        $ok = (strpos((string) $out, 'USK_OK') !== false);
-        if (!$ok && self::probe_installed($proto)) {
-            $ok = true;
-            $out .= "\n[USK] Protocol detected as installed on the system.";
-        }
-        $status = array(
+        $scriptOk = (strpos((string) $out, 'USK_OK') !== false);
+        $systemOk = self::probe_installed($proto);
+        $ok = $scriptOk || $systemOk;
+        $warn = !$scriptOk && $systemOk;
+
+        $status = array_merge($prev, self::default_status_fields($proto), array(
             'installed' => $ok,
             'status' => $ok ? 'active' : 'failed',
             'updated_at' => date('c'),
-            'log' => substr($out, -2000),
-        );
+            'log' => substr((string) $out, -2000),
+        ));
+        if ($warn) {
+            $status['last_install_warning'] = substr((string) $out, -500);
+        } else {
+            unset($status['last_install_warning']);
+        }
 
         foreach ($ports as $k => $v) {
             $status[$k] = (int) $v;
@@ -268,7 +294,12 @@ class USK_ProtocolManager
         }
 
         self::set_status($proto, $status);
-        return array('ok' => $ok, 'msg' => $ok ? 'installed' : 'failed', 'log' => $out);
+        return array(
+            'ok' => $ok,
+            'warn' => $warn,
+            'msg' => $ok ? ($warn ? 'installed_with_warning' : 'installed') : 'failed',
+            'log' => $out,
+        );
     }
 
     public static function installed_protocols()

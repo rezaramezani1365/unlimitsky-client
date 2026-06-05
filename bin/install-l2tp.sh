@@ -4,6 +4,7 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$DIR/usk-common.sh"
 set +e
 
+USK_ROOT="${1:-/var/www/unlimitsky}"
 L2TP_SUBNET="10.10.10.0/24"
 
 usk_l2tp_main_iface() {
@@ -123,6 +124,8 @@ chmod 600 /etc/ppp/chap-secrets
 echo "$PSK" > /etc/unlimitsky-l2tp.psk
 chmod 600 /etc/unlimitsky-l2tp.psk
 
+usk_mark_installed l2tp "$USK_ROOT"
+
 usk_l2tp_setup_nat
 usk_l2tp_restart_ipsec
 
@@ -141,14 +144,6 @@ ensure_ufw_port 1701 udp l2tp
 
 if [ ! -f /etc/xl2tpd/xl2tpd.conf ] || [ ! -f /etc/ppp/options.xl2tpd ]; then
   usk_fail "l2tp_config_failed"
-fi
-
-if ! systemctl is-active xl2tpd >/dev/null 2>&1; then
-  if systemctl cat xl2tpd >/dev/null 2>&1; then
-    echo "USK_WARN:xl2tpd_not_active"
-  else
-    usk_fail "l2tp_service_failed"
-  fi
 fi
 
 echo "USK_META:ports=500,4500,1701;port=1701"
