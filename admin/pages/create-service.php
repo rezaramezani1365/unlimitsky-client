@@ -6,6 +6,10 @@ $GLOBALS['page_title'] = __('nav_create');
 $GLOBALS['active_nav'] = 'create-service';
 
 $result = null;
+if (!empty($_GET['created']) && !empty($_SESSION['usk_create_result'])) {
+    $result = $_SESSION['usk_create_result'];
+    unset($_SESSION['usk_create_result']);
+}
 USK_ProtocolManager::refresh_all_status();
 $installed = USK_ProtocolManager::installed_protocols();
 $protocolPortDefaults = array();
@@ -103,6 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $code_esc = $sql->real_escape_string($order['code']);
                             $sql->query("UPDATE `orders` SET `link`='$dl_esc' WHERE `code`='$code_esc'");
                         }
+                        unset($created['raw']);
                         $result = $created;
                         $result['code'] = $order['code'];
                         $result['protocol'] = $protocol;
@@ -116,7 +121,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $result['vless'] = $raw['vless'] ?? ($created['subscription'] ?? '');
                         $result['openvpn_proto'] = $raw['proto'] ?? ($provisionMeta['openvpn_proto'] ?? 'tcp');
                         $result['wireguard_transport'] = $raw['wireguard_transport'] ?? ($provisionMeta['wireguard_transport'] ?? '');
+                        $_SESSION['usk_create_result'] = $result;
                         usk_flash(__('create_success'));
+                        header('Location: ' . usk_admin_url('create-service', array('created' => '1')));
+                        exit;
                     }
                 }
             }
@@ -433,11 +441,26 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         <code class="d-block p-3" style="white-space:pre-wrap;direction:ltr;text-align:left;"><?= usk_esc($result['wg_conf']) ?></code>
         <p class="text-muted small"><?= __('amnezia_wg_conf_hint') ?></p>
     <?php endif; ?>
-    <p class="mt-2"><strong><?= __('config_label') ?>:</strong></p>
-    <code class="d-block p-3" style="white-space:pre-wrap;direction:ltr;text-align:left;"><?= usk_esc(($result['protocol'] ?? '') === 'amnezia' ? ($result['config'] ?? $result['subscription']) : $result['subscription']) ?></code>
-    <?php if (!empty($result['links']) && $result['links'] !== $result['subscription']) : ?>
+    <?php
+    $resultProto = (string) ($result['protocol'] ?? '');
+    $configPreview = '';
+    if ($resultProto === 'xray') {
+        $configPreview = (string) ($result['vless'] ?? ($result['subscription'] ?? ''));
+    } elseif ($resultProto === 'amnezia') {
+        $configPreview = (string) ($result['vpn_uri'] ?? ($result['subscription'] ?? ''));
+    } else {
+        $configPreview = (string) ($result['subscription'] ?? ($result['links'] ?? ''));
+    }
+    $linksExtra = (string) ($result['links'] ?? '');
+    $subscriptionText = (string) ($result['subscription'] ?? '');
+    ?>
+    <?php if ($configPreview !== '' && !($resultProto === 'xray' && !empty($result['vless'])) && !($resultProto === 'amnezia' && !empty($result['vpn_uri']))) : ?>
+        <p class="mt-2"><strong><?= __('config_label') ?>:</strong></p>
+        <code class="d-block p-3" style="white-space:pre-wrap;direction:ltr;text-align:left;"><?= usk_esc($configPreview) ?></code>
+    <?php endif; ?>
+    <?php if ($linksExtra !== '' && $linksExtra !== $subscriptionText && $linksExtra !== $configPreview) : ?>
         <p class="mt-2"><strong><?= __('links') ?>:</strong></p>
-        <code class="d-block p-3" style="white-space:pre-wrap;direction:ltr;text-align:left;"><?= usk_esc($result['links']) ?></code>
+        <code class="d-block p-3" style="white-space:pre-wrap;direction:ltr;text-align:left;"><?= usk_esc($linksExtra) ?></code>
     <?php endif; ?>
     <p class="mt-3"><a class="btn btn-outline" href="<?= usk_admin_url('services') ?>"><?= __('nav_services') ?></a></p>
 </div>
