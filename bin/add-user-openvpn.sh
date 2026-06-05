@@ -20,6 +20,9 @@ PROTO=$(echo "$PROTO" | tr '[:upper:]' '[:lower:]')
 if [ "$PROTO" != "tcp" ]; then
   PROTO="udp"
 fi
+ARG_UDP_PORT="${5:-}"
+ARG_TCP_PORT="${6:-}"
+ARG_SERVER_IP="${7:-}"
 
 EASYRSA="/etc/openvpn/easy-rsa"
 if [ ! -d "$EASYRSA/pki" ]; then
@@ -35,9 +38,9 @@ if [ -n "$CFG" ] && [ -f "$CFG" ]; then
 fi
 if [ -z "$PORT" ]; then
   if [ "$PROTO" = "tcp" ]; then
-    PORT="${USK_OPENVPN_TCP_PORT:-443}"
+    PORT="${USK_OPENVPN_TCP_PORT:-${ARG_TCP_PORT:-443}}"
   else
-    PORT="${USK_OPENVPN_UDP_PORT:-1194}"
+    PORT="${USK_OPENVPN_UDP_PORT:-${ARG_UDP_PORT:-1194}}"
   fi
 fi
 
@@ -50,7 +53,10 @@ if [ ! -f "pki/issued/${USERNAME}.crt" ]; then
   ./easyrsa --batch build-client-full "$USERNAME" nopass
 fi
 
-SERVER_IP=$(usk_server_ip)
+SERVER_IP="${ARG_SERVER_IP:-${USK_SERVER_IP:-}}"
+if [ -z "$SERVER_IP" ]; then
+  SERVER_IP=$(usk_server_ip)
+fi
 CA=$(cat pki/ca.crt)
 CERT=$(cat "pki/issued/${USERNAME}.crt")
 KEY=$(cat "pki/private/${USERNAME}.key")
