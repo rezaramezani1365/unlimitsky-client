@@ -214,6 +214,9 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
                     </select>
                     <p class="text-muted small mt-1 mb-0"><?= __('create_wireguard_transport_hint') ?></p>
                 </div>
+                <div id="create-amnezia-hint" class="alert alert-info small py-2 px-3 mb-0 mt-2" style="display:none;">
+                    <i class="fa-solid fa-circle-info"></i> <?= __('protocol_amnezia_note') ?>
+                </div>
                 <div id="create-l2tp-warning" class="alert alert-warning small py-2 px-3 mb-0 mt-2" style="display:none;">
                     <i class="fa-solid fa-triangle-exclamation"></i> <?= __('protocol_l2tp_iran_note') ?>
                 </div>
@@ -246,11 +249,13 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         var openvpnProto = document.getElementById('create-openvpn-proto');
         var wgTransport = document.getElementById('create-wireguard-transport');
         var l2tpWarn = document.getElementById('create-l2tp-warning');
+        var amneziaHint = document.getElementById('create-amnezia-hint');
         if (!wrap || !proto || !protocolPorts[proto]) {
             if (wrap) wrap.style.display = 'none';
             if (openvpnProto) openvpnProto.style.display = 'none';
             if (wgTransport) wgTransport.style.display = 'none';
             if (l2tpWarn) l2tpWarn.style.display = 'none';
+            if (amneziaHint) amneziaHint.style.display = 'none';
             return;
         }
         wrap.style.display = '';
@@ -260,6 +265,7 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         if (openvpnProto) openvpnProto.style.display = 'none';
         if (wgTransport) wgTransport.style.display = 'none';
         if (l2tpWarn) l2tpWarn.style.display = 'none';
+        if (amneziaHint) amneziaHint.style.display = 'none';
         var cfg = protocolPorts[proto];
         if (proto === 'xray') {
             xray.style.display = '';
@@ -280,6 +286,10 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
             fixed.style.display = '';
             if (l2tpWarn) l2tpWarn.style.display = '';
             document.getElementById('create-port-fixed-text').textContent = cfg.fixed_ports || '500, 4500, 1701 (UDP)';
+        } else if (proto === 'amnezia') {
+            single.style.display = '';
+            if (amneziaHint) amneziaHint.style.display = '';
+            document.getElementById('custom-port').value = cfg.port || 51821;
         } else if (cfg.fixed_ports) {
             fixed.style.display = '';
             document.getElementById('create-port-fixed-text').textContent = cfg.fixed_ports;
@@ -319,9 +329,9 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         <p><strong><?= __('expires_at') ?>:</strong> <?= usk_esc($result['expires_at']) ?></p>
     <?php endif; ?>
     <?php if (!empty($result['qr_png'])) : ?>
-        <p class="mt-2"><strong><?= __('wireguard_qr') ?>:</strong></p>
+        <p class="mt-2"><strong><?= ($result['protocol'] ?? '') === 'amnezia' ? __('amnezia_qr') : __('wireguard_qr') ?>:</strong></p>
         <p><img src="data:image/png;base64,<?= usk_esc($result['qr_png']) ?>" alt="QR" style="max-width:220px;border:1px solid #333;padding:8px;background:#fff;" /></p>
-        <p class="text-muted small"><?= __('wireguard_qr_hint') ?></p>
+        <p class="text-muted small"><?= ($result['protocol'] ?? '') === 'amnezia' ? __('amnezia_qr_hint') : __('wireguard_qr_hint') ?></p>
     <?php endif; ?>
     <?php if (!empty($result['protocol'])) : ?>
         <p><strong><?= __('protocol') ?>:</strong> <?= usk_esc($result['protocol']) ?>

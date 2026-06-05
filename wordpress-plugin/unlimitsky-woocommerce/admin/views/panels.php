@@ -12,6 +12,8 @@ $native_protocols = [
     'openvpn'   => 'OpenVPN',
     'xray'      => 'Xray (VLESS/VMess)',
     'l2tp'      => 'L2TP/IPsec',
+    'amnezia'   => 'Amnezia (AmneziaWG)',
+    'cisco'     => 'Cisco AnyConnect',
 ];
 ?>
 

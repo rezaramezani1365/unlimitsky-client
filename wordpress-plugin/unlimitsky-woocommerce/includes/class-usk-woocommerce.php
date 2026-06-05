@@ -88,6 +88,7 @@ class USK_WooCommerce
                 'openvpn'   => 'OpenVPN',
                 'xray'      => 'Xray',
                 'l2tp'      => 'L2TP/IPsec',
+                'amnezia'   => 'Amnezia (AmneziaWG)',
             ],
             'desc_tip'    => true,
             'description' => __('برای پنل UnlimitSky — اگر خالی باشد از پروتکل پیش‌فرض پنل استفاده می‌شود.', 'unlimitsky-wc'),

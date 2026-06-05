@@ -48,6 +48,15 @@ class USK_ProtocolManager
                     array('key' => 'vmess_port', 'label' => 'VMess port (TCP)', 'default' => 8443),
                 ),
             ),
+            'amnezia' => array(
+                'name' => 'Amnezia (AmneziaWG)',
+                'port' => 51821,
+                'icon' => 'fa-user-shield',
+                'port_fields' => array(
+                    array('key' => 'port', 'label' => 'Listen port (UDP)', 'default' => 51821),
+                ),
+                'note_key' => 'protocol_amnezia_note',
+            ),
         );
     }
 
@@ -328,6 +337,9 @@ class USK_ProtocolManager
             $status['tcp_port'] = (int) $m[2];
             $status['port'] = (int) $m[1];
             $status['firewall_note'] = 'Open UDP ' . $m[1] . ' and TCP ' . $m[2] . ' in your VPS cloud firewall.';
+        } elseif ($proto === 'amnezia' && preg_match('/USK_META:port=(\d+)/', $out, $m)) {
+            $status['port'] = (int) $m[1];
+            $status['firewall_note'] = 'Open UDP ' . $m[1] . ' (AmneziaWG) in your VPS cloud firewall. Clients need the Amnezia VPN app.';
         } elseif ($proto === 'wireguard' && preg_match('/USK_META:port=(\d+);tcp_port=(\d+)/', $out, $m)) {
             $status['port'] = (int) $m[1];
             $requestedTcp = (int) $m[2];

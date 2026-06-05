@@ -41,7 +41,7 @@ class USK_ProtocolLimits
             'details' => array(),
         );
 
-        foreach (array('wireguard', 'openvpn', 'xray', 'l2tp', 'cisco') as $protocol) {
+        foreach (array('wireguard', 'openvpn', 'xray', 'l2tp', 'cisco', 'amnezia') as $protocol) {
             $clients = self::load_protocol_clients($protocol);
             foreach ($clients as $username => $rec) {
                 if (!is_array($rec) || !self::is_active_status($rec['status'] ?? 'active')) {
@@ -187,6 +187,8 @@ class USK_ProtocolLimits
         $cmd = 'sudo bash ' . escapeshellarg($script) . ' ' . escapeshellarg($username);
         if ($protocol === 'wireguard') {
             $cmd .= ' ' . escapeshellarg($m['public_key'] ?? '');
+        } elseif ($protocol === 'amnezia') {
+            $cmd .= ' ' . escapeshellarg($m['public_key'] ?? '');
         } elseif ($protocol === 'xray') {
             $cmd .= ' ' . escapeshellarg($m['uuid'] ?? '');
         }
@@ -203,6 +205,8 @@ class USK_ProtocolLimits
 
         $cmd = 'sudo bash ' . escapeshellarg($script) . ' ' . escapeshellarg($username);
         if ($protocol === 'wireguard') {
+            $cmd .= ' ' . escapeshellarg($m['public_key'] ?? '') . ' ' . escapeshellarg($m['client_ip'] ?? '');
+        } elseif ($protocol === 'amnezia') {
             $cmd .= ' ' . escapeshellarg($m['public_key'] ?? '') . ' ' . escapeshellarg($m['client_ip'] ?? '');
         } elseif ($protocol === 'xray') {
             $cmd .= ' ' . escapeshellarg($m['uuid'] ?? '');
