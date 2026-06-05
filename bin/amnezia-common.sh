@@ -62,12 +62,37 @@ usk_amnezia_mark_mode() {
   echo "$mode" > "$AMNEZIA_MODE_FILE"
 }
 
+usk_amnezia_apt_optional() {
+  apt-get update -qq 2>/dev/null || true
+  for pkg in "$@"; do
+    apt-get install -y "$pkg" 2>/dev/null || true
+  done
+}
+
+usk_amnezia_unzip_dir() {
+  local zipfile="$1"
+  local dest="$2"
+  if command -v unzip >/dev/null 2>&1; then
+    unzip -q -o "$zipfile" -d "$dest" 2>/dev/null && return 0
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - "$zipfile" "$dest" <<'PY' 2>/dev/null && return 0
+import sys, zipfile, os
+z, dest = sys.argv[1], sys.argv[2]
+with zipfile.ZipFile(z) as zf:
+    zf.extractall(dest)
+PY
+  fi
+  return 1
+}
+
 usk_amnezia_install_go_binary() {
   local arch go_bin url
   arch=$(usk_amnezia_detect_arch)
   go_bin="/usr/local/bin/amneziawg-go"
   [ -x "$go_bin" ] && return 0
   url="https://github.com/amnezia-vpn/amneziawg-go/releases/download/v${AWG_GO_VERSION}/amneziawg-go-linux-${arch}"
+  usk_amnezia_apt_optional ca-certificates curl wget
   if command -v curl >/dev/null 2>&1; then
     curl -fsSL -o "$go_bin" "$url" 2>/dev/null || return 1
   elif command -v wget >/dev/null 2>&1; then
@@ -81,8 +106,8 @@ usk_amnezia_install_go_binary() {
 
 usk_amnezia_install_tools_zip() {
   command -v awg >/dev/null 2>&1 && command -v awg-quick >/dev/null 2>&1 && return 0
-  apt-get install -y unzip 2>/dev/null || true
-  local arch zip_name tmpdir awg_bin quick_bin
+  usk_amnezia_apt_optional ca-certificates curl wget unzip
+  local arch zip_name tmpdir awg_bin quick_bin f base
   arch=$(usk_amnezia_detect_arch)
   zip_name="ubuntu-22.04-amneziawg-tools.zip"
   [ "$arch" = "arm64" ] && zip_name="alpine-3.19-amneziawg-tools.zip"
@@ -90,12 +115,25 @@ usk_amnezia_install_tools_zip() {
   local url="https://github.com/amnezia-vpn/amneziawg-tools/releases/download/${AWG_TOOLS_VERSION}/${zip_name}"
   if command -v curl >/dev/null 2>&1; then
     curl -fsSL -o "$tmpdir/tools.zip" "$url" 2>/dev/null || { rm -rf "$tmpdir"; return 1; }
-  else
+  elif command -v wget >/dev/null 2>&1; then
     wget -q -O "$tmpdir/tools.zip" "$url" 2>/dev/null || { rm -rf "$tmpdir"; return 1; }
+  else
+    rm -rf "$tmpdir"
+    return 1
   fi
-  unzip -q -o "$tmpdir/tools.zip" -d "$tmpdir" 2>/dev/null || { rm -rf "$tmpdir"; return 1; }
-  awg_bin=$(find "$tmpdir" -type f -name 'awg' ! -path '*quick*' 2>/dev/null | head -1)
-  quick_bin=$(find "$tmpdir" -type f -name 'awg-quick' 2>/dev/null | head -1)
+  usk_amnezia_unzip_dir "$tmpdir/tools.zip" "$tmpdir" || { rm -rf "$tmpdir"; return 1; }
+  awg_bin=""
+  quick_bin=""
+  while IFS= read -r f; do
+    base=$(basename "$f")
+    if [ "$base" = "awg-quick" ]; then
+      quick_bin="$f"
+    elif [ "$base" = "awg" ]; then
+      awg_bin="$f"
+    fi
+  done <<EOF
+$(find "$tmpdir" -type f 2>/dev/null)
+EOF
   [ -n "$awg_bin" ] && install -m 755 "$awg_bin" /usr/local/bin/awg
   [ -n "$quick_bin" ] && install -m 755 "$quick_bin" /usr/local/bin/awg-quick
   rm -rf "$tmpdir"
@@ -104,7 +142,11 @@ usk_amnezia_install_tools_zip() {
 
 usk_amnezia_install_tools_build() {
   command -v awg >/dev/null 2>&1 && command -v awg-quick >/dev/null 2>&1 && return 0
-  apt-get install -y git make gcc 2>/dev/null || apt-get install -y git make build-essential
+  if ! apt-cache show make >/dev/null 2>&1; then
+    return 1
+  fi
+  usk_amnezia_apt_optional git make gcc
+  command -v git >/dev/null 2>&1 && command -v make >/dev/null 2>&1 || return 1
   local td
   td=$(mktemp -d)
   git clone --depth 1 https://github.com/amnezia-vpn/amneziawg-tools.git "$td/tools" 2>/dev/null || { rm -rf "$td"; return 1; }
@@ -153,12 +195,22 @@ UNIT
 }
 
 usk_amnezia_install_userspace() {
-  apt-get update -qq
-  apt-get install -y iptables curl wget qrencode iproute2 unzip git make 2>/dev/null || true
-  usk_amnezia_install_go_binary || return 1
-  usk_amnezia_install_tools_zip || usk_amnezia_install_tools_build || return 1
+  usk_amnezia_apt_optional iptables iproute2 ca-certificates curl wget
+  usk_amnezia_apt_optional qrencode unzip
+
+  if ! usk_amnezia_install_go_binary; then
+    echo "USK_ERR: amnezia_go_download_failed" >&2
+    return 1
+  fi
+  if ! usk_amnezia_install_tools_zip; then
+    echo "USK_WARN: amnezia_tools_zip_failed" >&2
+    if ! usk_amnezia_install_tools_build; then
+      echo "USK_ERR: amnezia_tools_install_failed" >&2
+      return 1
+    fi
+  fi
   usk_amnezia_setup_userspace_systemd
-  command -v awg >/dev/null 2>&1
+  command -v awg >/dev/null 2>&1 && command -v awg-quick >/dev/null 2>&1
 }
 
 usk_amnezia_install_kernel_packages() {
