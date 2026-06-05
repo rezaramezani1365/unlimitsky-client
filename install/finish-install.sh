@@ -56,7 +56,7 @@ php "$WEB_ROOT/install/cli-install.php" \
     --admin-user="$ADMIN_USER" \
     --admin-pass="$ADMIN_PASS" \
     --lang=fa \
-    $MC_FLAG >/dev/null
+    $MC_FLAG
 
 usk_secure_app_files "$WEB_ROOT"
 

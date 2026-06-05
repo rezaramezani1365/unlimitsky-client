@@ -99,8 +99,15 @@ if (file_put_contents($config_path, $replace) === false) {
 
 $connect = usk_cli_run_sql_setup($db_name, $db_user, $db_pass);
 if (empty($connect['status'])) {
-    @file_put_contents($config_path, $config_file);
+    $provision = array(
+        'db_name' => $db_name,
+        'db_user' => $db_user,
+        'db_pass' => $db_pass,
+        'created_at' => date('c'),
+    );
+    @file_put_contents(__DIR__ . '/.db-provision.json', json_encode($provision, JSON_PRETTY_PRINT));
     fwrite(STDERR, 'Database setup failed: ' . ($connect['msg'] ?? 'unknown') . "\n");
+    fwrite(STDERR, "Credentials kept in config.php and install/.db-provision.json — fix schema then re-run.\n");
     exit(1);
 }
 

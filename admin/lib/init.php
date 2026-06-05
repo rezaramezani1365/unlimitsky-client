@@ -17,6 +17,10 @@ require_once __DIR__ . '/protocols/manager.php';
 require_once __DIR__ . '/protocols/limits.php';
 require_once __DIR__ . '/protocols/provisioner.php';
 
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 USK_I18n::boot();
 USK_License::boot();
 

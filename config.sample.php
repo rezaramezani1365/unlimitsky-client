@@ -30,21 +30,46 @@ $config = [
     ],
 ];
 
-$sql = @new mysqli(
-    'localhost',
-    $config['database']['db_username'],
-    $config['database']['db_password'],
-    $config['database']['db_name']
+$db_cfg = $config['database'];
+$config_incomplete = (
+    strpos($db_cfg['db_name'], '[*') === 0
+    || strpos($db_cfg['db_username'], '[*') === 0
+    || strpos($db_cfg['db_password'], '[*') === 0
 );
 
-if ($sql->connect_error) {
-    if (defined('USK_ADMIN')) {
-        http_response_code(500);
-        die('<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="UTF-8"><title>Database error</title></head><body style="font-family:tahoma;padding:40px;">'
-            . '<h2>Database connection failed</h2><p>' . htmlspecialchars($sql->connect_error) . '</p>'
-            . '<p><a href="' . htmlspecialchars(rtrim($base_domain, '/') . '/install/index.php') . '">Install wizard</a></p></body></html>');
+$sql = null;
+if (!$config_incomplete) {
+    try {
+        $sql = new mysqli(
+            'localhost',
+            $db_cfg['db_username'],
+            $db_cfg['db_password'],
+            $db_cfg['db_name']
+        );
+    } catch (mysqli_sql_exception $e) {
+        $sql = null;
+        $connect_error = $e->getMessage();
     }
-    die(json_encode(['status' => false, 'msg' => $sql->connect_error, 'error' => 'database']));
+}
+
+if ($config_incomplete) {
+    $connect_error = 'Install not finished — database credentials are not configured yet.';
+} elseif (!($sql instanceof mysqli) || !empty($sql->connect_error)) {
+    $connect_error = ($sql instanceof mysqli && $sql->connect_error)
+        ? $sql->connect_error
+        : ($connect_error ?? 'Database connection failed');
+}
+
+if (!empty($connect_error)) {
+    $install_url = preg_replace('#/admin(/.*)?$#', '', rtrim($base_domain, '/')) . '/install/index.php';
+    if (defined('USK_ADMIN')) {
+        http_response_code(503);
+        die('<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="UTF-8"><title>Database error</title></head><body style="font-family:tahoma;padding:40px;">'
+            . '<h2>Database connection failed</h2><p>' . htmlspecialchars($connect_error) . '</p>'
+            . '<p>Run on the server: <code>sudo bash install/finish-install.sh \'YourPass123\'</code></p>'
+            . '<p><a href="' . htmlspecialchars($install_url) . '">Install wizard</a></p></body></html>');
+    }
+    die(json_encode(array('status' => false, 'msg' => $connect_error, 'error' => 'database')));
 }
 
 $sql->set_charset('utf8mb4');

@@ -167,6 +167,7 @@ usk_mysql_create_app_db "usk_client"
 DB_NAME="$USK_DB_NAME"
 DB_USER="$USK_DB_USER"
 DB_PASS="$USK_DB_PASS"
+usk_save_db_provision "$WEB_ROOT/install/.db-provision.json" "$DB_NAME" "$DB_USER" "$DB_PASS"
 
 if [ "$AUTO" -eq 1 ]; then
     echo "[*] Running CLI install..."
@@ -182,7 +183,13 @@ if [ "$AUTO" -eq 1 ]; then
         --lang="$LANG" \
         --license-server="$LICENSE_URL" \
         --license-token="$LICENSE_TOKEN" \
-        $MC_FLAG >/dev/null
+        $MC_FLAG
+
+    if [ ! -f "$WEB_ROOT/install/unlimitsky.install" ]; then
+        echo "ERROR: CLI install did not complete. Check output above." >&2
+        echo "Retry: sudo bash $WEB_ROOT/install/finish-install.sh '$ADMIN_PASS'" >&2
+        exit 1
+    fi
 
     usk_secure_app_files "$WEB_ROOT"
 

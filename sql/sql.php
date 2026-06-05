@@ -16,7 +16,7 @@ if ($sql->connect_error) {
 }
 $sql->set_charset("utf8mb4");
 
-mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `users` (
+$sql->query( "CREATE TABLE IF NOT EXISTS `users` (
     `row` int(200) AUTO_INCREMENT PRIMARY KEY,
     `from_id` bigint(13) NOT NULL,
     `step` varchar(50) COLLATE utf8mb4_bin DEFAULT 'none',
@@ -31,7 +31,7 @@ mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `users` (
     `status` varchar(15) COLLATE utf8mb4_bin DEFAULT 'active'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;");
 
-mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `panels` (
+$sql->query( "CREATE TABLE IF NOT EXISTS `panels` (
     `row` int(200) AUTO_INCREMENT PRIMARY KEY,
     `name` varchar(50) COLLATE utf8mb4_bin NOT NULL,
     `login_link` varchar(50) COLLATE utf8mb4_bin NOT NULL,
@@ -47,7 +47,7 @@ mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `panels` (
     `status` varchar(20) COLLATE utf8mb4_bin DEFAULT 'active'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;");
 
-mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `hiddify_panels` (
+$sql->query( "CREATE TABLE IF NOT EXISTS `hiddify_panels` (
     `row` int(200) AUTO_INCREMENT PRIMARY KEY,
     `name` varchar(50) COLLATE utf8mb4_bin NOT NULL,
     `login_link` TEXT COLLATE utf8mb4_bin NOT NULL,
@@ -59,21 +59,21 @@ mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `hiddify_panels` (
     `status` varchar(20) COLLATE utf8mb4_bin DEFAULT 'active'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;");
 
-mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `sanayi_panel_setting` (
+$sql->query( "CREATE TABLE IF NOT EXISTS `sanayi_panel_setting` (
     `code` varchar(50) COLLATE utf8mb4_bin DEFAULT NULL,
     `inbound_id` varchar(10) COLLATE utf8mb4_bin DEFAULT NULL,
     `example_link` TEXT COLLATE utf8mb4_bin DEFAULT NULL,
     `flow` varchar(50) COLLATE utf8mb4_bin DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;");
 
-mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `marzban_inbounds` (
+$sql->query( "CREATE TABLE IF NOT EXISTS `marzban_inbounds` (
     `panel` varchar(50) COLLATE utf8mb4_bin DEFAULT NULL,
     `inbound` TEXT COLLATE utf8mb4_bin DEFAULT NULL,
     `code` varchar(20) COLLATE utf8mb4_bin DEFAULT NULL,
     `status` varchar(20) COLLATE utf8mb4_bin DEFAULT 'active'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;");
 
-mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `orders` (
+$sql->query( "CREATE TABLE IF NOT EXISTS `orders` (
     `row` int(200) AUTO_INCREMENT PRIMARY KEY,
     `from_id` varchar(20) COLLATE utf8mb4_bin NOT NULL,
     `location` varchar(50) COLLATE utf8mb4_bin NOT NULL,
@@ -87,7 +87,7 @@ mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `orders` (
     `type` varchar(20) COLLATE utf8mb4_bin NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;");
 
-mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `factors` (
+$sql->query( "CREATE TABLE IF NOT EXISTS `factors` (
     `row` int(200) AUTO_INCREMENT PRIMARY KEY,
     `from_id` varchar(20) COLLATE utf8mb4_bin NOT NULL,
     `price` varchar(50) COLLATE utf8mb4_bin NOT NULL,
@@ -95,7 +95,7 @@ mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `factors` (
     `status` varchar(15) COLLATE utf8mb4_bin NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;");
 
-mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `sends` (
+$sql->query( "CREATE TABLE IF NOT EXISTS `sends` (
     `send` varchar(50) PRIMARY KEY,
     `step` varchar(50) DEFAULT NULL,
     `user` INT(11) DEFAULT NULL,
@@ -103,7 +103,7 @@ mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `sends` (
     `text` varchar(7000) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;");
 
-mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `category` (
+$sql->query( "CREATE TABLE IF NOT EXISTS `category` (
     `row` int(200) AUTO_INCREMENT PRIMARY KEY,
     `limit` varchar(20) COLLATE utf8mb4_bin NOT NULL,
     `date` varchar(20) COLLATE utf8mb4_bin NOT NULL,
@@ -113,7 +113,7 @@ mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `category` (
     `status` varchar(15) COLLATE utf8mb4_bin NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;");
 
-mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `category_limit` (
+$sql->query( "CREATE TABLE IF NOT EXISTS `category_limit` (
     `row` int(200) AUTO_INCREMENT PRIMARY KEY,
     `limit` varchar(20) COLLATE utf8mb4_bin NOT NULL,
     `name` varchar(100) COLLATE utf8mb4_bin NOT NULL,
@@ -122,7 +122,7 @@ mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `category_limit` (
     `status` varchar(15) COLLATE utf8mb4_bin NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;");
 
-mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `category_date` (
+$sql->query( "CREATE TABLE IF NOT EXISTS `category_date` (
     `row` int(200) AUTO_INCREMENT PRIMARY KEY,
     `date` varchar(20) COLLATE utf8mb4_bin NOT NULL,
     `name` varchar(100) COLLATE utf8mb4_bin NOT NULL,
@@ -131,7 +131,7 @@ mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `category_date` (
     `status` varchar(15) COLLATE utf8mb4_bin NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;");
 
-mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `service_factors` (
+$sql->query( "CREATE TABLE IF NOT EXISTS `service_factors` (
     `row` int(200) AUTO_INCREMENT PRIMARY KEY,
     `from_id` varchar(20) COLLATE utf8mb4_bin NOT NULL,
     `location` varchar(50) COLLATE utf8mb4_bin NOT NULL,
@@ -142,13 +142,13 @@ mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `service_factors` (
     `status` varchar(15) COLLATE utf8mb4_bin NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;");
 
-mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `lock` (
+$sql->query( "CREATE TABLE IF NOT EXISTS `lock` (
     `id` int(11) AUTO_INCREMENT PRIMARY KEY,
     `chat_id` varchar(50) COLLATE utf8mb4_bin DEFAULT NULL,
     `name` varchar(50) COLLATE utf8mb4_bin DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;");
 
-mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `payment_setting` (
+$sql->query( "CREATE TABLE IF NOT EXISTS `payment_setting` (
     `zarinpal_token` varchar(200) COLLATE utf8mb4_bin DEFAULT 'none',
     `idpay_token` varchar(200) COLLATE utf8mb4_bin DEFAULT 'none',
     `nowpayment_token` varchar(200) COLLATE utf8mb4_bin DEFAULT 'none',
@@ -160,14 +160,14 @@ mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `payment_setting` (
     `card_status` varchar(15) COLLATE utf8mb4_bin DEFAULT 'inactive'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;");
 
-mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `test_account_setting` (
+$sql->query( "CREATE TABLE IF NOT EXISTS `test_account_setting` (
     `panel` varchar(20) COLLATE utf8mb4_bin DEFAULT 'none',
     `volume` varchar(20) COLLATE utf8mb4_bin DEFAULT '0',
     `time` varchar(20) COLLATE utf8mb4_bin DEFAULT '0',
     `status` varchar(50) COLLATE utf8mb4_bin DEFAULT 'inactive'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;");
 
-mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `test_account` (
+$sql->query( "CREATE TABLE IF NOT EXISTS `test_account` (
     `row` int(200) AUTO_INCREMENT PRIMARY KEY,
     `from_id` varchar(20) COLLATE utf8mb4_bin NOT NULL,
     `location` varchar(50) COLLATE utf8mb4_bin NOT NULL,
@@ -179,44 +179,44 @@ mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `test_account` (
     `status` varchar(15) COLLATE utf8mb4_bin NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;");
 
-mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `admins` (
+$sql->query( "CREATE TABLE IF NOT EXISTS `admins` (
     `chat_id` varchar(50) COLLATE utf8mb4_bin DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;");
 
-mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `settings` (
+$sql->query( "CREATE TABLE IF NOT EXISTS `settings` (
     `log_channel` varchar(50) COLLATE utf8mb4_bin DEFAULT NULL,
     `count_warn_ban` varchar(50) COLLATE utf8mb4_bin DEFAULT '3'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;");
 
-mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `spam_setting` (
+$sql->query( "CREATE TABLE IF NOT EXISTS `spam_setting` (
     `type` varchar(20) COLLATE utf8mb4_bin DEFAULT 'ban',
     `time` varchar(20) COLLATE utf8mb4_bin DEFAULT '3',
     `count_message` varchar(20) COLLATE utf8mb4_bin DEFAULT '10',
     `status` varchar(50) COLLATE utf8mb4_bin DEFAULT 'active'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;");
 
-mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `copens` (
+$sql->query( "CREATE TABLE IF NOT EXISTS `copens` (
     `copen` varchar(100) COLLATE utf8mb4_bin NOT NULL,
     `percent` varchar(50) COLLATE utf8mb4_bin NOT NULL,
     `count_use` varchar(20) COLLATE utf8mb4_bin NOT NULL,
     `status` varchar(50) COLLATE utf8mb4_bin DEFAULT 'active'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;");
 
-mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `notes` (
+$sql->query( "CREATE TABLE IF NOT EXISTS `notes` (
     `note` TEXT COLLATE utf8mb4_bin NOT NULL,
     `code` varchar(30) COLLATE utf8mb4_bin NOT NULL,
     `type` varchar(20) COLLATE utf8mb4_bin NOT NULL,
     `status` varchar(20) COLLATE utf8mb4_bin DEFAULT 'active'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;");
 
-mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `auth_setting` (
+$sql->query( "CREATE TABLE IF NOT EXISTS `auth_setting` (
     `iran_number` varchar(15) COLLATE utf8mb4_bin DEFAULT NULL,
     `virtual_number` varchar(15) COLLATE utf8mb4_bin DEFAULT NULL,
     `both_number` varchar(15) COLLATE utf8mb4_bin DEFAULT NULL,
     `status` varchar(15) COLLATE utf8mb4_bin DEFAULT 'inactive'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;");
 
-mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `panel_admin` (
+$sql->query( "CREATE TABLE IF NOT EXISTS `panel_admin` (
     `id` int(11) NOT NULL AUTO_INCREMENT,
     `username` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
     `password_hash` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -226,15 +226,23 @@ mysqli_multi_query($sql, "CREATE TABLE IF NOT EXISTS `panel_admin` (
     PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 
-if ($sql->query("SELECT * FROM `auth_setting`")->num_rows == 0) $sql->query("INSERT INTO `auth_setting` (`iran_number`, `virtual_number`, `both_number`) VALUES ('inactive', 'inactive', 'inactive')");
-if ($sql->query("SELECT * FROM `settings`")->num_rows == 0) $sql->query("INSERT INTO `settings` (`count_warn_ban`) VALUES ('3')");
-if ($sql->query("SELECT * FROM `spam_setting`")->num_rows == 0) $sql->query("INSERT INTO `spam_setting` (`type`) VALUES ('ban')");
-if ($sql->query("SELECT * FROM `test_account_setting`")->num_rows == 0) $sql->query("INSERT INTO `test_account_setting` (`panel`) VALUES ('none')");
-if ($sql->query("SELECT * FROM `sends` WHERE `send` = 'no'")->num_rows == 0) $sql->query("INSERT INTO `sends` (`send`) VALUES('no');");
-if ($sql->query("SELECT * FROM `payment_setting`")->num_rows == 0) $sql->query("INSERT INTO `payment_setting` (`zarinpal_token`, `idpay_token`, `nowpayment_token`) VALUES ('none', 'none', 'none')");
+$seed_checks = array(
+    array("SELECT 1 FROM `auth_setting` LIMIT 1", "INSERT INTO `auth_setting` (`iran_number`, `virtual_number`, `both_number`) VALUES ('inactive', 'inactive', 'inactive')"),
+    array("SELECT 1 FROM `settings` LIMIT 1", "INSERT INTO `settings` (`count_warn_ban`) VALUES ('3')"),
+    array("SELECT 1 FROM `spam_setting` LIMIT 1", "INSERT INTO `spam_setting` (`type`) VALUES ('ban')"),
+    array("SELECT 1 FROM `test_account_setting` LIMIT 1", "INSERT INTO `test_account_setting` (`panel`) VALUES ('none')"),
+    array("SELECT 1 FROM `sends` WHERE `send` = 'no' LIMIT 1", "INSERT INTO `sends` (`send`) VALUES ('no')"),
+    array("SELECT 1 FROM `payment_setting` LIMIT 1", "INSERT INTO `payment_setting` (`zarinpal_token`, `idpay_token`, `nowpayment_token`) VALUES ('none', 'none', 'none')"),
+);
+foreach ($seed_checks as $seed) {
+    $check = $sql->query($seed[0]);
+    if ($check && $check->num_rows === 0) {
+        $sql->query($seed[1]);
+    }
+}
 
 if ($sql->connect_error) {
-	echo json_encode(['status' => false, 'msg' => '❌ The connection with the database encountered an error : ' . $sql->connect_error, 'status_code' => 401], 448);
+    echo json_encode(array('status' => false, 'msg' => 'Database connection error: ' . $sql->connect_error, 'status_code' => 401));
 } else {
-    echo json_encode(['status' => true, 'msg' => '✅ The database operation was completed successfully.', 'status_code' => 200], 448);
+    echo json_encode(array('status' => true, 'msg' => 'Database setup completed successfully.', 'status_code' => 200));
 }
