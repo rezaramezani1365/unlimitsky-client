@@ -25,7 +25,6 @@ $nav = array(
     'services' => array('icon' => 'fa-shield-halved', 'label' => __('nav_services')),
     'users' => array('icon' => 'fa-users', 'label' => __('nav_users')),
     'license' => array('icon' => 'fa-crown', 'label' => __('nav_license')),
-    'coupons' => array('icon' => 'fa-gift', 'label' => __('nav_coupons')),
     'settings' => array('icon' => 'fa-gear', 'label' => __('nav_settings')),
 );
 

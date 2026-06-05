@@ -25,8 +25,8 @@ if (USK_Admin_Auth::must_change_password() && ($_GET['page'] ?? 'dashboard') !==
 require_once __DIR__ . '/lib/service.php';
 
 $page = preg_replace('/[^a-z-]/', '', $_GET['page'] ?? 'dashboard');
-if ($page === 'payments' || $page === 'password') {
-    header('Location: ' . usk_admin_url($page === 'payments' ? 'settings' : 'settings'));
+if ($page === 'payments' || $page === 'password' || $page === 'coupons') {
+    header('Location: ' . usk_admin_url($page === 'payments' ? 'settings' : ($page === 'coupons' ? 'dashboard' : 'settings')));
     exit;
 }
 $file = __DIR__ . '/pages/' . $page . '.php';
