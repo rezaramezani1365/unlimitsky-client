@@ -214,6 +214,25 @@ class USK_License
         return self::current_plan_count() < self::max_plans();
     }
 
+    /** Marzban / Sanaei external panels — Pro only */
+    public static function can_use_external_panels()
+    {
+        return self::is_pro();
+    }
+
+    public static function assert_can_use_external_panels($force_online = false)
+    {
+        if ($force_online) {
+            self::refresh_from_vendor(true);
+        } else {
+            self::validate_cached();
+        }
+        if (!self::can_use_external_panels()) {
+            return array('ok' => false, 'error' => 'panels_pro_required');
+        }
+        return array('ok' => true);
+    }
+
     public static function assert_can_add_plan($force_online = false)
     {
         if ($force_online || self::current_plan_count() >= self::FREE_MAX_PLANS) {

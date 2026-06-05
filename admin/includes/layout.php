@@ -17,6 +17,8 @@ $base = usk_admin_base();
 $nav = array(
     'dashboard' => array('icon' => 'fa-gauge-high', 'label' => __('nav_dashboard')),
     'protocols' => array('icon' => 'fa-network-wired', 'label' => __('nav_protocols')),
+    'panels' => array('icon' => 'fa-server', 'label' => __('nav_panels')),
+    'guides' => array('icon' => 'fa-book', 'label' => __('nav_guides')),
     'api-keys' => array('icon' => 'fa-key', 'label' => __('nav_api_keys')),
     'plans' => array('icon' => 'fa-tags', 'label' => __('nav_plans')),
     'create-service' => array('icon' => 'fa-plus-circle', 'label' => __('nav_create')),

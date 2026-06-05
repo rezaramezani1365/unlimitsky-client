@@ -4,6 +4,7 @@ require_once dirname(__DIR__) . '/lib/protocols/provisioner.php';
 
 $GLOBALS['page_title'] = __('nav_create');
 $GLOBALS['active_nav'] = 'create-service';
+$canUsePanels = USK_License::can_use_external_panels();
 
 $result = null;
 if (!empty($_GET['created']) && !empty($_SESSION['usk_create_result'])) {
@@ -129,6 +130,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         } else {
+            $lic = USK_License::assert_can_use_external_panels(true);
+            if (empty($lic['ok'])) {
+                usk_flash(__('panels_pro_required'), 'error');
+            } else {
             $panel_id = (int) ($_POST['panel_id'] ?? 0);
             $panel = $sql->query("SELECT * FROM `panels` WHERE `row`=$panel_id AND `status`='active'")->fetch_assoc();
 
@@ -153,26 +158,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $sql->query("UPDATE `panels` SET `count_create` = count_create + 1 WHERE `row`={$panel['row']}");
                     $result = $created;
                     $result['code'] = $code;
+                    $result['panel_name'] = $panel['name'];
+                    $result['panel_type'] = $panel['type'];
+                    $_SESSION['usk_create_result'] = $result;
                     usk_flash(__('create_success'));
+                    header('Location: ' . usk_admin_url('create-service', array('created' => '1')));
+                    exit;
                 }
+            }
             }
         }
     }
 }
 
-$panels = $sql->query("SELECT * FROM `panels` WHERE `status`='active'");
+$panelRows = array();
+if ($canUsePanels) {
+    $panelRes = $sql->query("SELECT * FROM `panels` WHERE `status`='active'");
+    if ($panelRes) {
+        while ($row = $panelRes->fetch_assoc()) {
+            $panelRows[] = $row;
+        }
+    }
+}
 $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
 ?>
 <div class="usk-card">
     <h3 class="mb-3"><?= __('create_title') ?></h3>
     <p class="text-muted small"><?= __('create_intro') ?></p>
 
+    <?php if (!$canUsePanels) : ?>
+    <div class="alert alert-usk-info small py-2 px-3 mb-3">
+        <i class="fa-solid fa-crown"></i> <?= __('panels_pro_banner') ?>
+        <a href="<?= usk_admin_url('license') ?>" class="ms-1"><?= __('panels_pro_activate') ?></a>
+    </div>
+    <?php endif; ?>
+
     <form method="post" id="create-service-form">
         <div class="form-group mb-3">
             <label><?= __('create_mode') ?></label>
             <select class="form-control" name="mode" id="create-mode">
                 <option value="native"><?= __('create_mode_native') ?></option>
+                <?php if ($canUsePanels) : ?>
                 <option value="panel"><?= __('create_mode_panel') ?></option>
+                <?php endif; ?>
             </select>
         </div>
 
@@ -265,10 +293,13 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
                 <label><?= __('create_panel_select') ?></label>
                 <select class="form-control" name="panel_id">
                     <option value="">—</option>
-                    <?php while ($p = $panels->fetch_assoc()) : ?>
+                    <?php foreach ($panelRows as $p) : ?>
                         <option value="<?= (int) $p['row'] ?>"><?= usk_esc($p['name']) ?> (<?= usk_esc($p['type']) ?>)</option>
-                    <?php endwhile; ?>
+                    <?php endforeach; ?>
                 </select>
+                <?php if ($canUsePanels && empty($panelRows)) : ?>
+                    <p class="text-muted small mt-1"><a href="<?= usk_admin_url('panels') ?>"><?= __('nav_panels') ?></a></p>
+                <?php endif; ?>
             </div>
         </div>
         <button type="submit" class="btn btn-usk-primary">⚡ <?= __('create_submit') ?></button>
@@ -403,6 +434,9 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         <p class="mt-2"><strong><?= __('amnezia_import_link') ?>:</strong></p>
         <code class="d-block p-3" style="white-space:pre-wrap;word-break:break-all;direction:ltr;text-align:left;"><?= usk_esc($result['vpn_uri']) ?></code>
         <p class="text-muted small"><?= __('amnezia_import_link_hint') ?></p>
+    <?php endif; ?>
+    <?php if (!empty($result['panel_name'])) : ?>
+        <p><strong><?= __('create_panel_select') ?>:</strong> <?= usk_esc($result['panel_name']) ?> (<?= usk_esc($result['panel_type'] ?? '') ?>)</p>
     <?php endif; ?>
     <?php if (!empty($result['protocol'])) : ?>
         <p><strong><?= __('protocol') ?>:</strong> <?= usk_esc($result['protocol']) ?>

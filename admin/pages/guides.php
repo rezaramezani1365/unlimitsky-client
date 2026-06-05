@@ -1,10 +1,17 @@
 <?php
 $GLOBALS['page_title'] = __('guides_title');
 $GLOBALS['active_nav'] = 'guides';
+$canUsePanels = USK_License::can_use_external_panels();
 ?>
 <div class="alert alert-usk-info mb-4">
     <i class="fa-solid fa-circle-info"></i> <?= __('guides_intro') ?>
 </div>
+<?php if (!$canUsePanels) : ?>
+<div class="alert alert-usk-info mb-4">
+    <i class="fa-solid fa-crown"></i> <?= __('panels_pro_banner') ?>
+    <a href="<?= usk_admin_url('license') ?>" class="btn btn-usk-primary btn-sm ms-2"><?= __('panels_pro_activate') ?></a>
+</div>
+<?php endif; ?>
 
 <div class="row g-4">
     <div class="col-lg-6">
@@ -27,7 +34,11 @@ $GLOBALS['active_nav'] = 'guides';
                     <div class="guide-num">4</div>
                     <div><strong>Inbounds</strong><p class="text-muted small mb-0">One inbound tag per line</p></div>
                 </div>
+                <?php if ($canUsePanels) : ?>
                 <a href="<?= usk_admin_url('panels') ?>" class="btn btn-usk-primary btn-sm mt-2"><?= __('guides_add_marzban') ?></a>
+                <?php else : ?>
+                <a href="<?= usk_admin_url('license') ?>" class="btn btn-outline btn-sm mt-2"><i class="fa-solid fa-crown"></i> <?= __('panels_pro_activate') ?></a>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -51,7 +62,11 @@ $GLOBALS['active_nav'] = 'guides';
                     <div class="guide-num">4</div>
                     <div><strong>Link template</strong><p class="text-muted small mb-0"><code class="usk-code">%s1</code> uuid · <code class="usk-code">%s2</code> host · <code class="usk-code">%s3</code> name</p></div>
                 </div>
+                <?php if ($canUsePanels) : ?>
                 <a href="<?= usk_admin_url('panels') ?>" class="btn btn-usk-primary btn-sm mt-2"><?= __('guides_add_sanaei') ?></a>
+                <?php else : ?>
+                <a href="<?= usk_admin_url('license') ?>" class="btn btn-outline btn-sm mt-2"><i class="fa-solid fa-crown"></i> <?= __('panels_pro_activate') ?></a>
+                <?php endif; ?>
             </div>
         </div>
     </div>
