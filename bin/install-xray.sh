@@ -1,7 +1,11 @@
 #!/bin/bash
-# Install Xray (VLESS + VMess) on Ubuntu — plain TCP, no TLS (works with Nekoray/v2rayN)
+# Install Xray (VLESS + VMess) on Ubuntu — plain TCP for Nekoray / v2rayN
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$DIR/usk-common.sh"
+source "$DIR/xray-common.sh"
+
+VLESS_PORT="${USK_XRAY_VLESS_PORT}"
+VMESS_PORT="${USK_XRAY_VMESS_PORT}"
 
 apt-get update -qq
 apt-get install -y curl unzip jq
@@ -10,9 +14,7 @@ bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release
 
 UUID=$(cat /proc/sys/kernel/random/uuid)
 mkdir -p /usr/local/etc/xray
-XRAY_CFG="/usr/local/etc/xray/config.json"
 
-# Preserve existing client UUIDs on reinstall (drop invalid xtls flow)
 EXISTING_VLESS='[]'
 EXISTING_VMESS='[]'
 if [ -f "$XRAY_CFG" ] && command -v jq >/dev/null 2>&1; then
@@ -30,12 +32,14 @@ fi
 jq -n \
   --argjson vless "$EXISTING_VLESS" \
   --argjson vmess "$EXISTING_VMESS" \
+  --argjson vless_port "$VLESS_PORT" \
+  --argjson vmess_port "$VMESS_PORT" \
   '{
     log: { loglevel: "warning" },
     inbounds: [
       {
         listen: "0.0.0.0",
-        port: 443,
+        port: $vless_port,
         protocol: "vless",
         tag: "vless-in",
         settings: { clients: $vless, decryption: "none" },
@@ -48,7 +52,7 @@ jq -n \
       },
       {
         listen: "0.0.0.0",
-        port: 8443,
+        port: $vmess_port,
         protocol: "vmess",
         tag: "vmess-in",
         settings: { clients: $vmess },
@@ -60,16 +64,11 @@ jq -n \
   }' > "$XRAY_CFG"
 
 systemctl enable xray 2>/dev/null || systemctl enable xray.service 2>/dev/null || true
-systemctl restart xray 2>/dev/null || systemctl restart xray.service 2>/dev/null || usk_fail "xray_service_failed"
 
-sleep 1
-systemctl is-active xray >/dev/null 2>&1 || systemctl is-active xray.service >/dev/null 2>&1 || usk_fail "xray_not_running"
+usk_xray_open_firewall "$VLESS_PORT" "xray-vless"
+usk_xray_open_firewall "$VMESS_PORT" "xray-vmess"
 
-if command -v ss >/dev/null 2>&1; then
-  ss -tlnp 2>/dev/null | grep -q ':443 ' || usk_fail "xray_port_443_not_listening"
-  ss -tlnp 2>/dev/null | grep -q ':8443 ' || usk_fail "xray_port_8443_not_listening"
-fi
+usk_xray_verify_or_fail "$XRAY_CFG" || exit 1
 
-ensure_ufw_port 443 tcp xray-vless
-ensure_ufw_port 8443 tcp xray-vmess
+echo "USK_META:vless_port=${VLESS_PORT};vmess_port=${VMESS_PORT}"
 usk_ok

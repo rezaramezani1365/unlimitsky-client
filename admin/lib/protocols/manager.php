@@ -7,7 +7,7 @@ class USK_ProtocolManager
         return array(
             'wireguard' => array('name' => 'WireGuard', 'port' => 51820, 'icon' => 'fa-shield'),
             'openvpn'   => array('name' => 'OpenVPN', 'port' => 1194, 'icon' => 'fa-lock'),
-            'xray'      => array('name' => 'Xray (VLESS/VMess)', 'port' => 443, 'icon' => 'fa-bolt'),
+            'xray'      => array('name' => 'Xray (VLESS/VMess)', 'port' => 2053, 'icon' => 'fa-bolt'),
             'l2tp'      => array('name' => 'L2TP/IPsec', 'port' => 1701, 'icon' => 'fa-network-wired'),
         );
     }
@@ -51,15 +51,21 @@ class USK_ProtocolManager
         if (!file_exists($script)) {
             return array('ok' => false, 'msg' => 'script_missing');
         }
-        $cmd = 'sudo bash ' . escapeshellarg($script) . ' 2>&1';
+        $cmd = 'sudo -n bash ' . escapeshellarg($script) . ' 2>&1';
         $out = shell_exec($cmd);
         $ok = (strpos($out, 'USK_OK') !== false);
-        self::set_status($proto, array(
+        $status = array(
             'installed' => $ok,
             'status' => $ok ? 'active' : 'failed',
             'updated_at' => date('c'),
             'log' => substr($out, -2000),
-        ));
+        );
+        if ($proto === 'xray' && preg_match('/USK_META:vless_port=(\d+);vmess_port=(\d+)/', $out, $m)) {
+            $status['vless_port'] = (int) $m[1];
+            $status['vmess_port'] = (int) $m[2];
+            $status['firewall_note'] = 'Open TCP ' . $m[1] . ' and ' . $m[2] . ' in your VPS cloud firewall (security group).';
+        }
+        self::set_status($proto, $status);
         return array('ok' => $ok, 'msg' => $ok ? 'installed' : 'failed', 'log' => $out);
     }
 

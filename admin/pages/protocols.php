@@ -4,9 +4,10 @@ $GLOBALS['active_nav'] = 'protocols';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['install_protocol'])) {
     $proto = preg_replace('/[^a-z]/', '', $_POST['install_protocol']);
+    $wasInstalled = !empty(USK_ProtocolManager::get_status($proto)['installed']);
     $res = USK_ProtocolManager::install($proto);
     if (!empty($res['ok'])) {
-        usk_flash(__('protocol_installed'));
+        usk_flash($wasInstalled ? __('protocol_reinstalled') : __('protocol_installed'));
     } else {
         usk_flash(__('protocol_failed') . (isset($res['log']) ? ': ' . substr($res['log'], -200) : ''), 'error');
     }
@@ -32,6 +33,15 @@ $protocols = USK_ProtocolManager::list();
             </div>
             <div class="p-3">
                 <p class="text-muted small mb-2"><?= __('protocol_port') ?>: <code class="usk-code"><?= (int) $meta['port'] ?></code></p>
+                <?php if ($installed && $key === 'xray' && !empty($st['vless_port'])) : ?>
+                <p class="text-muted small mb-2">
+                    VLESS: <code class="usk-code"><?= (int) $st['vless_port'] ?></code>
+                    · VMess: <code class="usk-code"><?= (int) ($st['vmess_port'] ?? 8443) ?></code>
+                </p>
+                <?php if (!empty($st['firewall_note'])) : ?>
+                <p class="small text-warning mb-2"><i class="fa-solid fa-triangle-exclamation"></i> <?= usk_esc($st['firewall_note']) ?></p>
+                <?php endif; ?>
+                <?php endif; ?>
                 <p class="mb-3">
                     <?php if ($installed) : ?>
                         <span class="badge badge-success"><i class="fa-solid fa-check"></i> <?= __('protocol_active') ?></span>
@@ -44,6 +54,16 @@ $protocols = USK_ProtocolManager::list();
                     <input type="hidden" name="install_protocol" value="<?= usk_esc($key) ?>">
                     <button type="submit" class="btn btn-usk-primary btn-sm w-100" onclick="return confirm('<?= __('protocol_install_confirm') ?>')">
                         <i class="fa-solid fa-download"></i> <?= __('protocol_install') ?>
+                    </button>
+                </form>
+                <?php else : ?>
+                <?php if (!empty($st['updated_at'])) : ?>
+                <p class="text-muted small mb-2"><?= __('protocol_last_install') ?>: <?= usk_esc(date('Y-m-d H:i', strtotime($st['updated_at']))) ?></p>
+                <?php endif; ?>
+                <form method="post">
+                    <input type="hidden" name="install_protocol" value="<?= usk_esc($key) ?>">
+                    <button type="submit" class="btn btn-outline-secondary btn-sm w-100" onclick="return confirm('<?= __('protocol_reinstall_confirm') ?>')">
+                        <i class="fa-solid fa-rotate"></i> <?= __('protocol_reinstall') ?>
                     </button>
                 </form>
                 <?php endif; ?>

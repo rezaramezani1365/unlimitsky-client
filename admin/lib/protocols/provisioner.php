@@ -186,7 +186,9 @@ class USK_ProtocolProvisioner
             'jq_required' => 'err_jq_required',
             'xray_config_invalid' => 'err_xray_config_invalid',
             'xray_config_update_failed' => 'err_xray_config_invalid',
-            'xray_restart_failed' => 'err_xray_config_invalid',
+            'xray_vless_port_not_listening' => 'err_xray_not_running',
+            'xray_vmess_port_not_listening' => 'err_xray_not_running',
+            'xray_config_test_failed' => 'err_xray_config_invalid',
             'provision_failed' => 'err_provision_failed',
             'invalid_provision_output' => 'err_sudo_denied',
         );

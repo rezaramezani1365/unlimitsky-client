@@ -1,6 +1,7 @@
 #!/bin/bash
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$DIR/provision-common.sh"
+source "$DIR/xray-common.sh"
 
 if [ "$EUID" -ne 0 ]; then usk_json_fail "run_as_root"; fi
 
@@ -14,7 +15,6 @@ if [ "$DURATION_DAYS" -gt 0 ] 2>/dev/null; then
   EXPIRES=$(date -Iseconds -d "+${DURATION_DAYS} days" 2>/dev/null || date -Iseconds)
 fi
 
-XRAY_CFG="/usr/local/etc/xray/config.json"
 if [ ! -f "$XRAY_CFG" ]; then
   usk_json_fail "xray_not_installed"
 fi
@@ -27,15 +27,20 @@ if [ "$INBOUND_COUNT" -lt 2 ]; then
   usk_json_fail "xray_config_invalid"
 fi
 
+usk_xray_ports_from_config "$XRAY_CFG"
+VLESS_PORT="$USK_XRAY_VLESS_PORT"
+VMESS_PORT="$USK_XRAY_VMESS_PORT"
+
 UUID=$(cat /proc/sys/kernel/random/uuid)
 SERVER_IP=$(usk_server_ip)
-VLESS_PORT=443
-VMESS_PORT=8443
 
 tmp=$(mktemp)
 if ! jq --arg id "$UUID" --arg email "$USERNAME" \
+  --argjson vless_port "$VLESS_PORT" --argjson vmess_port "$VMESS_PORT" \
   '.inbounds[0].listen = "0.0.0.0" |
    .inbounds[1].listen = "0.0.0.0" |
+   .inbounds[0].port = $vless_port |
+   .inbounds[1].port = $vmess_port |
    .inbounds[0].settings.clients = ((.inbounds[0].settings.clients // []) | map(del(.flow)) + [{"id":$id,"email":$email}]) |
    .inbounds[1].settings.clients = ((.inbounds[1].settings.clients // []) + [{"id":$id,"email":$email,"alterId":0}]) |
    .inbounds[0].streamSettings = {"network":"tcp","security":"none","tcpSettings":{"header":{"type":"none"}}} |
@@ -46,7 +51,17 @@ if ! jq --arg id "$UUID" --arg email "$USERNAME" \
 fi
 mv "$tmp" "$XRAY_CFG"
 
-systemctl restart xray 2>/dev/null || systemctl restart xray.service 2>/dev/null || usk_json_fail "xray_restart_failed"
+if ! usk_xray_test_config "$XRAY_CFG"; then
+  usk_json_fail "xray_config_test_failed"
+fi
+
+if ! usk_xray_service_restart; then
+  usk_json_fail "xray_restart_failed"
+fi
+
+if ! usk_xray_port_listening "$VLESS_PORT"; then
+  usk_json_fail "xray_vless_port_not_listening"
+fi
 
 VLESS="vless://${UUID}@${SERVER_IP}:${VLESS_PORT}?encryption=none&security=none&type=tcp&headerType=none#${USERNAME}-vless"
 VMESS_JSON=$(jq -cn \
@@ -82,5 +97,7 @@ jq -cn \
   --arg exp "$EXPIRES" \
   --argjson vol "$VOLUME_GB" \
   --argjson days "$DURATION_DAYS" \
-  '{ok:true, username:$u, protocol:"xray", config:$links, links:$links, subscription_url:$vless, uuid:$id, vless:$vless, vmess:$vmess, expires_at:$exp, volume_gb:$vol, duration_days:$days}'
+  --argjson vless_port "$VLESS_PORT" \
+  --argjson vmess_port "$VMESS_PORT" \
+  '{ok:true, username:$u, protocol:"xray", config:$links, links:$links, subscription_url:$vless, uuid:$id, vless:$vless, vmess:$vmess, vless_port:$vless_port, vmess_port:$vmess_port, expires_at:$exp, volume_gb:$vol, duration_days:$days}'
 exit 0
