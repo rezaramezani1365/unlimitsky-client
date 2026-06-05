@@ -67,8 +67,10 @@ unset($_pk, $s);
                 <?php if ($installed) : ?>
                     <?php if ($key === 'xray' && !empty($st['vless_port'])) : ?>
                     <p class="text-muted small mb-2">
-                        VLESS: <code class="usk-code"><?= (int) $st['vless_port'] ?></code>
-                        · VMess: <code class="usk-code"><?= (int) ($st['vmess_port'] ?? 8443) ?></code>
+                        VLESS Reality: <code class="usk-code">TCP <?= (int) $st['vless_port'] ?></code>
+                        <?php if (!empty($st['reality_sni'])) : ?>
+                        · SNI: <code class="usk-code"><?= usk_esc($st['reality_sni']) ?></code>
+                        <?php endif; ?>
                     </p>
                     <?php elseif ($key === 'openvpn' && (!empty($st['udp_port']) || !empty($st['tcp_port']))) : ?>
                     <p class="text-muted small mb-2">

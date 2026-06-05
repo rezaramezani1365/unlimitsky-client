@@ -8,6 +8,7 @@ if [ "$EUID" -ne 0 ]; then usk_json_fail "run_as_root"; fi
 USERNAME="${1:-}"
 VOLUME_GB="${2:-0}"
 DURATION_DAYS="${3:-0}"
+CLIENT_DNS="${4:-}"
 if [ -z "$USERNAME" ]; then usk_json_fail "username_required"; fi
 
 EXPIRES=""
@@ -22,14 +23,16 @@ fi
 ensure_jq
 command -v jq >/dev/null 2>&1 || usk_json_fail "jq_required"
 
-INBOUND_COUNT=$(jq -r '.inbounds | length // 0' "$XRAY_CFG" 2>/dev/null || echo 0)
-if [ "$INBOUND_COUNT" -lt 2 ]; then
+INBOUND_COUNT=$(jq -r '[.inbounds[]? | select(.protocol=="vless")] | length' "$XRAY_CFG" 2>/dev/null || echo 0)
+if [ "$INBOUND_COUNT" -lt 1 ]; then
   usk_json_fail "xray_config_invalid"
 fi
 
+usk_xray_load_reality || usk_json_fail "xray_reality_not_configured"
+usk_xray_migrate_legacy_config "$XRAY_CFG" 2>/dev/null || true
+
 usk_xray_ports_from_config "$XRAY_CFG"
 VLESS_PORT="$USK_XRAY_VLESS_PORT"
-VMESS_PORT="$USK_XRAY_VMESS_PORT"
 
 UUID=$(cat /proc/sys/kernel/random/uuid)
 SERVER_IP=$(usk_server_ip)
@@ -37,18 +40,10 @@ SERVER_IP=$(usk_server_ip)
 CFG_BAK=$(mktemp)
 cp "$XRAY_CFG" "$CFG_BAK"
 
-tmp=$(mktemp)
-if ! jq --arg id "$UUID" --arg email "$USERNAME" \
-  '.inbounds[0].settings.clients = ((.inbounds[0].settings.clients // []) | map(del(.flow)) + [{"id":$id,"email":$email}]) |
-   .inbounds[1].settings.clients = ((.inbounds[1].settings.clients // []) + [{"id":$id,"email":$email}]) |
-   .inbounds[0].streamSettings = {"network":"tcp","security":"none"} |
-   .inbounds[1].streamSettings = {"network":"tcp","security":"none"}' \
-  "$XRAY_CFG" > "$tmp"; then
-  rm -f "$tmp" "$CFG_BAK"
+if ! usk_xray_add_client "$XRAY_CFG" "$UUID" "$USERNAME"; then
+  rm -f "$CFG_BAK"
   usk_json_fail "xray_config_update_failed"
 fi
-mv "$tmp" "$XRAY_CFG"
-usk_xray_fix_perms "$XRAY_CFG"
 
 if ! usk_xray_test_config "$XRAY_CFG"; then
   mv "$CFG_BAK" "$XRAY_CFG"
@@ -67,28 +62,53 @@ rm -f "$CFG_BAK"
 if ! usk_xray_port_listening "$VLESS_PORT"; then
   usk_json_fail "xray_vless_port_not_listening port=${VLESS_PORT}"
 fi
-if ! usk_xray_port_listening "$VMESS_PORT"; then
-  usk_json_fail "xray_vmess_port_not_listening port=${VMESS_PORT}"
+
+SID=$(usk_xray_reality_short_id_for_client)
+FP="${REALITY_FINGERPRINT:-chrome}"
+VLESS=$(usk_xray_build_vless_uri "$UUID" "$SERVER_IP" "$VLESS_PORT" "${USERNAME}-vless" \
+  "$REALITY_PUBLIC_KEY" "$REALITY_SNI" "$SID" "$FP")
+
+CLIENT_JSON=$(usk_xray_build_client_json "$UUID" "$SERVER_IP" "$VLESS_PORT" "$USERNAME" "$CLIENT_DNS" 2>/dev/null || echo "")
+
+PROFILE_DIR="$DATA_ROOT/xray/profiles"
+mkdir -p "$PROFILE_DIR"
+safe_user=$(echo "$USERNAME" | tr -c 'a-zA-Z0-9_-' '_')
+JSON_FILE="${PROFILE_DIR}/${safe_user}.json"
+if [ -n "$CLIENT_JSON" ]; then
+  printf '%s\n' "$CLIENT_JSON" > "$JSON_FILE"
+  chmod 644 "$JSON_FILE"
+fi
+JSON_FILENAME="${safe_user}.json"
+DOWNLOAD_TOKEN=$(openssl rand -hex 16 2>/dev/null || cat /proc/sys/kernel/random/uuid 2>/dev/null | tr -d '-' | cut -c1-32)
+
+DNS_NOTE=""
+if [ -n "$CLIENT_DNS" ]; then
+  DNS_NOTE="DNS (IPv4): ${CLIENT_DNS}"
+else
+  DNS_NOTE="DNS: system default (IPv4 only — set custom DNS in panel if 1.1.1.1/8.8.8.8 fails on national network)"
 fi
 
-VLESS="vless://${UUID}@${SERVER_IP}:${VLESS_PORT}?encryption=none&security=none&type=tcp&headerType=none#${USERNAME}-vless"
-VMESS_JSON=$(jq -cn \
-  --arg id "$UUID" \
-  --arg add "$SERVER_IP" \
-  --argjson port "$VMESS_PORT" \
-  --arg ps "${USERNAME}-vmess" \
-  '{v:"2",ps:$ps,add:$add,port:$port,id:$id,aid:0,net:"tcp",type:"none",host:"",path:"",tls:""}')
-VMESS="vmess://$(echo -n "$VMESS_JSON" | base64 -w0 2>/dev/null || echo -n "$VMESS_JSON" | base64 | tr -d '\n')"
-LINKS="${VLESS}
-${VMESS}"
+CONFIG="=== VLESS + Reality (Iran) ===
+Import vless:// link in v2rayN / Nekoray / Hiddify / Streisand.
+Or import the JSON profile (recommended — includes DNS settings).
+
+${VLESS}
+
+${DNS_NOTE}
+
+=== JSON profile ===
+${CLIENT_JSON}"
+
+LINKS="${VLESS}"
 
 REGISTRY="$DATA_ROOT/xray/clients.json"
 mkdir -p "$(dirname "$REGISTRY")"
 [ -f "$REGISTRY" ] || echo "[]" > "$REGISTRY"
 tmp2=$(mktemp)
 if ! jq --arg u "$USERNAME" --arg id "$UUID" --arg ts "$(date -Iseconds)" --arg exp "$EXPIRES" \
+   --arg dns "$CLIENT_DNS" --arg token "$DOWNLOAD_TOKEN" \
    --argjson vol "$VOLUME_GB" --argjson days "$DURATION_DAYS" \
-  '. += [{"username":$u,"uuid":$id,"created":$ts,"volume_gb":$vol,"duration_days":$days,"expires_at":$exp,"status":"active"}]' \
+  '. += [{"username":$u,"uuid":$id,"created":$ts,"volume_gb":$vol,"duration_days":$days,"expires_at":$exp,"status":"active","client_dns":$dns,"download_token":$token}]' \
   "$REGISTRY" > "$tmp2"; then
   rm -f "$tmp2"
   usk_json_fail "xray_registry_failed"
@@ -98,14 +118,21 @@ mv "$tmp2" "$REGISTRY"
 echo -n "USK_JSON:"
 jq -cn \
   --arg u "$USERNAME" \
+  --arg cfg "$CONFIG" \
   --arg links "$LINKS" \
   --arg vless "$VLESS" \
-  --arg vmess "$VMESS" \
+  --arg json "$CLIENT_JSON" \
   --arg id "$UUID" \
   --arg exp "$EXPIRES" \
+  --arg dns "$CLIENT_DNS" \
+  --arg token "$DOWNLOAD_TOKEN" \
+  --arg file "$JSON_FILE" \
+  --arg fname "$JSON_FILENAME" \
+  --arg sni "$REALITY_SNI" \
+  --arg fp "$FP" \
   --argjson vol "$VOLUME_GB" \
   --argjson days "$DURATION_DAYS" \
-  --argjson vless_port "$VLESS_PORT" \
-  --argjson vmess_port "$VMESS_PORT" \
-  '{ok:true, username:$u, protocol:"xray", config:$links, links:$links, subscription_url:$vless, uuid:$id, vless:$vless, vmess:$vmess, vless_port:$vless_port, vmess_port:$vmess_port, expires_at:$exp, volume_gb:$vol, duration_days:$days}'
+  --argjson port "$VLESS_PORT" \
+  --arg transport "reality" \
+  '{ok:true, username:$u, protocol:"xray", config:$cfg, links:$links, subscription_url:$vless, uuid:$id, vless:$vless, client_json:$json, vless_port:$port, transport:$transport, reality_sni:$sni, fingerprint:$fp, client_dns:$dns, download_token:$token, json_filename:$fname, profile_path:$file, expires_at:$exp, volume_gb:$vol, duration_days:$days}'
 exit 0

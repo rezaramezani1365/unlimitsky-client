@@ -59,6 +59,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $wgTransport = strtolower((string) ($_POST['wireguard_transport'] ?? 'tcp'));
                     $provisionMeta['wireguard_transport'] = in_array($wgTransport, array('udp', 'tcp'), true) ? $wgTransport : 'tcp';
                 }
+                $clientDns = trim((string) ($_POST['client_dns'] ?? ''));
+                if ($clientDns !== '') {
+                    $provisionMeta['client_dns'] = preg_replace('/[^0-9a-zA-Z.,;:\- _]/', '', $clientDns);
+                }
                 $created = USK_Service::create_native($protocol, $volume_gb, $duration_days, $username, $provisionMeta);
 
                 if (!$created['ok']) {
@@ -96,7 +100,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $result['wg_conf'] = $created['wg_conf'] ?? '';
                         $result['expires_at'] = $created['expires_at'] ?? null;
                         $result['download_url'] = $downloadUrl;
-                        $result['ovpn_filename'] = $raw['ovpn_filename'] ?? ($raw['conf_filename'] ?? ($username . ($protocol === 'amnezia' ? '.conf' : '.ovpn')));
+                        $result['ovpn_filename'] = $raw['ovpn_filename'] ?? ($raw['json_filename'] ?? ($raw['conf_filename'] ?? ($username . ($protocol === 'amnezia' ? '.conf' : ($protocol === 'xray' ? '.json' : '.ovpn')))));
+                        $result['client_dns'] = $raw['client_dns'] ?? ($provisionMeta['client_dns'] ?? '');
+                        $result['vless'] = $raw['vless'] ?? ($created['subscription'] ?? '');
                         $result['openvpn_proto'] = $raw['proto'] ?? ($provisionMeta['openvpn_proto'] ?? 'tcp');
                         $result['wireguard_transport'] = $raw['wireguard_transport'] ?? ($provisionMeta['wireguard_transport'] ?? '');
                         usk_flash(__('create_success'));
@@ -227,6 +233,14 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
                 <div id="create-l2tp-warning" class="alert alert-warning small py-2 px-3 mb-0 mt-2" style="display:none;">
                     <i class="fa-solid fa-triangle-exclamation"></i> <?= __('protocol_l2tp_iran_note') ?>
                 </div>
+                <div id="create-xray-hint" class="alert alert-info small py-2 px-3 mb-0 mt-2" style="display:none;">
+                    <i class="fa-solid fa-circle-info"></i> <?= __('protocol_xray_iran_note') ?>
+                </div>
+            </div>
+            <div class="form-group native-field" id="create-client-dns-wrap" style="display:none;">
+                <label><?= __('create_client_dns') ?></label>
+                <input type="text" class="form-control" name="client_dns" id="client-dns-input" placeholder="<?= __('create_client_dns_placeholder') ?>" dir="ltr" style="text-align:left;">
+                <p class="text-muted small mt-1 mb-0"><?= __('create_client_dns_hint') ?></p>
             </div>
             <div class="form-group panel-field" style="display:none;">
                 <label><?= __('create_panel_select') ?></label>
@@ -257,12 +271,16 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         var wgTransport = document.getElementById('create-wireguard-transport');
         var l2tpWarn = document.getElementById('create-l2tp-warning');
         var amneziaHint = document.getElementById('create-amnezia-hint');
+        var xrayHint = document.getElementById('create-xray-hint');
+        var dnsWrap = document.getElementById('create-client-dns-wrap');
         if (!wrap || !proto || !protocolPorts[proto]) {
             if (wrap) wrap.style.display = 'none';
             if (openvpnProto) openvpnProto.style.display = 'none';
             if (wgTransport) wgTransport.style.display = 'none';
             if (l2tpWarn) l2tpWarn.style.display = 'none';
             if (amneziaHint) amneziaHint.style.display = 'none';
+            if (xrayHint) xrayHint.style.display = 'none';
+            if (dnsWrap) dnsWrap.style.display = 'none';
             return;
         }
         wrap.style.display = '';
@@ -273,13 +291,18 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         if (wgTransport) wgTransport.style.display = 'none';
         if (l2tpWarn) l2tpWarn.style.display = 'none';
         if (amneziaHint) amneziaHint.style.display = 'none';
+        if (xrayHint) xrayHint.style.display = 'none';
+        if (dnsWrap) dnsWrap.style.display = 'none';
         var cfg = protocolPorts[proto];
         if (proto === 'xray') {
             xray.style.display = '';
+            if (xrayHint) xrayHint.style.display = '';
+            if (dnsWrap) dnsWrap.style.display = '';
             document.getElementById('xray-ports-readonly').textContent =
-                'VLESS ' + (cfg.vless_port || 2053) + ' · VMess ' + (cfg.vmess_port || 8443);
+                'VLESS Reality · TCP ' + (cfg.vless_port || 443);
         } else if (proto === 'openvpn') {
             if (openvpnProto) openvpnProto.style.display = '';
+            if (dnsWrap) dnsWrap.style.display = '';
             fixed.style.display = '';
             document.getElementById('create-port-fixed-text').textContent =
                 'UDP ' + (cfg.udp_port || 1194) + ' · TCP ' + (cfg.tcp_port || 443);
@@ -296,6 +319,7 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         } else if (proto === 'amnezia') {
             single.style.display = '';
             if (amneziaHint) amneziaHint.style.display = '';
+            if (dnsWrap) dnsWrap.style.display = '';
             document.getElementById('custom-port').value = cfg.port || 443;
         } else if (cfg.fixed_ports) {
             fixed.style.display = '';
@@ -360,10 +384,26 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         <?php endif; ?>
         </p>
     <?php endif; ?>
+    <?php if (!empty($result['client_dns'])) : ?>
+        <p><strong><?= __('create_client_dns') ?>:</strong> <code><?= usk_esc($result['client_dns']) ?></code></p>
+    <?php endif; ?>
+    <?php if (!empty($result['vless']) && ($result['protocol'] ?? '') === 'xray') : ?>
+        <p class="mt-2"><strong><?= __('xray_vless_link') ?>:</strong></p>
+        <code class="d-block p-3" style="white-space:pre-wrap;word-break:break-all;direction:ltr;text-align:left;"><?= usk_esc($result['vless']) ?></code>
+        <p class="text-muted small"><?= __('xray_vless_hint') ?></p>
+    <?php endif; ?>
     <?php if (!empty($result['download_url'])) : ?>
         <p class="mt-2">
             <a class="btn btn-usk-primary" href="<?= usk_esc($result['download_url']) ?>" download="<?= usk_esc($result['ovpn_filename'] ?? 'client.conf') ?>">
-                <i class="fa-solid fa-download"></i> <?= ($result['protocol'] ?? '') === 'amnezia' ? __('download_amnezia_conf') : __('download_ovpn') ?>
+                <i class="fa-solid fa-download"></i> <?php
+                if (($result['protocol'] ?? '') === 'amnezia') {
+                    echo __('download_amnezia_conf');
+                } elseif (($result['protocol'] ?? '') === 'xray') {
+                    echo __('download_xray_json');
+                } else {
+                    echo __('download_ovpn');
+                }
+                ?>
             </a>
         </p>
     <?php endif; ?>

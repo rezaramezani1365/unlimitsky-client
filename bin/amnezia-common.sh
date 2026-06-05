@@ -596,13 +596,18 @@ usk_amnezia_render_client_conf() {
   local endpoint="$5"
   local port="$6"
   local client_psk="${7:-}"
+  local client_dns="${8:-}"
 
   usk_amnezia_load_obf_params
 
   cat <<EOF
 [Interface]
 Address = ${client_ip}/32
-DNS = 1.1.1.1, 1.0.0.1
+EOF
+  if [ -n "$client_dns" ]; then
+    echo "DNS = ${client_dns}"
+  fi
+  cat <<EOF
 PrivateKey = ${client_priv}
 MTU = 1280
 Jc = ${AWG_Jc}

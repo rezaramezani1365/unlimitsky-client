@@ -40,13 +40,13 @@ class USK_ProtocolManager
                 'note_key' => 'protocol_l2tp_iran_note',
             ),
             'xray' => array(
-                'name' => 'Xray (VLESS/VMess)',
-                'port' => 2053,
+                'name' => 'Xray (VLESS Reality)',
+                'port' => 443,
                 'icon' => 'fa-bolt',
                 'port_fields' => array(
-                    array('key' => 'vless_port', 'label' => 'VLESS port (TCP)', 'default' => 2053),
-                    array('key' => 'vmess_port', 'label' => 'VMess port (TCP)', 'default' => 8443),
+                    array('key' => 'vless_port', 'label' => 'VLESS Reality port (TCP)', 'default' => 443),
                 ),
+                'note_key' => 'protocol_xray_iran_note',
             ),
             'amnezia' => array(
                 'name' => 'Amnezia (AmneziaWG)',
@@ -241,7 +241,7 @@ class USK_ProtocolManager
     {
         switch ($proto) {
             case 'xray':
-                return escapeshellarg($ports['vless_port'] ?? 2053) . ' ' . escapeshellarg($ports['vmess_port'] ?? 8443);
+                return escapeshellarg($ports['vless_port'] ?? 443);
             case 'openvpn':
                 return escapeshellarg($ports['udp_port'] ?? 1194) . ' ' . escapeshellarg($ports['tcp_port'] ?? 443);
             case 'l2tp':
@@ -349,10 +349,16 @@ class USK_ProtocolManager
             $status[$k] = (int) $v;
         }
 
-        if ($proto === 'xray' && preg_match('/USK_META:vless_port=(\d+);vmess_port=(\d+)/', $out, $m)) {
+        if ($proto === 'xray' && preg_match('/USK_META:vless_port=(\d+)/', $out, $m)) {
             $status['vless_port'] = (int) $m[1];
-            $status['vmess_port'] = (int) $m[2];
-            $status['firewall_note'] = 'Open TCP ' . $m[1] . ' and ' . $m[2] . ' in your VPS cloud firewall (security group).';
+            $status['port'] = (int) $m[1];
+            $sni = 'www.microsoft.com';
+            if (preg_match('/sni=([^;\s]+)/', $out, $sm)) {
+                $sni = $sm[1];
+            }
+            $status['reality_sni'] = $sni;
+            $status['transport'] = (strpos($out, 'reality=1') !== false) ? 'reality' : 'tcp';
+            $status['firewall_note'] = 'Open TCP ' . $m[1] . ' in VPS cloud firewall. VLESS + Reality (SNI: ' . $sni . '). Clients: v2rayN, Nekoray, Hiddify.';
         } elseif ($proto === 'cisco' && preg_match('/USK_META:port=(\d+)/', $out, $m)) {
             $status['port'] = (int) $m[1];
             $status['firewall_note'] = 'Open TCP/UDP ' . $m[1] . ' in your VPS cloud firewall (security group).';

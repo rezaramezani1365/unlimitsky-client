@@ -76,6 +76,12 @@ class USK_ProtocolProvisioner
                 $wgTransport = 'tcp';
             }
             $scriptArgs[] = $wgTransport;
+        } elseif ($protocol === 'xray') {
+            $clientDns = preg_replace('/[^0-9a-zA-Z.,;:\- _]/', '', (string) ($meta['client_dns'] ?? ''));
+            $scriptArgs[] = trim($clientDns);
+        } elseif ($protocol === 'amnezia') {
+            $clientDns = preg_replace('/[^0-9a-zA-Z.,;:\- _]/', '', (string) ($meta['client_dns'] ?? ''));
+            $scriptArgs[] = trim($clientDns);
         }
 
         $cmd = self::sudo_script_cmd($script, $scriptArgs);
@@ -105,6 +111,12 @@ class USK_ProtocolProvisioner
         $links = $data['links'] ?? $config;
         $vpnUri = trim((string) ($data['vpn_uri'] ?? ''));
         $subscription = $vpnUri !== '' ? $vpnUri : ($data['subscription_url'] ?? $links);
+        if ($protocol === 'xray') {
+            $vlessLink = trim((string) ($data['vless'] ?? ''));
+            if ($vlessLink !== '') {
+                $subscription = $vlessLink;
+            }
+        }
 
         self::save_client_record($protocol, $username, array(
             'volume_gb' => (int) $volume_gb,
@@ -132,6 +144,9 @@ class USK_ProtocolProvisioner
             'qr_png' => $data['qr_png'] ?? '',
             'download_token' => $data['download_token'] ?? '',
             'conf_filename' => $data['conf_filename'] ?? '',
+            'json_filename' => $data['json_filename'] ?? '',
+            'client_dns' => $data['client_dns'] ?? '',
+            'client_json' => $data['client_json'] ?? '',
             'expires_at' => $data['expires_at'] ?? null,
             'volume_gb' => (int) $volume_gb,
             'duration_days' => (int) $duration_days,
@@ -157,7 +172,7 @@ class USK_ProtocolProvisioner
             $record['status'] = 'active';
         }
         if (!empty($record['meta']) && is_array($record['meta'])) {
-            foreach (array('public_key', 'client_ip', 'uuid', 'password', 'psk', 'config', 'qr_png', 'vpn_uri', 'wg_conf', 'endpoint', 'download_token', 'ovpn_filename', 'conf_filename', 'proto', 'port') as $k) {
+            foreach (array('public_key', 'client_ip', 'uuid', 'password', 'psk', 'config', 'qr_png', 'vpn_uri', 'wg_conf', 'endpoint', 'download_token', 'ovpn_filename', 'conf_filename', 'json_filename', 'client_dns', 'client_json', 'vless', 'proto', 'port') as $k) {
                 if (isset($record['meta'][$k]) && $record['meta'][$k] !== '') {
                     $record[$k] = $record['meta'][$k];
                 }
@@ -208,9 +223,14 @@ class USK_ProtocolProvisioner
         return self::openvpn_download_url($order_code, $raw);
     }
 
+    public static function xray_download_url($order_code, array $raw)
+    {
+        return self::openvpn_download_url($order_code, $raw);
+    }
+
     public static function finalize_order_link($protocol, array $raw, $order_code, $fallback_link)
     {
-        if ($protocol === 'openvpn' || $protocol === 'amnezia') {
+        if ($protocol === 'openvpn' || $protocol === 'amnezia' || $protocol === 'xray') {
             $url = self::openvpn_download_url($order_code, $raw);
             if ($url !== '') {
                 return $url;
@@ -239,7 +259,8 @@ class USK_ProtocolProvisioner
             'xray_config_invalid' => 'err_xray_config_invalid',
             'xray_config_update_failed' => 'err_xray_config_invalid',
             'xray_vless_port_not_listening' => 'err_xray_not_running',
-            'xray_vmess_port_not_listening' => 'err_xray_not_running',
+            'xray_reality_not_configured' => 'err_xray_config_invalid',
+            'xray_reality_keygen_failed' => 'err_xray_config_invalid',
             'xray_config_test_failed' => 'err_xray_config_invalid',
             'xray_restart_failed' => 'err_xray_restart_failed',
             'cisco_not_installed' => 'err_cisco_not_installed',

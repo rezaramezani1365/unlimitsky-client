@@ -124,6 +124,7 @@ if ($action === 'create-service') {
         'vmess_port' => isset($body['vmess_port']) ? (int) $body['vmess_port'] : null,
         'openvpn_proto' => $ovpnProto,
         'wireguard_transport' => $wgTransport,
+        'client_dns' => preg_replace('/[^0-9a-zA-Z.,;:\- _]/', '', trim((string) ($body['client_dns'] ?? ''))),
     ));
 
     if (empty($created['ok'])) {
@@ -171,6 +172,11 @@ if ($action === 'create-service') {
         if ($vpnUri !== '') {
             $subUrl = $vpnUri;
         }
+    } elseif ($protocol === 'xray') {
+        $vless = trim((string) ($raw['vless'] ?? ($created['subscription'] ?? '')));
+        if ($vless !== '') {
+            $subUrl = $vless;
+        }
     } elseif ($downloadUrl !== '') {
         $subUrl = $downloadUrl;
     }
@@ -178,6 +184,8 @@ if ($action === 'create-service') {
     $dlFilename = $raw['ovpn_filename'] ?? ($username . '.ovpn');
     if ($protocol === 'amnezia') {
         $dlFilename = $raw['conf_filename'] ?? (preg_replace('/[^a-zA-Z0-9_-]/', '_', $username) . '.conf');
+    } elseif ($protocol === 'xray') {
+        $dlFilename = $raw['json_filename'] ?? (preg_replace('/[^a-zA-Z0-9_-]/', '_', $username) . '.json');
     }
 
     usk_api_response(200, array(
@@ -190,7 +198,11 @@ if ($action === 'create-service') {
         'config_links' => $created['links'],
         'download_url' => $downloadUrl,
         'ovpn_filename' => $dlFilename,
+        'json_filename' => $raw['json_filename'] ?? '',
         'conf_filename' => $raw['conf_filename'] ?? '',
+        'client_dns' => $raw['client_dns'] ?? '',
+        'vless' => $raw['vless'] ?? '',
+        'transport' => $raw['transport'] ?? '',
         'openvpn_proto' => $raw['proto'] ?? $ovpnProto,
         'wireguard_transport' => $raw['wireguard_transport'] ?? $wgTransport,
         'tcp_client_cmd' => $raw['tcp_client_cmd'] ?? '',

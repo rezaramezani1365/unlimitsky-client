@@ -22,6 +22,10 @@ if (usk_serve_amnezia_download($code, $token)) {
     exit;
 }
 
+if (usk_serve_xray_download($code, $token)) {
+    exit;
+}
+
 http_response_code(404);
 echo 'Config not found';
 exit;

@@ -8,6 +8,7 @@ if [ "$EUID" -ne 0 ]; then usk_json_fail "run_as_root"; fi
 USERNAME="${1:-}"
 VOLUME_GB="${2:-0}"
 DURATION_DAYS="${3:-0}"
+CLIENT_DNS="${4:-}"
 if [ -z "$USERNAME" ]; then usk_json_fail "username_required"; fi
 
 if ! [ -f "$AMNEZIA_CONF" ] && ! usk_amnezia_bivlked; then
@@ -83,7 +84,7 @@ PEER
   fi
   usk_amnezia_apply_conf
 
-  WG_CONF=$(usk_amnezia_render_client_conf "$USERNAME" "$CLIENT_IP" "$CLIENT_PRIV" "$SERVER_PUB" "$SERVER_IP" "$PORT" "$CLIENT_PSK")
+  WG_CONF=$(usk_amnezia_render_client_conf "$USERNAME" "$CLIENT_IP" "$CLIENT_PRIV" "$SERVER_PUB" "$SERVER_IP" "$PORT" "$CLIENT_PSK" "$CLIENT_DNS")
 fi
 
 ensure_jq
