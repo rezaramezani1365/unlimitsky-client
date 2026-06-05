@@ -1,7 +1,5 @@
 #!/bin/bash
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-_PROV_VLESS="${USK_XRAY_VLESS_PORT:-}"
-_PROV_VMESS="${USK_XRAY_VMESS_PORT:-}"
 source "$DIR/provision-common.sh"
 source "$DIR/xray-common.sh"
 
@@ -32,39 +30,44 @@ fi
 usk_xray_ports_from_config "$XRAY_CFG"
 VLESS_PORT="$USK_XRAY_VLESS_PORT"
 VMESS_PORT="$USK_XRAY_VMESS_PORT"
-[ -n "$_PROV_VLESS" ] && VLESS_PORT="$_PROV_VLESS"
-[ -n "$_PROV_VMESS" ] && VMESS_PORT="$_PROV_VMESS"
 
 UUID=$(cat /proc/sys/kernel/random/uuid)
 SERVER_IP=$(usk_server_ip)
 
+CFG_BAK=$(mktemp)
+cp "$XRAY_CFG" "$CFG_BAK"
+
 tmp=$(mktemp)
 if ! jq --arg id "$UUID" --arg email "$USERNAME" \
-  --argjson vless_port "$VLESS_PORT" --argjson vmess_port "$VMESS_PORT" \
-  '.inbounds[0].listen = "0.0.0.0" |
-   .inbounds[1].listen = "0.0.0.0" |
-   .inbounds[0].port = $vless_port |
-   .inbounds[1].port = $vmess_port |
-   .inbounds[0].settings.clients = ((.inbounds[0].settings.clients // []) | map(del(.flow)) + [{"id":$id,"email":$email}]) |
+  '.inbounds[0].settings.clients = ((.inbounds[0].settings.clients // []) | map(del(.flow)) + [{"id":$id,"email":$email}]) |
    .inbounds[1].settings.clients = ((.inbounds[1].settings.clients // []) + [{"id":$id,"email":$email}]) |
    .inbounds[0].streamSettings = {"network":"tcp","security":"none","tcpSettings":{"header":{"type":"none"}}} |
    .inbounds[1].streamSettings = {"network":"tcp","security":"none"}' \
   "$XRAY_CFG" > "$tmp"; then
-  rm -f "$tmp"
+  rm -f "$tmp" "$CFG_BAK"
   usk_json_fail "xray_config_update_failed"
 fi
 mv "$tmp" "$XRAY_CFG"
 
 if ! usk_xray_test_config "$XRAY_CFG"; then
+  mv "$CFG_BAK" "$XRAY_CFG"
+  rm -f "$CFG_BAK"
   usk_json_fail "xray_config_test_failed"
 fi
 
 if ! usk_xray_service_restart; then
+  mv "$CFG_BAK" "$XRAY_CFG"
+  systemctl restart xray 2>/dev/null || true
+  rm -f "$CFG_BAK"
   usk_json_fail "xray_restart_failed"
 fi
+rm -f "$CFG_BAK"
 
 if ! usk_xray_port_listening "$VLESS_PORT"; then
-  usk_json_fail "xray_vless_port_not_listening"
+  usk_json_fail "xray_vless_port_not_listening port=${VLESS_PORT}"
+fi
+if ! usk_xray_port_listening "$VMESS_PORT"; then
+  usk_json_fail "xray_vmess_port_not_listening port=${VMESS_PORT}"
 fi
 
 VLESS="vless://${UUID}@${SERVER_IP}:${VLESS_PORT}?encryption=none&security=none&type=tcp&headerType=none#${USERNAME}-vless"

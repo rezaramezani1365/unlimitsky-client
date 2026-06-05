@@ -58,14 +58,8 @@ class USK_ProtocolProvisioner
         }
         if (!empty($meta['port']) && (int) $meta['port'] > 0) {
             $envParts[] = 'USK_PORT=' . (int) $meta['port'];
-        } elseif (!empty($st['port'])) {
+        } elseif ($protocol !== 'xray' && !empty($st['port'])) {
             $envParts[] = 'USK_PORT=' . (int) $st['port'];
-        }
-        if (!empty($meta['vless_port']) && (int) $meta['vless_port'] > 0) {
-            $envParts[] = 'USK_XRAY_VLESS_PORT=' . (int) $meta['vless_port'];
-        }
-        if (!empty($meta['vmess_port']) && (int) $meta['vmess_port'] > 0) {
-            $envParts[] = 'USK_XRAY_VMESS_PORT=' . (int) $meta['vmess_port'];
         }
         $env = implode(' ', $envParts);
         if ($env !== '') {
@@ -196,6 +190,7 @@ class USK_ProtocolProvisioner
 
     public static function error_label($code)
     {
+        $code = preg_replace('/\s+port=\d+.*$/', '', trim((string) $code));
         $map = array(
             'sudo_denied' => 'err_sudo_denied',
             'xray_not_installed' => 'err_xray_not_installed',
@@ -205,6 +200,7 @@ class USK_ProtocolProvisioner
             'xray_vless_port_not_listening' => 'err_xray_not_running',
             'xray_vmess_port_not_listening' => 'err_xray_not_running',
             'xray_config_test_failed' => 'err_xray_config_invalid',
+            'xray_restart_failed' => 'err_xray_restart_failed',
             'cisco_not_installed' => 'err_cisco_not_installed',
             'cisco_user_create_failed' => 'err_provision_failed',
             'provision_failed' => 'err_provision_failed',

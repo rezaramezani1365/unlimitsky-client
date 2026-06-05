@@ -2,7 +2,7 @@
 # Shared Xray helpers for UnlimitSky
 XRAY_CFG="${XRAY_CFG:-/usr/local/etc/xray/config.json}"
 USK_XRAY_VLESS_PORT="${USK_XRAY_VLESS_PORT:-2053}"
-USK_XRAY_VMESS_PORT="${USK_XRAY_VMESS_PORT:-2087}"
+USK_XRAY_VMESS_PORT="${USK_XRAY_VMESS_PORT:-8443}"
 
 usk_xray_bin() {
   if command -v xray >/dev/null 2>&1; then
@@ -127,7 +127,7 @@ usk_xray_test_config() {
 usk_xray_ports_from_config() {
   local cfg="$1"
   USK_XRAY_VLESS_PORT=$(jq -r '.inbounds[0].port // 2053' "$cfg" 2>/dev/null || echo 2053)
-  USK_XRAY_VMESS_PORT=$(jq -r '.inbounds[1].port // 2087' "$cfg" 2>/dev/null || echo 2087)
+  USK_XRAY_VMESS_PORT=$(jq -r '.inbounds[1].port // 8443' "$cfg" 2>/dev/null || echo 8443)
 }
 
 usk_xray_port_listening() {

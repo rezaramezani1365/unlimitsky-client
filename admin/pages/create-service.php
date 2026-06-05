@@ -46,19 +46,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $code = (string) rand(111111, 999999);
                 $username = usk_service_name($code, 'admin');
                 $provisionMeta = array();
-                if (!empty($_POST['custom_port'])) {
+                if ($protocol !== 'xray' && !empty($_POST['custom_port'])) {
                     $provisionMeta['port'] = (int) $_POST['custom_port'];
-                }
-                if (!empty($_POST['custom_vless_port'])) {
-                    $provisionMeta['vless_port'] = (int) $_POST['custom_vless_port'];
-                }
-                if (!empty($_POST['custom_vmess_port'])) {
-                    $provisionMeta['vmess_port'] = (int) $_POST['custom_vmess_port'];
                 }
                 $created = USK_Service::create_native($protocol, $volume_gb, $duration_days, $username, $provisionMeta);
 
                 if (!$created['ok']) {
-                    usk_flash($created['error'] ?? __('create_failed'), 'error');
+                    $msg = $created['error'] ?? __('create_failed');
+                    usk_flash($msg, 'error');
                 } else {
                     $order = USK_ProtocolProvisioner::save_order(
                         $protocol,
@@ -175,16 +170,8 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
                     <p class="text-muted small mt-1"><?= __('create_config_port_hint') ?></p>
                 </div>
                 <div id="create-port-xray" style="display:none;">
-                    <div class="form-row">
-                        <div class="col-md-6 mb-2">
-                            <label class="small">VLESS</label>
-                            <input type="number" class="form-control" name="custom_vless_port" id="custom-vless-port" min="1" max="65535">
-                        </div>
-                        <div class="col-md-6 mb-2">
-                            <label class="small">VMess</label>
-                            <input type="number" class="form-control" name="custom_vmess_port" id="custom-vmess-port" min="1" max="65535">
-                        </div>
-                    </div>
+                    <p class="mb-1"><code class="usk-code" id="xray-ports-readonly" style="direction:ltr"></code></p>
+                    <p class="text-muted small mb-0"><?= __('create_xray_ports_hint') ?></p>
                 </div>
                 <div id="create-port-fixed" style="display:none;">
                     <p class="text-muted small mb-0" id="create-port-fixed-text"></p>
@@ -226,8 +213,8 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         var cfg = protocolPorts[proto];
         if (proto === 'xray') {
             xray.style.display = '';
-            document.getElementById('custom-vless-port').value = cfg.vless_port || 2053;
-            document.getElementById('custom-vmess-port').value = cfg.vmess_port || 2087;
+            document.getElementById('xray-ports-readonly').textContent =
+                'VLESS ' + (cfg.vless_port || 2053) + ' · VMess ' + (cfg.vmess_port || 8443);
         } else if (cfg.fixed_ports) {
             fixed.style.display = '';
             document.getElementById('create-port-fixed-text').textContent = cfg.fixed_ports;

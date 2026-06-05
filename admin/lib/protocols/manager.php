@@ -42,7 +42,7 @@ class USK_ProtocolManager
                 'icon' => 'fa-bolt',
                 'port_fields' => array(
                     array('key' => 'vless_port', 'label' => 'VLESS port (TCP)', 'default' => 2053),
-                    array('key' => 'vmess_port', 'label' => 'VMess port (TCP)', 'default' => 2087),
+                    array('key' => 'vmess_port', 'label' => 'VMess port (TCP)', 'default' => 8443),
                 ),
             ),
         );
@@ -127,7 +127,7 @@ class USK_ProtocolManager
     {
         switch ($proto) {
             case 'xray':
-                return escapeshellarg($ports['vless_port'] ?? 2053) . ' ' . escapeshellarg($ports['vmess_port'] ?? 2087);
+                return escapeshellarg($ports['vless_port'] ?? 2053) . ' ' . escapeshellarg($ports['vmess_port'] ?? 8443);
             case 'l2tp':
                 return '';
             default:

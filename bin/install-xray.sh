@@ -5,11 +5,11 @@ source "$DIR/usk-common.sh"
 source "$DIR/xray-common.sh"
 
 VLESS_PORT="${1:-${USK_XRAY_VLESS_PORT:-2053}}"
-VMESS_PORT="${2:-${USK_XRAY_VMESS_PORT:-2087}}"
+VMESS_PORT="${2:-${USK_XRAY_VMESS_PORT:-8443}}"
 VLESS_PORT=$(echo "$VLESS_PORT" | tr -dc '0-9')
 VMESS_PORT=$(echo "$VMESS_PORT" | tr -dc '0-9')
 [ -n "$VLESS_PORT" ] && [ "$VLESS_PORT" -ge 1 ] && [ "$VLESS_PORT" -le 65535 ] 2>/dev/null || VLESS_PORT=2053
-[ -n "$VMESS_PORT" ] && [ "$VMESS_PORT" -ge 1 ] && [ "$VMESS_PORT" -le 65535 ] 2>/dev/null || VMESS_PORT=2087
+[ -n "$VMESS_PORT" ] && [ "$VMESS_PORT" -ge 1 ] && [ "$VMESS_PORT" -le 65535 ] 2>/dev/null || VMESS_PORT=8443
 
 if [ "$VLESS_PORT" = "$VMESS_PORT" ]; then
   VMESS_PORT=$((VLESS_PORT + 1))
