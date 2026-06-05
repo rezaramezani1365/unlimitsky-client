@@ -11,6 +11,7 @@ DURATION_DAYS="${3:-0}"
 TRANSPORT="${4:-udp}"
 TRANSPORT=$(echo "$TRANSPORT" | tr '[:upper:]' '[:lower:]')
 [ "$TRANSPORT" = "tcp" ] || TRANSPORT="udp"
+CLIENT_DNS="${5:-}"
 
 if [ -z "$USERNAME" ]; then usk_json_fail "username_required"; fi
 
@@ -63,13 +64,17 @@ fi
 
 CONFIG="[Interface]
 PrivateKey = $CLIENT_PRIV
-Address = ${CLIENT_IP}/32
-DNS = 1.1.1.1, 8.8.8.8
+Address = ${CLIENT_IP}/32"
+if [ -n "$CLIENT_DNS" ]; then
+  CONFIG="${CONFIG}
+DNS = ${CLIENT_DNS}"
+fi
+CONFIG="${CONFIG}
 
 [Peer]
 PublicKey = $SERVER_PUB
 Endpoint = ${ENDPOINT}
-AllowedIPs = 0.0.0.0/0, ::/0
+AllowedIPs = 0.0.0.0/0
 PersistentKeepalive = 25"
 
 if [ "$TRANSPORT" = "tcp" ]; then

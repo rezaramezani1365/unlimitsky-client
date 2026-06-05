@@ -14,6 +14,17 @@ foreach (USK_ProtocolManager::list() as $pkey => $pmeta) {
         $protocolPortDefaults[$pkey] = USK_ProtocolManager::port_defaults_for_create($pkey);
     }
 }
+$clientDnsPanel = USK_ClientDns::get();
+$clientDnsForJs = array(
+    'enabled' => !empty($clientDnsPanel['enabled']),
+    'default' => $clientDnsPanel['default_dns'] ?? '',
+    'by_protocol' => array(
+        'xray' => USK_ClientDns::resolve('', 'xray'),
+        'amnezia' => USK_ClientDns::resolve('', 'amnezia'),
+        'openvpn' => USK_ClientDns::resolve('', 'openvpn'),
+        'wireguard' => USK_ClientDns::resolve('', 'wireguard'),
+    ),
+);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $mode = $_POST['mode'] ?? 'native';
@@ -240,7 +251,7 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
             <div class="form-group native-field" id="create-client-dns-wrap" style="display:none;">
                 <label><?= __('create_client_dns') ?></label>
                 <input type="text" class="form-control" name="client_dns" id="client-dns-input" placeholder="<?= __('create_client_dns_placeholder') ?>" dir="ltr" style="text-align:left;">
-                <p class="text-muted small mt-1 mb-0"><?= __('create_client_dns_hint') ?></p>
+                <p class="text-muted small mt-1 mb-0"><?= __('create_client_dns_hint') ?> <a href="<?= usk_admin_url('settings') ?>#client-dns"><?= __('settings_client_dns_link') ?></a></p>
             </div>
             <div class="form-group panel-field" style="display:none;">
                 <label><?= __('create_panel_select') ?></label>
@@ -261,6 +272,15 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
     var mode = document.getElementById('create-mode');
     var planSource = document.getElementById('plan-source');
     var protocolPorts = <?= json_encode($protocolPortDefaults, JSON_UNESCAPED_UNICODE) ?>;
+    var clientDnsCfg = <?= json_encode($clientDnsForJs, JSON_UNESCAPED_UNICODE) ?>;
+    function applyPanelDnsPlaceholder(proto) {
+        var inp = document.getElementById('client-dns-input');
+        if (!inp || !clientDnsCfg.enabled) return;
+        var val = (clientDnsCfg.by_protocol && clientDnsCfg.by_protocol[proto]) || clientDnsCfg.default || '';
+        if (val && !inp.value) {
+            inp.value = val;
+        }
+    }
     function updatePortFields() {
         var proto = document.getElementById('native-protocol').value;
         var wrap = document.getElementById('create-port-fields');
@@ -297,17 +317,18 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         if (proto === 'xray') {
             xray.style.display = '';
             if (xrayHint) xrayHint.style.display = '';
-            if (dnsWrap) dnsWrap.style.display = '';
+            if (dnsWrap) { dnsWrap.style.display = ''; applyPanelDnsPlaceholder(proto); }
             document.getElementById('xray-ports-readonly').textContent =
                 'VLESS Reality · TCP ' + (cfg.vless_port || 443);
         } else if (proto === 'openvpn') {
             if (openvpnProto) openvpnProto.style.display = '';
-            if (dnsWrap) dnsWrap.style.display = '';
+            if (dnsWrap) { dnsWrap.style.display = ''; applyPanelDnsPlaceholder(proto); }
             fixed.style.display = '';
             document.getElementById('create-port-fixed-text').textContent =
                 'UDP ' + (cfg.udp_port || 1194) + ' · TCP ' + (cfg.tcp_port || 443);
         } else if (proto === 'wireguard') {
             if (wgTransport) wgTransport.style.display = '';
+            if (dnsWrap) { dnsWrap.style.display = ''; applyPanelDnsPlaceholder(proto); }
             fixed.style.display = '';
             var tcpP = cfg.tcp_port && cfg.tcp_port > 0 ? cfg.tcp_port : 51822;
             document.getElementById('create-port-fixed-text').textContent =
@@ -319,7 +340,7 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         } else if (proto === 'amnezia') {
             single.style.display = '';
             if (amneziaHint) amneziaHint.style.display = '';
-            if (dnsWrap) dnsWrap.style.display = '';
+            if (dnsWrap) { dnsWrap.style.display = ''; applyPanelDnsPlaceholder(proto); }
             document.getElementById('custom-port').value = cfg.port || 443;
         } else if (cfg.fixed_ports) {
             fixed.style.display = '';

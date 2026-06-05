@@ -47,6 +47,9 @@ class USK_ProtocolProvisioner
             return array('ok' => false, 'error' => 'invalid_username');
         }
 
+        $clientDns = USK_ClientDns::resolve((string) ($meta['client_dns'] ?? ''), $protocol);
+        $meta['client_dns'] = $clientDns;
+
         $script = USK_ROOT . '/bin/add-user-' . $protocol . '.sh';
         if (!file_exists($script)) {
             return array('ok' => false, 'error' => 'provision_script_missing');
@@ -67,21 +70,19 @@ class USK_ProtocolProvisioner
             $scriptArgs[] = $ovpnProto;
             $scriptArgs[] = (string) (int) ($st['udp_port'] ?? 1194);
             $scriptArgs[] = (string) (int) ($st['tcp_port'] ?? 443);
-            if ($server_ip !== '') {
-                $scriptArgs[] = $server_ip;
-            }
+            $scriptArgs[] = $server_ip;
+            $scriptArgs[] = $clientDns;
         } elseif ($protocol === 'wireguard') {
             $wgTransport = strtolower((string) ($meta['wireguard_transport'] ?? 'tcp'));
             if (!in_array($wgTransport, array('udp', 'tcp'), true)) {
                 $wgTransport = 'tcp';
             }
             $scriptArgs[] = $wgTransport;
+            $scriptArgs[] = $clientDns;
         } elseif ($protocol === 'xray') {
-            $clientDns = preg_replace('/[^0-9a-zA-Z.,;:\- _]/', '', (string) ($meta['client_dns'] ?? ''));
-            $scriptArgs[] = trim($clientDns);
+            $scriptArgs[] = $clientDns;
         } elseif ($protocol === 'amnezia') {
-            $clientDns = preg_replace('/[^0-9a-zA-Z.,;:\- _]/', '', (string) ($meta['client_dns'] ?? ''));
-            $scriptArgs[] = trim($clientDns);
+            $scriptArgs[] = $clientDns;
         }
 
         $cmd = self::sudo_script_cmd($script, $scriptArgs);

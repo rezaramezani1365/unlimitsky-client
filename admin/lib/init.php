@@ -16,6 +16,7 @@ require_once __DIR__ . '/api-keys.php';
 require_once __DIR__ . '/protocols/manager.php';
 require_once __DIR__ . '/protocols/limits.php';
 require_once __DIR__ . '/protocols/provisioner.php';
+require_once __DIR__ . '/client-dns.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();

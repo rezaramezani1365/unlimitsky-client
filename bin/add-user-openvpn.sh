@@ -23,6 +23,7 @@ fi
 ARG_UDP_PORT="${5:-}"
 ARG_TCP_PORT="${6:-}"
 ARG_SERVER_IP="${7:-}"
+CLIENT_DNS="${8:-}"
 
 EASYRSA="/etc/openvpn/easy-rsa"
 if [ ! -d "$EASYRSA/pki" ]; then
@@ -62,6 +63,15 @@ CERT=$(cat "pki/issued/${USERNAME}.crt")
 KEY=$(cat "pki/private/${USERNAME}.key")
 TLS=$(cat /etc/openvpn/ta.key 2>/dev/null || true)
 
+DNS_BLOCK=""
+if [ -n "$CLIENT_DNS" ]; then
+  for dns in $(echo "$CLIENT_DNS" | tr ',' ' '); do
+    dns=$(echo "$dns" | tr -d ' ')
+    [ -n "$dns" ] && DNS_BLOCK="${DNS_BLOCK}
+dhcp-option DNS ${dns}"
+  done
+fi
+
 CONFIG="client
 dev tun
 proto ${PROTO}
@@ -71,9 +81,7 @@ nobind
 persist-key
 persist-tun
 remote-cert-tls server
-redirect-gateway def1
-dhcp-option DNS 1.1.1.1
-dhcp-option DNS 8.8.8.8
+redirect-gateway def1${DNS_BLOCK}
 cipher AES-256-GCM
 auth SHA256
 data-ciphers AES-256-GCM:AES-128-GCM
