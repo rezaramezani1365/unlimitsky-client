@@ -1,0 +1,10 @@
+config.php
+install/unlimitsky.install
+install/.db-provision.json
+admin/data/auth.json
+admin/data/license.json
+admin/data/license-last-cron.json
+admin/data/instance.id
+data/
+*.log
+.env
