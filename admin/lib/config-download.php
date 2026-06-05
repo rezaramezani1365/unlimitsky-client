@@ -61,3 +61,55 @@ function usk_serve_openvpn_download($code, $token)
     echo $body;
     return true;
 }
+
+function usk_serve_amnezia_download($code, $token)
+{
+    global $sql;
+
+    if ($code === '' || $token === '' || !$sql instanceof mysqli) {
+        return false;
+    }
+
+    $code_esc = $sql->real_escape_string($code);
+    $order = $sql->query("SELECT * FROM `orders` WHERE `code`='$code_esc' LIMIT 1")->fetch_assoc();
+    if (!$order) {
+        return false;
+    }
+
+    require_once __DIR__ . '/admin/lib/protocols/limits.php';
+    $native = USK_ProtocolLimits::find_client_for_order($order);
+    if (!$native || ($native['protocol'] ?? '') !== 'amnezia') {
+        return false;
+    }
+
+    $client = $native['client'] ?? array();
+    $stored = $client['download_token']
+        ?? ($client['meta']['download_token'] ?? '');
+    if ($stored === '' || !hash_equals((string) $stored, (string) $token)) {
+        return false;
+    }
+
+    $username = $native['username'] ?? '';
+    $filename = ($client['conf_filename'] ?? ($client['meta']['conf_filename'] ?? ''));
+    if ($filename === '') {
+        $filename = $username !== '' ? (preg_replace('/[^a-zA-Z0-9_-]/', '_', $username) . '.conf') : 'amnezia_for_awg.conf';
+    }
+
+    $safe = preg_replace('/[^a-zA-Z0-9_-]/', '_', $username);
+    $profile = USK_ROOT . '/data/amnezia/profiles/' . $safe . '.conf';
+    if (is_file($profile)) {
+        $body = file_get_contents($profile);
+    } else {
+        $body = $client['wg_conf'] ?? ($client['meta']['wg_conf'] ?? ($client['config'] ?? ''));
+    }
+
+    if ($body === '') {
+        return false;
+    }
+
+    header('Content-Type: application/octet-stream');
+    header('Content-Disposition: attachment; filename="' . str_replace('"', '', $filename) . '"');
+    header('Cache-Control: no-store');
+    echo $body;
+    return true;
+}

@@ -50,10 +50,10 @@ class USK_ProtocolManager
             ),
             'amnezia' => array(
                 'name' => 'Amnezia (AmneziaWG)',
-                'port' => 51821,
+                'port' => 443,
                 'icon' => 'fa-user-shield',
                 'port_fields' => array(
-                    array('key' => 'port', 'label' => 'Listen port (UDP)', 'default' => 51821),
+                    array('key' => 'port', 'label' => 'Listen port (UDP, max 9999)', 'default' => 443),
                 ),
                 'note_key' => 'protocol_amnezia_note',
             ),

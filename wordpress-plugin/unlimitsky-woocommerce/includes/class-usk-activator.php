@@ -109,8 +109,11 @@ class USK_Activator
         if (!in_array('vpn_uri', $cols, true)) {
             $wpdb->query("ALTER TABLE {$table} ADD vpn_uri longtext DEFAULT NULL");
         }
-        if (!in_array('qr_conf_png', $cols, true)) {
-            $wpdb->query("ALTER TABLE {$table} ADD qr_conf_png longtext DEFAULT NULL");
+        if (!in_array('download_url', $cols, true)) {
+            $wpdb->query("ALTER TABLE {$table} ADD download_url text DEFAULT NULL");
+        }
+        if (!in_array('conf_filename', $cols, true)) {
+            $wpdb->query("ALTER TABLE {$table} ADD conf_filename varchar(120) DEFAULT NULL");
         }
     }
 

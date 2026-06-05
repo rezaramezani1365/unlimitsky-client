@@ -4,10 +4,13 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$DIR/amnezia-common.sh"
 set +e
 
-PORT="${1:-51821}"
+PORT="${1:-443}"
 PORT=$(echo "$PORT" | tr -dc '0-9')
 if [ -z "$PORT" ] || [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ] 2>/dev/null; then
-  PORT=51821
+  PORT=443
+fi
+if [ "$PORT" -gt 9999 ] 2>/dev/null; then
+  PORT=443
 fi
 
 if usk_amnezia_bivlked && [ -f "$AMNEZIA_CONF" ]; then

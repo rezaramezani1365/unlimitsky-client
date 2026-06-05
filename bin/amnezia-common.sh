@@ -353,14 +353,19 @@ usk_amnezia_verify_installed() {
   [ -f "$AMNEZIA_CONF" ] && command -v awg >/dev/null 2>&1
 }
 
+# Official AmneziaWG 2.0 default I1 (DNS/Yandex CPS) — docs.amnezia.org
+AWG_DEFAULT_I1='<r 2><b 0x8580000100010000000004796162730679616e6465780272750000010001c00c000100010000026d000457fa27d1>'
+
 usk_amnezia_gen_obf_params() {
-  local jc=3
-  local jmin=$((30 + RANDOM % 21))
-  local jmax=$((jmin + 20 + RANDOM % 61))
-  local s1=$((RANDOM * 1000 + RANDOM + 1))
-  local s2=$((RANDOM * 1000 + RANDOM + 1))
-  local s3=$((RANDOM * 1000 + RANDOM + 1))
-  local s4=$((RANDOM * 1000 + RANDOM + 1))
+  local jc=$((4 + RANDOM % 4))
+  local jmin=$((64 + RANDOM % 200))
+  local jmax=$((jmin + 64 + RANDOM % 400))
+  [ "$jmax" -gt 1024 ] && jmax=1024
+  [ "$jmax" -le "$jmin" ] && jmax=$((jmin + 64))
+  local s1=$((RANDOM % 65))
+  local s2=$((RANDOM % 65))
+  local s3=$((RANDOM % 65))
+  local s4=$((RANDOM % 33))
   local h1lo=$((100000 + RANDOM % 900000))
   local h1hi=$((h1lo + 500000))
   [ "$h1hi" -gt 2147483647 ] && h1hi=2147483647
@@ -387,15 +392,87 @@ AWG_H1=${h1lo}-${h1hi}
 AWG_H2=${h2lo}-${h2hi}
 AWG_H3=${h3lo}-${h3hi}
 AWG_H4=${h4lo}-${h4hi}
+AWG_I1=${AWG_DEFAULT_I1}
 EOF
   chmod 600 "$AMNEZIA_PARAMS"
+}
+
+usk_amnezia_fixup_obf_params() {
+  usk_amnezia_load_obf_params 2>/dev/null || true
+  local need_fix=0
+  for key in AWG_S1 AWG_S2 AWG_S3; do
+    local v="${!key:-0}"
+    v=$(echo "$v" | tr -dc '0-9')
+    [ -z "$v" ] && v=0
+    [ "$v" -gt 64 ] && need_fix=1
+  done
+  local s4v="${AWG_S4:-0}"
+  s4v=$(echo "$s4v" | tr -dc '0-9')
+  [ -z "$s4v" ] && s4v=0
+  [ "$s4v" -gt 32 ] && need_fix=1
+  local jmin="${AWG_Jmin:-0}"
+  jmin=$(echo "$jmin" | tr -dc '0-9')
+  [ -z "$jmin" ] && jmin=0
+  [ "$jmin" -lt 64 ] && need_fix=1
+  [ -z "${AWG_I1:-}" ] && need_fix=1
+  if [ "$need_fix" -eq 1 ]; then
+    usk_amnezia_gen_obf_params
+    usk_amnezia_load_obf_params
+    return 0
+  fi
+  return 1
+}
+
+usk_amnezia_sync_interface_from_params() {
+  [ -f "$AMNEZIA_CONF" ] || return 1
+  usk_amnezia_load_obf_params || return 1
+
+  local port priv addr main_iface peer_section
+  port=$(grep -E '^ListenPort' "$AMNEZIA_CONF" 2>/dev/null | head -1 | sed 's/.*=[[:space:]]*//')
+  port=$(echo "$port" | tr -dc '0-9')
+  [ -n "$port" ] || port=443
+  priv=$(grep -E '^PrivateKey' "$AMNEZIA_CONF" 2>/dev/null | head -1 | sed 's/.*=[[:space:]]*//')
+  addr=$(grep -E '^Address' "$AMNEZIA_CONF" 2>/dev/null | head -1 | sed 's/.*=[[:space:]]*//')
+  [ -n "$priv" ] && [ -n "$addr" ] || return 1
+
+  main_iface=$(usk_amnezia_main_iface)
+  main_iface="${main_iface:-eth0}"
+  peer_section=$(awk '/^\[Peer\]/{found=1} found{print}' "$AMNEZIA_CONF" 2>/dev/null)
+
+  local tmp
+  tmp=$(mktemp)
+  cat > "$tmp" <<EOF
+[Interface]
+Address = ${addr}
+ListenPort = ${port}
+PrivateKey = ${priv}
+Jc = ${AWG_Jc}
+Jmin = ${AWG_Jmin}
+Jmax = ${AWG_Jmax}
+S1 = ${AWG_S1}
+S2 = ${AWG_S2}
+S3 = ${AWG_S3}
+S4 = ${AWG_S4}
+H1 = ${AWG_H1}
+H2 = ${AWG_H2}
+H3 = ${AWG_H3}
+H4 = ${AWG_H4}
+I1 = ${AWG_I1}
+PostUp = iptables -A FORWARD -i awg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o ${main_iface} -j MASQUERADE
+PostDown = iptables -D FORWARD -i awg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o ${main_iface} -j MASQUERADE
+EOF
+  if [ -n "$peer_section" ]; then
+    printf '\n%s\n' "$peer_section" >> "$tmp"
+  fi
+  mv "$tmp" "$AMNEZIA_CONF"
+  usk_amnezia_apply_conf
 }
 
 usk_amnezia_load_obf_params() {
   if [ ! -f "$AMNEZIA_PARAMS" ] && [ -f "$AMNEZIA_CONF" ]; then
     mkdir -p "$(dirname "$AMNEZIA_PARAMS")"
     {
-      grep -E '^(Jc|Jmin|Jmax|S[1-4]|H[1-4])' "$AMNEZIA_CONF" 2>/dev/null | while read -r line; do
+      grep -E '^(Jc|Jmin|Jmax|S[1-4]|H[1-4]|I1)' "$AMNEZIA_CONF" 2>/dev/null | while read -r line; do
         key="${line%%=*}"
         key=$(echo "$key" | tr -d ' ')
         val="${line#*=}"
@@ -411,7 +488,10 @@ usk_amnezia_init_server() {
   local port="$1"
   local subnet="${2:-10.9.9.0/24}"
   port=$(echo "$port" | tr -dc '0-9')
-  [ -n "$port" ] && [ "$port" -ge 1 ] 2>/dev/null || port=51821
+  [ -n "$port" ] && [ "$port" -ge 1 ] 2>/dev/null || port=443
+  [ "$port" -gt 9999 ] 2>/dev/null && port=443
+
+  usk_amnezia_fixup_obf_params 2>/dev/null || true
 
   local base="${subnet%.*}"
   local server_ip="${base}.1"
@@ -452,6 +532,7 @@ H1 = ${AWG_H1}
 H2 = ${AWG_H2}
 H3 = ${AWG_H3}
 H4 = ${AWG_H4}
+I1 = ${AWG_I1}
 PostUp = iptables -A FORWARD -i awg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o ${main_iface} -j MASQUERADE
 PostDown = iptables -D FORWARD -i awg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o ${main_iface} -j MASQUERADE
 EOF
@@ -535,6 +616,11 @@ H1 = ${AWG_H1}
 H2 = ${AWG_H2}
 H3 = ${AWG_H3}
 H4 = ${AWG_H4}
+EOF
+  if [ -n "${AWG_I1:-}" ]; then
+    echo "I1 = ${AWG_I1}"
+  fi
+  cat <<EOF
 
 [Peer]
 PublicKey = ${server_pub}

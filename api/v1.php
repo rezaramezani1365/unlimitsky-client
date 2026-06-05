@@ -152,7 +152,12 @@ if ($action === 'create-service') {
     }
 
     $raw = $created['raw'] ?? array();
-    $downloadUrl = USK_ProtocolProvisioner::openvpn_download_url($order['code'], $raw);
+    $downloadUrl = USK_ProtocolProvisioner::finalize_order_link(
+        $protocol,
+        $raw,
+        $order['code'],
+        ''
+    );
     if ($downloadUrl !== '') {
         global $sql;
         $dl_esc = $sql->real_escape_string($downloadUrl);
@@ -160,23 +165,38 @@ if ($action === 'create-service') {
         $sql->query("UPDATE `orders` SET `link`='$dl_esc' WHERE `code`='$code_esc'");
     }
 
+    $subUrl = $created['subscription'];
+    if ($protocol === 'amnezia') {
+        $vpnUri = trim((string) ($created['vpn_uri'] ?? ''));
+        if ($vpnUri !== '') {
+            $subUrl = $vpnUri;
+        }
+    } elseif ($downloadUrl !== '') {
+        $subUrl = $downloadUrl;
+    }
+
+    $dlFilename = $raw['ovpn_filename'] ?? ($username . '.ovpn');
+    if ($protocol === 'amnezia') {
+        $dlFilename = $raw['conf_filename'] ?? (preg_replace('/[^a-zA-Z0-9_-]/', '_', $username) . '.conf');
+    }
+
     usk_api_response(200, array(
         'ok' => true,
         'username' => $username,
         'protocol' => $protocol,
         'service_code' => $order['code'],
-        'subscription_url' => $downloadUrl !== '' ? $downloadUrl : $created['subscription'],
+        'subscription_url' => $subUrl,
         'config' => $created['config'],
         'config_links' => $created['links'],
         'download_url' => $downloadUrl,
-        'ovpn_filename' => $raw['ovpn_filename'] ?? ($username . '.ovpn'),
+        'ovpn_filename' => $dlFilename,
+        'conf_filename' => $raw['conf_filename'] ?? '',
         'openvpn_proto' => $raw['proto'] ?? $ovpnProto,
         'wireguard_transport' => $raw['wireguard_transport'] ?? $wgTransport,
         'tcp_client_cmd' => $raw['tcp_client_cmd'] ?? '',
         'volume_gb' => $volume_gb,
         'duration_days' => $duration_days,
         'qr_png' => $created['qr_png'] ?? '',
-        'qr_conf_png' => $created['qr_conf_png'] ?? '',
         'vpn_uri' => $created['vpn_uri'] ?? '',
         'wg_conf' => $created['wg_conf'] ?? '',
         'expires_at' => $created['expires_at'] ?? null,

@@ -11,9 +11,12 @@ if ! usk_amnezia_verify_installed && ! usk_amnezia_bivlked; then
 fi
 
 if [ ! -f "$AMNEZIA_CONF" ] && ! usk_amnezia_bivlked; then
-  PORT="${1:-51821}"
+  PORT="${1:-443}"
   usk_amnezia_init_server "$PORT" >/dev/null || true
 fi
+
+usk_amnezia_fixup_obf_params 2>/dev/null || true
+usk_amnezia_sync_interface_from_params 2>/dev/null || true
 
 MAIN_IFACE=$(usk_amnezia_main_iface)
 MAIN_IFACE="${MAIN_IFACE:-eth0}"

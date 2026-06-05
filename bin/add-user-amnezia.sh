@@ -26,11 +26,11 @@ mkdir -p "$(dirname "$REGISTRY")"
 SERVER_IP=$(usk_server_ip)
 PORT=$(usk_amnezia_server_port)
 PORT=$(echo "$PORT" | tr -dc '0-9')
-[ -n "$PORT" ] || PORT=51821
+[ -n "$PORT" ] || PORT=443
+[ "$PORT" -gt 9999 ] 2>/dev/null && PORT=443
 
 CONFIG=""
 QR_B64=""
-QR_CONF_B64=""
 CLIENT_IP=""
 CLIENT_PUB=""
 VPN_URI=""
@@ -93,7 +93,6 @@ if [ -z "$VPN_URI" ] && [ -n "$PAYLOADS" ]; then
   VPN_URI=$(echo "$PAYLOADS" | jq -r '.vpn_uri // empty' 2>/dev/null)
 fi
 VPN_QR_PAYLOAD=$(echo "$PAYLOADS" | jq -r '.vpn_qr // empty' 2>/dev/null)
-AWG_QR_PAYLOAD=$(echo "$PAYLOADS" | jq -r '.awg_qr // empty' 2>/dev/null)
 
 if [ -z "$VPN_URI" ]; then
   VPN_URI=$(usk_amnezia_generate_vpn_uri "$WG_CONF" "$SERVER_IP" 2>/dev/null || true)
@@ -105,9 +104,14 @@ elif [ -n "$VPN_URI" ]; then
   QR_B64=$(usk_amnezia_qr_b64 "${VPN_URI#vpn://}")
 fi
 
-if [ -n "$AWG_QR_PAYLOAD" ]; then
-  QR_CONF_B64=$(usk_amnezia_qr_b64 "$AWG_QR_PAYLOAD")
-fi
+PROFILE_DIR="$DATA_ROOT/amnezia/profiles"
+mkdir -p "$PROFILE_DIR"
+safe_user=$(echo "$USERNAME" | tr -c 'a-zA-Z0-9_-' '_')
+CONF_FILE="${PROFILE_DIR}/${safe_user}.conf"
+printf '%s\n' "$WG_CONF" > "$CONF_FILE"
+chmod 644 "$CONF_FILE"
+CONF_FILENAME="${safe_user}.conf"
+DOWNLOAD_TOKEN=$(openssl rand -hex 16 2>/dev/null || cat /proc/sys/kernel/random/uuid 2>/dev/null | tr -d '-' | cut -c1-32)
 
 LINKS="$VPN_URI"
 [ -n "$LINKS" ] && [ -n "$WG_CONF" ] && LINKS="${LINKS}
@@ -116,25 +120,23 @@ LINKS="$VPN_URI"
 ${WG_CONF}"
 [ -z "$LINKS" ] && LINKS="$WG_CONF"
 
-CONFIG="=== Amnezia VPN app ===
-1) Scan QR code «Amnezia VPN app»
-2) Or paste vpn:// link: Import → Paste from clipboard
+CONFIG="=== Amnezia VPN app (AmneziaVPN) ===
+Per docs.amnezia.org: scan QR or paste vpn:// key.
 
 ${VPN_URI:-(vpn:// not generated — install python3 on server)}
 
-=== AmneziaWG app ===
-1) Scan QR code «AmneziaWG app»
-2) Or save .conf below and import as file (recommended if QR fails)
+=== AmneziaWG app (native .conf only) ===
+Official docs: AmneziaWG does NOT support QR — import the .conf file.
+Download amnezia_for_awg.conf below or copy the block.
 
-${WG_CONF}
-
-Note: Standard WireGuard app does NOT support AmneziaWG obfuscation."
+${WG_CONF}"
 
 if command -v jq >/dev/null 2>&1; then
   tmp=$(mktemp)
   jq --arg u "$USERNAME" --arg ip "$CLIENT_IP" --arg pk "$CLIENT_PUB" --arg ts "$(date -Iseconds)" \
+     --arg token "$DOWNLOAD_TOKEN" \
      --argjson vol "$VOLUME_GB" --arg exp "$EXPIRES" \
-    '. += [{"username":$u,"ip":$ip,"public_key":$pk,"created":$ts,"volume_gb":$vol,"expires_at":$exp,"status":"active"}]' \
+    '. += [{"username":$u,"ip":$ip,"public_key":$pk,"created":$ts,"volume_gb":$vol,"expires_at":$exp,"status":"active","download_token":$token}]' \
     "$REGISTRY" > "$tmp" && mv "$tmp" "$REGISTRY"
 
   echo -n "USK_JSON:"
@@ -146,15 +148,17 @@ if command -v jq >/dev/null 2>&1; then
     --arg ip "$CLIENT_IP" \
     --arg ep "${SERVER_IP}:${PORT}" \
     --arg qr "$QR_B64" \
-    --arg qrc "$QR_CONF_B64" \
     --arg exp "$EXPIRES" \
     --arg pk "$CLIENT_PUB" \
     --arg vuri "$VPN_URI" \
     --arg sub "$VPN_URI" \
+    --arg token "$DOWNLOAD_TOKEN" \
+    --arg file "$CONF_FILE" \
+    --arg fname "$CONF_FILENAME" \
     --argjson vol "$VOLUME_GB" \
     --argjson days "$DURATION_DAYS" \
     --argjson port "$PORT" \
-    '{ok:true, username:$u, protocol:"amnezia", config:$cfg, links:$links, wg_conf:$wg, client_ip:$ip, endpoint:$ep, qr_png:$qr, qr_conf_png:$qrc, subscription_url:$sub, expires_at:$exp, public_key:$pk, volume_gb:$vol, duration_days:$days, port:$port, vpn_uri:$vuri}'
+    '{ok:true, username:$u, protocol:"amnezia", config:$cfg, links:$links, wg_conf:$wg, client_ip:$ip, endpoint:$ep, qr_png:$qr, subscription_url:$sub, expires_at:$exp, public_key:$pk, volume_gb:$vol, duration_days:$days, port:$port, vpn_uri:$vuri, download_token:$token, conf_filename:$fname, profile_path:$file}'
   exit 0
 fi
 

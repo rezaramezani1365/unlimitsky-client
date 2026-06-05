@@ -128,14 +128,21 @@ class USK_UnlimitSky_Panel
         $data = $result['data'];
         $downloadUrl = $data['download_url'] ?? '';
         $config = $data['config_links'] ?? ($data['config'] ?? '');
-        $sub    = $downloadUrl !== '' ? $downloadUrl : ($data['subscription_url'] ?? $config);
+        $vpnUri = trim((string) ($data['vpn_uri'] ?? ''));
+        $protocolResolved = $data['protocol'] ?? $protocol;
+        if ($protocolResolved === 'amnezia' && $vpnUri !== '') {
+            $sub = $vpnUri;
+        } else {
+            $sub = $downloadUrl !== '' ? $downloadUrl : ($data['subscription_url'] ?? $config);
+        }
 
         return [
             'success'          => true,
             'subscription_url' => $sub,
             'config_links'     => $config,
             'download_url'     => $downloadUrl,
-            'ovpn_filename'    => $data['ovpn_filename'] ?? ($username . '.ovpn'),
+            'ovpn_filename'    => $data['ovpn_filename'] ?? ($data['conf_filename'] ?? ($username . ($protocolResolved === 'amnezia' ? '.conf' : '.ovpn'))),
+            'conf_filename'    => $data['conf_filename'] ?? '',
             'openvpn_proto'       => $data['openvpn_proto'] ?? '',
             'wireguard_transport' => $data['wireguard_transport'] ?? '',
             'tcp_client_cmd'      => $data['tcp_client_cmd'] ?? '',
@@ -143,7 +150,6 @@ class USK_UnlimitSky_Panel
             'panel'            => $panel,
             'protocol'         => $data['protocol'] ?? $protocol,
             'qr_png'           => $data['qr_png'] ?? '',
-            'qr_conf_png'      => $data['qr_conf_png'] ?? '',
             'vpn_uri'          => $data['vpn_uri'] ?? '',
             'wg_conf'          => $data['wg_conf'] ?? '',
             'expires_at'       => $data['expires_at'] ?? null,

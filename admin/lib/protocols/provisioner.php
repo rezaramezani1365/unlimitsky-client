@@ -130,7 +130,8 @@ class USK_ProtocolProvisioner
             'vpn_uri' => $vpnUri,
             'wg_conf' => $data['wg_conf'] ?? '',
             'qr_png' => $data['qr_png'] ?? '',
-            'qr_conf_png' => $data['qr_conf_png'] ?? '',
+            'download_token' => $data['download_token'] ?? '',
+            'conf_filename' => $data['conf_filename'] ?? '',
             'expires_at' => $data['expires_at'] ?? null,
             'volume_gb' => (int) $volume_gb,
             'duration_days' => (int) $duration_days,
@@ -156,7 +157,7 @@ class USK_ProtocolProvisioner
             $record['status'] = 'active';
         }
         if (!empty($record['meta']) && is_array($record['meta'])) {
-            foreach (array('public_key', 'client_ip', 'uuid', 'password', 'psk', 'config', 'qr_png', 'qr_conf_png', 'vpn_uri', 'wg_conf', 'endpoint', 'download_token', 'ovpn_filename', 'proto', 'port') as $k) {
+            foreach (array('public_key', 'client_ip', 'uuid', 'password', 'psk', 'config', 'qr_png', 'vpn_uri', 'wg_conf', 'endpoint', 'download_token', 'ovpn_filename', 'conf_filename', 'proto', 'port') as $k) {
                 if (isset($record['meta'][$k]) && $record['meta'][$k] !== '') {
                     $record[$k] = $record['meta'][$k];
                 }
@@ -202,9 +203,14 @@ class USK_ProtocolProvisioner
         return usk_config_download_url($order_code, $raw['download_token']);
     }
 
+    public static function amnezia_download_url($order_code, array $raw)
+    {
+        return self::openvpn_download_url($order_code, $raw);
+    }
+
     public static function finalize_order_link($protocol, array $raw, $order_code, $fallback_link)
     {
-        if ($protocol === 'openvpn') {
+        if ($protocol === 'openvpn' || $protocol === 'amnezia') {
             $url = self::openvpn_download_url($order_code, $raw);
             if ($url !== '') {
                 return $url;

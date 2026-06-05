@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Amnezia VPN / AmneziaWG import payloads (tested against official app formats)."""
+"""Amnezia VPN import payloads (per docs.amnezia.org)."""
 import base64
 import json
 import re
@@ -8,7 +8,6 @@ import sys
 import zlib
 
 VPN_MAGIC = 0x07C00100
-AWG_QR_MAGIC = 0x07C00200
 
 
 def urlsafe_b64(data: bytes) -> str:
@@ -18,7 +17,7 @@ def urlsafe_b64(data: bytes) -> str:
 def parse_conf(conf_text: str) -> dict:
     out = {
         'priv': '', 'pub': '', 'psk': '', 'address': '', 'endpoint_host': '',
-        'endpoint_port': 51821, 'allowed_ips': [], 'dns': [], 'mtu': 1280,
+        'endpoint_port': 443, 'allowed_ips': [], 'dns': [], 'mtu': 1280,
         'keepalive': 25, 'params': {},
     }
     section = ''
@@ -69,8 +68,8 @@ def parse_conf(conf_text: str) -> dict:
     return out
 
 
-def build_envelope(conf_text: str, hostname: str = '', description: str = 'AWG Server') -> dict:
-    conf_text = conf_text.rstrip('\n') + '\n'
+def build_envelope(conf_text: str, hostname: str = '', description: str = 'AmneziaWG') -> dict:
+    conf_text = conf_text.rstrip('\n')
     p = parse_conf(conf_text)
     host = hostname or p['endpoint_host'] or ''
     port = p['endpoint_port']
@@ -78,15 +77,14 @@ def build_envelope(conf_text: str, hostname: str = '', description: str = 'AWG S
     dns2 = p['dns'][1] if len(p['dns']) > 1 else '1.0.0.1'
     client_ip = re.sub(r'/(\d{1,2})$', '', p['address'] or '')
 
-    awg_top = {k: str(v) for k, v in p['params'].items()}
+    awg_top = {k: str(v) for k, v in p['params'].items() if v and k not in ('I2', 'I3', 'I4', 'I5')}
     last = {
         **{k: str(awg_top.get(k, '')) for k in (
-            'H1', 'H2', 'H3', 'H4', 'I1', 'I2', 'I3', 'I4', 'I5',
-            'Jc', 'Jmin', 'Jmax', 'S1', 'S2', 'S3', 'S4')},
+            'H1', 'H2', 'H3', 'H4', 'I1', 'Jc', 'Jmin', 'Jmax', 'S1', 'S2', 'S3', 'S4')},
         'allowed_ips': p['allowed_ips'],
         'client_ip': client_ip,
         'client_priv_key': p['priv'],
-        'config': conf_text.rstrip('\n'),
+        'config': conf_text,
         'hostName': host,
         'mtu': str(p['mtu']),
         'persistent_keep_alive': str(p['keepalive']),
@@ -94,10 +92,8 @@ def build_envelope(conf_text: str, hostname: str = '', description: str = 'AWG S
         'psk_key': p['psk'],
         'server_pub_key': p['pub'],
     }
-    # Drop empty I2-I5 from last_config JSON (breaks some parsers if present)
-    for k in ('I2', 'I3', 'I4', 'I5'):
-        if not last.get(k):
-            last.pop(k, None)
+    if not last.get('I1'):
+        last.pop('I1', None)
 
     awg_block = {
         'isThirdPartyConfig': True,
@@ -105,7 +101,7 @@ def build_envelope(conf_text: str, hostname: str = '', description: str = 'AWG S
         'port': str(port),
         'protocol_version': '2',
         'transport_proto': 'udp',
-        **{k: v for k, v in awg_top.items() if v and k not in ('I2', 'I3', 'I4', 'I5')},
+        **awg_top,
     }
 
     return {
@@ -130,7 +126,7 @@ def encode_vpn_uri(conf_text: str, hostname: str = '') -> str:
 
 
 def encode_vpn_qr_payload(conf_text: str, hostname: str = '') -> str:
-    """QR for Amnezia VPN app — base64url only (no vpn:// prefix)."""
+    """QR for Amnezia VPN — base64url only (docs: share-connection)."""
     envelope = build_envelope(conf_text, hostname)
     json_bytes = json.dumps(envelope, indent=4, ensure_ascii=False).encode('utf-8')
     compressed = zlib.compress(json_bytes, 9)
@@ -138,18 +134,11 @@ def encode_vpn_qr_payload(conf_text: str, hostname: str = '') -> str:
     return urlsafe_b64(header + compressed)
 
 
-def encode_awg_qr_payload(conf_text: str) -> str:
-    """QR for AmneziaWG app — magic header + raw .conf (not plain text QR)."""
-    conf_bytes = conf_text.rstrip('\n').encode('utf-8')
-    header = struct.pack('>II', AWG_QR_MAGIC, len(conf_bytes))
-    return urlsafe_b64(header + conf_bytes)
-
-
 def main():
     if len(sys.argv) < 3:
         sys.stderr.write(
             'usage: amnezia-vpn-uri.py <mode> <conf-file> [hostname]\n'
-            '  mode: vpn_uri | vpn_qr | awg_qr | all\n'
+            '  mode: vpn_uri | vpn_qr | all\n'
         )
         sys.exit(1)
     mode = sys.argv[1]
@@ -162,13 +151,10 @@ def main():
         print(encode_vpn_uri(conf_text, hostname), end='')
     elif mode == 'vpn_qr':
         print(encode_vpn_qr_payload(conf_text, hostname), end='')
-    elif mode == 'awg_qr':
-        print(encode_awg_qr_payload(conf_text), end='')
     elif mode == 'all':
         print(json.dumps({
             'vpn_uri': encode_vpn_uri(conf_text, hostname),
             'vpn_qr': encode_vpn_qr_payload(conf_text, hostname),
-            'awg_qr': encode_awg_qr_payload(conf_text),
         }, ensure_ascii=False), end='')
     else:
         sys.stderr.write('unknown mode\n')

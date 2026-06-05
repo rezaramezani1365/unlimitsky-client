@@ -36,24 +36,19 @@ class USK_Order_Display
         echo '</ul>';
 
         if ($qr !== '') {
-            $qrLabel = ($protocol === 'amnezia')
-                ? esc_html__('Amnezia app QR code', 'unlimitsky-wc')
-                : esc_html__('WireGuard QR code', 'unlimitsky-wc');
-            $qrHint = ($protocol === 'amnezia')
-                ? esc_html__('Scan with the Amnezia VPN app.', 'unlimitsky-wc')
-                : esc_html__('Scan with the WireGuard app on your phone.', 'unlimitsky-wc');
-            echo '<p><strong>' . esc_html($qrLabel) . ':</strong></p>';
-            echo '<p style="text-align:center;"><img src="data:image/png;base64,' . esc_attr($qr) . '" alt="VPN QR" style="max-width:220px;height:auto;border:1px solid #eee;padding:8px;background:#fff;" /></p>';
-            echo '<p style="font-size:12px;color:#666;">' . esc_html($qrHint) . '</p>';
-        }
-        $qrConf = $service['qr_conf_png'] ?? '';
-        if ($protocol === 'amnezia' && $qrConf !== '') {
-            echo '<p><strong>' . esc_html__('.conf QR (AmneziaWG)', 'unlimitsky-wc') . ':</strong></p>';
-            echo '<p style="text-align:center;"><img src="data:image/png;base64,' . esc_attr($qrConf) . '" alt="AmneziaWG QR" style="max-width:220px;height:auto;border:1px solid #eee;padding:8px;background:#fff;" /></p>';
+            if ($protocol === 'amnezia') {
+                echo '<p><strong>' . esc_html__('Amnezia VPN QR code', 'unlimitsky-wc') . ':</strong></p>';
+                echo '<p style="text-align:center;"><img src="data:image/png;base64,' . esc_attr($qr) . '" alt="Amnezia QR" style="max-width:220px;height:auto;border:1px solid #eee;padding:8px;background:#fff;" /></p>';
+                echo '<p style="font-size:12px;color:#666;">' . esc_html__('Scan in Amnezia VPN app only (not AmneziaWG).', 'unlimitsky-wc') . '</p>';
+            } else {
+                echo '<p><strong>' . esc_html__('WireGuard QR code', 'unlimitsky-wc') . ':</strong></p>';
+                echo '<p style="text-align:center;"><img src="data:image/png;base64,' . esc_attr($qr) . '" alt="WireGuard QR" style="max-width:220px;height:auto;border:1px solid #eee;padding:8px;background:#fff;" /></p>';
+                echo '<p style="font-size:12px;color:#666;">' . esc_html__('Scan with the WireGuard app on your phone.', 'unlimitsky-wc') . '</p>';
+            }
         }
         $vpnUri = trim((string) ($service['vpn_uri'] ?? ''));
         if ($protocol === 'amnezia' && $vpnUri !== '') {
-            echo '<p><strong>' . esc_html__('Amnezia import link (vpn://)', 'unlimitsky-wc') . ':</strong></p>';
+            echo '<p><strong>' . esc_html__('vpn:// key (Amnezia VPN)', 'unlimitsky-wc') . ':</strong></p>';
             echo '<code style="display:block;word-break:break-all;padding:10px;background:#f7f7f7;">' . esc_html($vpnUri) . '</code>';
         }
 
@@ -64,14 +59,29 @@ class USK_Order_Display
                 $downloadUrl = $sub;
             }
         }
+        if ($downloadUrl === '' && $protocol === 'amnezia') {
+            $links = $service['config_links'] ?? '';
+            if ($links !== '' && filter_var($links, FILTER_VALIDATE_URL) && strpos($links, 'download-config.php') !== false) {
+                $downloadUrl = $links;
+            }
+        }
 
         if ($downloadUrl !== '') {
-            $fname = $service['ovpn_filename'] ?? (($service['service_username'] ?? 'client') . '.ovpn');
-            echo '<p><strong>' . esc_html__('OpenVPN profile', 'unlimitsky-wc') . ':</strong></p>';
-            echo '<p><a class="button" href="' . esc_url($downloadUrl) . '" download="' . esc_attr($fname) . '">';
-            echo esc_html__('Download .ovpn file', 'unlimitsky-wc');
-            echo '</a></p>';
-        } else {
+            if ($protocol === 'amnezia') {
+                $fname = $service['conf_filename'] ?? (($service['service_username'] ?? 'client') . '.conf');
+                echo '<p><strong>' . esc_html__('AmneziaWG profile (.conf)', 'unlimitsky-wc') . ':</strong></p>';
+                echo '<p><a class="button" href="' . esc_url($downloadUrl) . '" download="' . esc_attr($fname) . '">';
+                echo esc_html__('Download .conf file (AmneziaWG)', 'unlimitsky-wc');
+                echo '</a></p>';
+                echo '<p style="font-size:12px;color:#666;">' . esc_html__('Import in AmneziaWG app — QR is not supported per official docs.', 'unlimitsky-wc') . '</p>';
+            } else {
+                $fname = $service['ovpn_filename'] ?? (($service['service_username'] ?? 'client') . '.ovpn');
+                echo '<p><strong>' . esc_html__('OpenVPN profile', 'unlimitsky-wc') . ':</strong></p>';
+                echo '<p><a class="button" href="' . esc_url($downloadUrl) . '" download="' . esc_attr($fname) . '">';
+                echo esc_html__('Download .ovpn file', 'unlimitsky-wc');
+                echo '</a></p>';
+            }
+        } elseif ($protocol !== 'amnezia' || $vpnUri === '') {
             echo '<p><strong>' . esc_html__('Config / subscription', 'unlimitsky-wc') . ':</strong></p>';
             self::render_config($service['subscription_url'] ?? '');
 

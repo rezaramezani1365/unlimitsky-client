@@ -76,7 +76,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         usk_flash(__('create_order_save_failed') . ' (' . ($order['error'] ?? '') . ')', 'error');
                     } else {
                         $raw = $created['raw'] ?? array();
-                        $downloadUrl = USK_ProtocolProvisioner::openvpn_download_url($order['code'], $raw);
+                        $downloadUrl = USK_ProtocolProvisioner::finalize_order_link(
+                            $protocol,
+                            $raw,
+                            $order['code'],
+                            ''
+                        );
                         if ($downloadUrl !== '') {
                             global $sql;
                             $dl_esc = $sql->real_escape_string($downloadUrl);
@@ -87,12 +92,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $result['code'] = $order['code'];
                         $result['protocol'] = $protocol;
                         $result['qr_png'] = $created['qr_png'] ?? '';
-                        $result['qr_conf_png'] = $created['qr_conf_png'] ?? '';
                         $result['vpn_uri'] = $created['vpn_uri'] ?? '';
                         $result['wg_conf'] = $created['wg_conf'] ?? '';
                         $result['expires_at'] = $created['expires_at'] ?? null;
                         $result['download_url'] = $downloadUrl;
-                        $result['ovpn_filename'] = $raw['ovpn_filename'] ?? ($username . '.ovpn');
+                        $result['ovpn_filename'] = $raw['ovpn_filename'] ?? ($raw['conf_filename'] ?? ($username . ($protocol === 'amnezia' ? '.conf' : '.ovpn')));
                         $result['openvpn_proto'] = $raw['proto'] ?? ($provisionMeta['openvpn_proto'] ?? 'tcp');
                         $result['wireguard_transport'] = $raw['wireguard_transport'] ?? ($provisionMeta['wireguard_transport'] ?? '');
                         usk_flash(__('create_success'));
@@ -292,7 +296,7 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         } else if (proto === 'amnezia') {
             single.style.display = '';
             if (amneziaHint) amneziaHint.style.display = '';
-            document.getElementById('custom-port').value = cfg.port || 51821;
+            document.getElementById('custom-port').value = cfg.port || 443;
         } else if (cfg.fixed_ports) {
             fixed.style.display = '';
             document.getElementById('create-port-fixed-text').textContent = cfg.fixed_ports;
@@ -336,11 +340,6 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         <p class="mt-2"><strong><?= __('amnezia_qr') ?>:</strong></p>
         <p><img src="data:image/png;base64,<?= usk_esc($result['qr_png']) ?>" alt="Amnezia QR" style="max-width:220px;border:1px solid #333;padding:8px;background:#fff;" /></p>
         <p class="text-muted small"><?= __('amnezia_qr_hint') ?></p>
-        <?php if (!empty($result['qr_conf_png'])) : ?>
-        <p class="mt-2"><strong><?= __('amnezia_qr_conf') ?>:</strong></p>
-        <p><img src="data:image/png;base64,<?= usk_esc($result['qr_conf_png']) ?>" alt="AmneziaWG QR" style="max-width:220px;border:1px solid #333;padding:8px;background:#fff;" /></p>
-        <p class="text-muted small"><?= __('amnezia_qr_conf_hint') ?></p>
-        <?php endif; ?>
         <?php else : ?>
         <p class="mt-2"><strong><?= __('wireguard_qr') ?>:</strong></p>
         <p><img src="data:image/png;base64,<?= usk_esc($result['qr_png']) ?>" alt="QR" style="max-width:220px;border:1px solid #333;padding:8px;background:#fff;" /></p>
@@ -363,8 +362,8 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
     <?php endif; ?>
     <?php if (!empty($result['download_url'])) : ?>
         <p class="mt-2">
-            <a class="btn btn-usk-primary" href="<?= usk_esc($result['download_url']) ?>" download="<?= usk_esc($result['ovpn_filename'] ?? 'client.ovpn') ?>">
-                <i class="fa-solid fa-download"></i> <?= __('download_ovpn') ?>
+            <a class="btn btn-usk-primary" href="<?= usk_esc($result['download_url']) ?>" download="<?= usk_esc($result['ovpn_filename'] ?? 'client.conf') ?>">
+                <i class="fa-solid fa-download"></i> <?= ($result['protocol'] ?? '') === 'amnezia' ? __('download_amnezia_conf') : __('download_ovpn') ?>
             </a>
         </p>
     <?php endif; ?>

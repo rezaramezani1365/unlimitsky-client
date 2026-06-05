@@ -165,8 +165,9 @@ class USK_Service_Creator
             'protocol'                    => sanitize_text_field($data['protocol'] ?? ''),
             'openvpn_proto'               => sanitize_text_field($data['openvpn_proto'] ?? ''),
             'qr_png'                      => sanitize_textarea_field($data['qr_png'] ?? ''),
-            'qr_conf_png'                 => sanitize_textarea_field($data['qr_conf_png'] ?? ''),
             'vpn_uri'                     => sanitize_textarea_field($data['vpn_uri'] ?? ''),
+            'download_url'                => esc_url_raw($data['download_url'] ?? ''),
+            'conf_filename'               => sanitize_text_field($data['conf_filename'] ?? ''),
             'expires_at'                  => !empty($data['expires_at']) ? gmdate('Y-m-d H:i:s', strtotime($data['expires_at'])) : null,
             'status'                      => 'active',
         ]);

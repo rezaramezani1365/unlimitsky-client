@@ -14,8 +14,14 @@ if ($code === '' || $token === '') {
     exit;
 }
 
-if (!usk_serve_openvpn_download($code, $token)) {
-    http_response_code(404);
-    echo 'Config not found';
+if (usk_serve_openvpn_download($code, $token)) {
     exit;
 }
+
+if (usk_serve_amnezia_download($code, $token)) {
+    exit;
+}
+
+http_response_code(404);
+echo 'Config not found';
+exit;
