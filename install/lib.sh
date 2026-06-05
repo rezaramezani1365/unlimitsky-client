@@ -1,5 +1,5 @@
-#!/bin/bash
-# Shared helpers for UnlimitSky Ubuntu installers (fresh Ubuntu VPS)
+﻿#!/bin/bash
+# Shared helpers for unlimitsky Ubuntu installers (fresh Ubuntu VPS)
 # shellcheck disable=SC2034
 
 usk_rand_alnum() {
@@ -107,7 +107,7 @@ usk_mysql_harden() {
         if grep -q '^bind-address' "$cnf"; then
             sed -i 's/^bind-address.*/bind-address = 127.0.0.1/' "$cnf"
         else
-            printf '\n# UnlimitSky — local only\nbind-address = 127.0.0.1\n' >> "$cnf"
+            printf '\n# unlimitsky — local only\nbind-address = 127.0.0.1\n' >> "$cnf"
         fi
     done
     systemctl restart mysql >/dev/null 2>&1 || systemctl restart mariadb >/dev/null 2>&1 || true
@@ -166,7 +166,7 @@ usk_save_credentials() {
     shift
     umask 077
     {
-        echo "# UnlimitSky credentials — $(date -Iseconds)"
+        echo "# unlimitsky credentials — $(date -Iseconds)"
         "$@"
     } > "$file"
     chmod 600 "$file"

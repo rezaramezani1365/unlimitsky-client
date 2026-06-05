@@ -1,4 +1,4 @@
-#!/bin/bash
+﻿#!/bin/bash
 # Shared Xray helpers — VLESS + Reality (Iran-optimized, IPv4-only clients)
 XRAY_CFG="${XRAY_CFG:-/usr/local/etc/xray/config.json}"
 USK_XRAY_VLESS_PORT="${USK_XRAY_VLESS_PORT:-443}"
@@ -462,7 +462,7 @@ usk_xray_open_firewall() {
   local port="$1"
   local label="$2"
   if command -v ufw >/dev/null 2>&1; then
-    ufw allow "${port}/tcp" comment "UnlimitSky ${label}" >/dev/null 2>&1 || true
+    ufw allow "${port}/tcp" comment "unlimitsky ${label}" >/dev/null 2>&1 || true
   fi
   if command -v iptables >/dev/null 2>&1; then
     iptables -C INPUT -p tcp --dport "$port" -j ACCEPT >/dev/null 2>&1 \

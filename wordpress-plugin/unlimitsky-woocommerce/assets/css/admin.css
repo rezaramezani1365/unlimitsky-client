@@ -1,5 +1,5 @@
-/**
- * UnlimitedSky WooCommerce — Admin theme (flat, blue primary)
+﻿/**
+ * unlimitsky WooCommerce — Admin theme (flat, blue primary)
  */
 :root {
     --usk-blue: #2563eb;
@@ -18,7 +18,7 @@
 }
 
 .usk-admin-wrap > h1::before {
-    content: 'UnlimitedSky';
+    content: 'unlimitsky';
     display: block;
     font-size: 12px;
     font-weight: 600;

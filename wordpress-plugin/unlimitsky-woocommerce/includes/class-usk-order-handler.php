@@ -78,7 +78,7 @@ class USK_Order_Handler
 
             if (!$result['success']) {
                 $errors[] = sprintf('%s: %s', $item->get_name(), $result['error'] ?? usk_wc__('Unknown error'));
-                $order->add_order_note(sprintf('[UnlimitSky] %s: %s', $item->get_name(), $result['error'] ?? ''));
+                $order->add_order_note(sprintf('[unlimitsky] %s: %s', $item->get_name(), $result['error'] ?? ''));
                 continue;
             }
 
@@ -116,7 +116,7 @@ class USK_Order_Handler
                 wc_update_order_item_meta($item_id, '_usk_qr_png', $result['qr_png']);
             }
 
-            $order->add_order_note(sprintf('[UnlimitSky] Service "%s" created.', $item->get_name()));
+            $order->add_order_note(sprintf('[unlimitsky] Service "%s" created.', $item->get_name()));
         }
 
         if ($has_vpn) {
@@ -124,7 +124,7 @@ class USK_Order_Handler
             $order->save();
 
             if (!empty($errors)) {
-                $order->add_order_note('[UnlimitSky] Some services failed: ' . implode(' | ', $errors));
+                $order->add_order_note('[unlimitsky] Some services failed: ' . implode(' | ', $errors));
             }
         }
     }

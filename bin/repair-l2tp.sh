@@ -1,4 +1,4 @@
-#!/bin/bash
+﻿#!/bin/bash
 # Repair L2TP/IPsec (IPsec ciphers, NAT, services) without changing PSK/users
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$DIR/usk-common.sh"

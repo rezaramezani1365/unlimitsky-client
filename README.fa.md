@@ -1,4 +1,4 @@
-# UnlimitSky — پنل فروش VPN (Client)
+﻿# unlimitsky — پنل فروش VPN (Client)
 
 [![GitHub](https://img.shields.io/badge/GitHub-unlimitsky--client-blue?logo=github)](https://github.com/rezaramezani1365/unlimitsky-client)
 
@@ -20,8 +20,8 @@ curl -fsSL https://raw.githubusercontent.com/rezaramezani1365/unlimitsky-client/
 
 ```
 شما (فروشنده VPN)
-    ├── VPS اوبونتو  →  پنل UnlimitSky (این پروژه)
-    └── هاست وردپرس  →  ووکامرس + پلاگین UnlimitSky
+    ├── VPS اوبونتو  →  پنل unlimitsky (این پروژه)
+    └── هاست وردپرس  →  ووکامرس + پلاگین unlimitsky
                               ↓
                     مشتری پرداخت می‌کند → کانفیگ خودکار تحویل
 ```
@@ -32,7 +32,7 @@ curl -fsSL https://raw.githubusercontent.com/rezaramezani1365/unlimitsky-client/
 
 ### پروتکل‌های داخلی روی VPS شما (ویژگی اصلی)
 
-UnlimitSky **پروتکل‌های VPN را مستقیم روی VPS اوبونتو شما نصب و اجرا می‌کند** — بدون نیاز به پنل شخص ثالث:
+unlimitsky **پروتکل‌های VPN را مستقیم روی VPS اوبونتو شما نصب و اجرا می‌کند** — بدون نیاز به پنل شخص ثالث:
 
 | پروتکل | کاربرد |
 |--------|--------|
@@ -93,12 +93,12 @@ UnlimitSky **پروتکل‌های VPN را مستقیم روی VPS اوبونت
 
 | | پروتکل native (داخلی) | Marzban / Sanaei (اختیاری) |
 |---|------------------------|----------------------------|
-| نصب توسط | UnlimitSky روی VPS شما | پنل جدا (شاید از قبل داشته باشید) |
+| نصب توسط | unlimitsky روی VPS شما | پنل جدا (شاید از قبل داشته باشید) |
 | راه‌اندازی سرور | ✅ پنل → پروتکل‌ها | خودتان Marzban/Sanaei را مدیریت می‌کنید |
 | ساخت دستی کانفیگ در پنل | ✅ پنل → ساخت کانفیگ | ✅ پنل → ساخت کانفیگ |
 | تحویل خودکار ووکامرس | ✅ پنل → کلید API + پلاگین | ✅ الان فعال است |
 
-**پیشنهاد:** **WireGuard** را از **پنل → پروتکل‌ها** نصب کن، **کلید API** بساز، در ووکامرس پنل نوع **UnlimitSky (native)** اضافه کن.
+**پیشنهاد:** **WireGuard** را از **پنل → پروتکل‌ها** نصب کن، **کلید API** بساز، در ووکامرس پنل نوع **unlimitsky (native)** اضافه کن.
 
 ---
 
@@ -165,7 +165,7 @@ curl -fsSL https://raw.githubusercontent.com/rezaramezani1365/unlimitsky-client/
 
 ### اختیاری — لایسنس Pro (از vendor)
 
-اگر **لایسنس Pro** از صاحب پل UnlimitSky داری، این فلگ‌ها را اضافه کن:
+اگر **لایسنس Pro** از صاحب پل unlimitsky داری، این فلگ‌ها را اضافه کن:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/rezaramezani1365/unlimitsky-client/main/scripts/install.sh | sudo bash -s -- \
@@ -248,7 +248,7 @@ sudo apt update
 sudo apt install apache2 mysql-server php php-mbstring php-zip php-gd php-json php-curl -y
 ```
 
-**Nginx (LEMP — همان پشته UnlimitSky):**
+**Nginx (LEMP — همان پشته unlimitsky):**
 
 ```bash
 sudo apt install nginx mysql-server php-fpm php-mysql php-mbstring php-zip php-gd php-json php-curl -y
@@ -271,7 +271,7 @@ sudo phpenmod mbstring
 sudo systemctl restart apache2
 ```
 
-#### گزینه B: Nginx (پیشنهادی اگر پنل UnlimitSky روی Nginx است)
+#### گزینه B: Nginx (پیشنهادی اگر پنل unlimitsky روی Nginx است)
 
 ```bash
 sudo apt install phpmyadmin -y
@@ -413,7 +413,7 @@ sudo chmod 440 /etc/sudoers.d/unlimitsky
 - بعد OpenVPN، Xray یا L2TP در صورت نیاز
 - هر کدام **روی همین VPS** اجرا می‌شود — اسکریپت پکیج، کانفیگ، پورت فایروال و سرویس را خودش انجام می‌دهد
 
-این **روش اصلی** طراحی UnlimitSky است: **VPS شما = سرور VPN شما**.
+این **روش اصلی** طراحی unlimitsky است: **VPS شما = سرور VPN شما**.
 
 ### ۲. ساخت پلن فروش
 
@@ -435,7 +435,7 @@ sudo chmod 440 /etc/sudoers.d/unlimitsky
 
 - یک کلید API بساز (فقط یک‌بار نمایش داده می‌شود — کپی کن)
 - **آدرس API** را یادداشت کن (مثلاً `http://IP:8082/api/v1.php`)
-- در پلاگین وردپرس: پنل نوع **UnlimitSky (native)** با آدرس API + کلید
+- در پلاگین وردپرس: پنل نوع **unlimitsky (native)** با آدرس API + کلید
 
 ### ۴. Marzban / Sanaei (اختیاری — نیاز به Pro)
 
@@ -472,7 +472,7 @@ wp-content/plugins/unlimitsky-woocommerce/
 
 ### ۳. فعال‌سازی
 
-- **افزونه‌ها → UnlimitedSky - WooCommerce** → فعال
+- **افزونه‌ها → unlimitsky - WooCommerce** → فعال
 - **تنظیمات → پیوندهای یکتا → ذخیره** (یک بار)
 
 ---
@@ -487,17 +487,17 @@ wp-content/plugins/unlimitsky-woocommerce/
 
 | روش | راه‌اندازی |
 |-----|-----------|
-| **پروتکل native** | پنل → کلید API → وردپرس: پنل UnlimitSky |
+| **پروتکل native** | پنل → کلید API → وردپرس: پنل unlimitsky |
 | **Marzban / Sanaei** | وردپرس: افزودن پنل Marzban/Sanaei |
 
 ### الف. پروتکل native (پیشنهادی)
 
 1. **پنل → کلید API** — کلید بساز، آدرس API را کپی کن
-2. **وردپرس → UnlimitSky → پنل‌ها** — نوع: **UnlimitSky (native)**
+2. **وردپرس → unlimitsky → پنل‌ها** — نوع: **unlimitsky (native)**
    - آدرس API: `http://IP_VPS:8082`
    - کلید API: `USK-API-...`
    - پروتکل پیش‌فرض: WireGuard / OpenVPN / Xray / L2TP
-3. **محصولات → محصول VPN** — پنل UnlimitSky، حجم و مدت
+3. **محصولات → محصول VPN** — پنل unlimitsky، حجم و مدت
 4. مشتری پرداخت می‌کند → کانفیگ خودکار تحویل
 
 ### ب. Marzban / Sanaei (Pro + پنل خارجی)
@@ -508,7 +508,7 @@ wp-content/plugins/unlimitsky-woocommerce/
 
 1. **VPS:** لایسنس Pro → **پنل → پنل‌ها / سرور** → اتصال Marzban یا Sanaei → تست موفق  
 2. **VPS:** **پنل → کلید API** → ساخت کلید  
-3. **وردپرس:** پنل نوع **UnlimitSky (native)** + آدرس API + کلید  
+3. **وردپرس:** پنل نوع **unlimitsky (native)** + آدرس API + کلید  
 4. **محصول:** محل ساخت = **پنل Marzban / Sanaei** → انتخاب پنل از لیست VPS  
 5. مشتری پرداخت می‌کند → لینک VLESS/VMess خودکار تحویل  
 
@@ -520,14 +520,14 @@ wp-content/plugins/unlimitsky-woocommerce/
 
 ```
 ┌──────────────────── VPS (Ubuntu) ────────────────────┐
-│  UnlimitSky Panel :8082                              │
+│  unlimitsky Panel :8082                              │
 │  ├── MySQL (پلن‌ها، کاربران، سفارش‌ها)               │
 │  ├── ★ WireGuard / OpenVPN / Xray / L2TP (داخلی)   │
 │  └── Marzban یا Sanaei (اختیاری — WC خودکار امروز)  │
 └──────────────────────────────────────────────────────┘
                           ↑ API (Marzban/Sanaei فعلاً)
 ┌──────────────── WordPress Host ──────────────────────┐
-│  WooCommerce + پلاگین UnlimitSky                     │
+│  WooCommerce + پلاگین unlimitsky                     │
 │  └── خرید مشتری → تحویل خودکار کانفیگ              │
 └──────────────────────────────────────────────────────┘
 ```
@@ -594,7 +594,7 @@ unlimitsky-client/
 |------|--------|
 | **لایسنس Pro** | اتصال Marzban/Sanaei در **پنل → پنل‌ها / سرور** فقط با **Pro** (`پنل → لایسنس Pro`) |
 | **Marzban یا Sanaei** | از قبل روی VPS نصب و در دسترس باشد |
-| **ووکامرس** | هاست وردپرس باید به API پنل UnlimitSky (و در صورت نیاز URL پنل Marzban/Sanaei) دسترسی داشته باشد |
+| **ووکامرس** | هاست وردپرس باید به API پنل unlimitsky (و در صورت نیاز URL پنل Marzban/Sanaei) دسترسی داشته باشد |
 
 ## پروتکل‌های پشتیبانی‌شده روی پنل خارجی
 
@@ -607,7 +607,7 @@ unlimitsky-client/
 
 ---
 
-## بخش ۱ — اتصال پنل در ادمین UnlimitSky (VPS)
+## بخش ۱ — اتصال پنل در ادمین unlimitsky (VPS)
 
 1. **Pro را فعال کن:** **پنل → لایسنس Pro** → کلید `USK-...`  
 2. **پنل → پنل‌ها / سرور** (منوی کناری)  
@@ -658,15 +658,15 @@ vless://%s1@%s2?encryption=none&security=tls&type=ws&host=example.com&path=/path
 
 قالب دقیق را از inbound در 3x-ui (QR یا share link) بگیر و uuid/host/remark را با `%s1`, `%s2`, `%s3` جایگزین کن.
 
-**Inbound در 3x-ui:** باید از قبل با VLESS یا VMess ساخته شده باشد — UnlimitSky فقط **کلاینت** به آن inbound اضافه می‌کند.
+**Inbound در 3x-ui:** باید از قبل با VLESS یا VMess ساخته شده باشد — unlimitsky فقط **کلاینت** به آن inbound اضافه می‌کند.
 
 ---
 
 ## بخش ۲ — تحویل خودکار ووکامرس
 
-دو روش. **روش الف پیشنهادی** است اگر Marzban/Sanaei را روی VPS UnlimitSky تنظیم کرده‌ای.
+دو روش. **روش الف پیشنهادی** است اگر Marzban/Sanaei را روی VPS unlimitsky تنظیم کرده‌ای.
 
-### روش الف — پنل خارجی از طریق API UnlimitSky (پیشنهادی)
+### روش الف — پنل خارجی از طریق API unlimitsky (پیشنهادی)
 
 پنل‌ها یک‌بار روی VPS مدیریت می‌شوند؛ در هر محصول مشخص می‌کنی کانفیگ کجا ساخته شود.
 
@@ -678,15 +678,15 @@ vless://%s1@%s2?encryption=none&security=tls&type=ws&host=example.com&path=/path
 
 **روی وردپرس:**
 
-1. **UnlimitSky → پنل‌ها → افزودن**  
-   - نوع: **UnlimitSky (native)**  
+1. **unlimitsky → پنل‌ها → افزودن**  
+   - نوع: **unlimitsky (native)**  
    - آدرس API: `http://IP_VPS:8082`  
    - کلید API: `USK-API-...`  
    - **تست اتصال**
 
 2. **محصولات → محصول VPN**  
    - تیک **محصول VPN**  
-   - اتصال: پنل **UnlimitSky**  
+   - اتصال: پنل **unlimitsky**  
    - **محل ساخت کانفیگ:** **پنل Marzban / Sanaei (VLESS/VMess — Xray)**  
    - **پنل Marzban/Sanaei (روی VPS):** از لیست انتخاب کن  
    - حجم (GB)، مدت (روز)، قیمت  
@@ -698,16 +698,16 @@ vless://%s1@%s2?encryption=none&security=tls&type=ws&host=example.com&path=/path
         ↓
 پلاگین → POST /api/v1.php?action=create-service  (panel_code)
         ↓
-VPS UnlimitSky → API Marzban یا addClient در Sanaei
+VPS unlimitsky → API Marzban یا addClient در Sanaei
         ↓
 لینک subscription / VLESS به مشتری
 ```
 
 ### روش ب — Marzban/Sanaei مستقیم در وردپرس
 
-اگر پنل VPN را **روی VPS UnlimitSky ثبت نکرده‌ای** (روش قدیمی).
+اگر پنل VPN را **روی VPS unlimitsky ثبت نکرده‌ای** (روش قدیمی).
 
-1. **UnlimitSky → پنل‌ها** → نوع **Marzban** یا **Sanaei**  
+1. **unlimitsky → پنل‌ها** → نوع **Marzban** یا **Sanaei**  
 2. URL، یوزر، رمز (+ Inbound ID و قالب لینک برای Sanaei)  
 3. **تست اتصال**  
 4. **محصول VPN** → همان پنل Marzban/Sanaei را انتخاب کن  

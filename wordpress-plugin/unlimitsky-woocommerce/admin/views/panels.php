@@ -1,9 +1,9 @@
-<?php
+﻿<?php
 defined('ABSPATH') || exit;
 
 $is_edit = !empty($panel);
 $types   = [
-    'unlimitsky' => __('UnlimitSky (پروتکل native)', 'unlimitsky-wc'),
+    'unlimitsky' => __('unlimitsky (پروتکل native)', 'unlimitsky-wc'),
     'marzban'    => 'Marzban',
     'sanayi'     => 'Sanaei (3x-ui)',
 ];
@@ -21,14 +21,14 @@ $native_protocols = [
     <div class="usk-theme-bar">
         <button type="button" id="usk-wp-theme-toggle"><span id="usk-wp-theme-icon">🌙</span> <?php esc_html_e('تم', 'unlimitsky-wc'); ?></button>
     </div>
-    <h1><?php esc_html_e('UnlimitedSky — مدیریت پنل‌ها', 'unlimitsky-wc'); ?></h1>
+    <h1><?php esc_html_e('unlimitsky — مدیریت پنل‌ها', 'unlimitsky-wc'); ?></h1>
 
     <div class="usk-guide-box">
         <?php esc_html_e('برای راهنمای کامل فیلدها به منوی', 'unlimitsky-wc'); ?>
         <a href="<?php echo esc_url(admin_url('admin.php?page=unlimitsky-guides')); ?>"><strong><?php esc_html_e('راهنما', 'unlimitsky-wc'); ?></strong></a>
         <?php esc_html_e('بروید.', 'unlimitsky-wc'); ?>
         <p class="description" style="margin:8px 0 0;">
-            <?php esc_html_e('پروتکل native: نوع UnlimitSky + API. Marzban/Sanaei: در پنل UnlimitSky روی VPS (Pro) متصل کنید؛ در محصول ووکامرس «پنل خارجی» را انتخاب کنید (VLESS/VMess).', 'unlimitsky-wc'); ?>
+            <?php esc_html_e('پروتکل native: نوع unlimitsky + API. Marzban/Sanaei: در پنل unlimitsky روی VPS (Pro) متصل کنید؛ در محصول ووکامرس «پنل خارجی» را انتخاب کنید (VLESS/VMess).', 'unlimitsky-wc'); ?>
         </p>
     </div>
 
@@ -74,14 +74,14 @@ $native_protocols = [
                         <th><label for="login_link"><?php esc_html_e('آدرس API پنل', 'unlimitsky-wc'); ?></label></th>
                         <td>
                             <input type="url" name="login_link" id="login_link" class="regular-text" placeholder="http://185.x.x.x:8082" value="<?php echo esc_attr($panel['login_link'] ?? ''); ?>">
-                            <p class="description"><?php esc_html_e('آدرس VPS پنل UnlimitSky — مثلاً http://IP:8082 (مسیر api/v1.php خودکار اضافه می‌شود)', 'unlimitsky-wc'); ?></p>
+                            <p class="description"><?php esc_html_e('آدرس VPS پنل unlimitsky — مثلاً http://IP:8082 (مسیر api/v1.php خودکار اضافه می‌شود)', 'unlimitsky-wc'); ?></p>
                         </td>
                     </tr>
                     <tr class="usk-unlimitsky-field">
                         <th><label for="token"><?php esc_html_e('کلید API', 'unlimitsky-wc'); ?></label></th>
                         <td>
                             <textarea name="token" id="token" class="large-text" rows="2" placeholder="USK-API-..."><?php echo esc_textarea($panel['token'] ?? ''); ?></textarea>
-                            <p class="description"><?php esc_html_e('از پنل UnlimitSky → API Keys ساخته می‌شود.', 'unlimitsky-wc'); ?></p>
+                            <p class="description"><?php esc_html_e('از پنل unlimitsky → API Keys ساخته می‌شود.', 'unlimitsky-wc'); ?></p>
                         </td>
                     </tr>
                     <tr class="usk-unlimitsky-field">

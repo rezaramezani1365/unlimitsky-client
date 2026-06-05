@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 defined('ABSPATH') || exit;
 
@@ -17,8 +17,8 @@ class USK_Admin
     public function register_menu(): void
     {
         add_menu_page(
-            __('UnlimitedSky', 'unlimitsky-wc'),
-            __('UnlimitedSky', 'unlimitsky-wc'),
+            __('unlimitsky', 'unlimitsky-wc'),
+            __('unlimitsky', 'unlimitsky-wc'),
             'manage_woocommerce',
             'unlimitsky',
             [$this, 'render_panels_page'],

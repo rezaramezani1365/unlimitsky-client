@@ -1,6 +1,6 @@
-<?php
+﻿<?php
 /**
- * UnlimitedSky installer — database auto-provisioned by install-ubuntu.sh
+ * unlimitsky installer — database auto-provisioned by install-ubuntu.sh
  */
 require_once __DIR__ . '/guard.php';
 usk_install_guard();
@@ -36,11 +36,11 @@ function usk_install_message($text, $success, $lang)
     echo '<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">';
     echo '<link rel="stylesheet" href="../admin/assets/css/fonts.css">';
     echo '<link rel="stylesheet" href="' . htmlspecialchars($bs) . '">';
-    echo '<title>UnlimitedSky</title>';
+    echo '<title>unlimitsky</title>';
     echo '<style>body{font-family:IRANSans,Segoe UI,sans-serif;background:#000;color:#f5f5f5;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;margin:0}';
     echo '.box{max-width:520px;border:1px solid #222;border-top:2px solid #0099ff;padding:2rem;border-radius:4px;text-align:center;line-height:1.8}';
     echo 'h2{color:' . $color . ';font-size:1.15rem;font-weight:600;margin:0 0 1rem}a{color:#0099ff}</style></head><body><div class="box">';
-    echo '<div style="font-weight:800;margin-bottom:1rem">UnlimitedSky</div>';
+    echo '<div style="font-weight:800;margin-bottom:1rem">unlimitsky</div>';
     echo $text;
     echo '<p style="margin-top:1.5rem"><a href="index.php">' . ($lang === 'en' ? 'Back to install' : 'بازگشت به نصب') . '</a></p>';
     echo '</div></body></html>';

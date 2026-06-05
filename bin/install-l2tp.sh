@@ -1,4 +1,4 @@
-#!/bin/bash
+﻿#!/bin/bash
 # Install L2TP/IPsec (xl2tpd + strongSwan) on Ubuntu — Windows/iOS compatible
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$DIR/usk-common.sh"
@@ -16,7 +16,7 @@ fi
 if [ -f /etc/unlimitsky-l2tp.psk ]; then
   PSK=$(tr -d '\n\r' < /etc/unlimitsky-l2tp.psk)
 else
-  PSK="UnlimitSky$(openssl rand -hex 8)"
+  PSK="unlimitsky$(openssl rand -hex 8)"
 fi
 
 usk_l2tp_write_strongswan_compat

@@ -1,4 +1,4 @@
-#!/bin/bash
+﻿#!/bin/bash
 # Verify a native protocol is installed on the system (run via sudo from panel)
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$DIR/usk-common.sh"

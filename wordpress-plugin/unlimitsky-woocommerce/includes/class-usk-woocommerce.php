@@ -21,7 +21,7 @@ class USK_WooCommerce
         $options['USK_vpn'] = [
             'id'            => '_usk_is_vpn',
             'wrapper_class' => 'show_if_simple',
-            'label'         => __('سرویس VPN (UnlimitSky)', 'unlimitsky-wc'),
+            'label'         => __('سرویس VPN (unlimitsky)', 'unlimitsky-wc'),
             'description'   => __('با فعال‌سازی، پس از پرداخت کانفیگ خودکار ساخته می‌شود.', 'unlimitsky-wc'),
             'default'       => 'no',
         ];
@@ -68,10 +68,10 @@ class USK_WooCommerce
 
         woocommerce_wp_select([
             'id'      => '_usk_panel_id',
-            'label'   => __('اتصال UnlimitSky / پنل', 'unlimitsky-wc'),
+            'label'   => __('اتصال unlimitsky / پنل', 'unlimitsky-wc'),
             'options' => $options,
             'desc_tip'    => true,
-            'description' => __('برای پروتکل native: UnlimitSky. برای Marzban/Sanaei روی VPS: همان اتصال API + حالت «پنل خارجی».', 'unlimitsky-wc'),
+            'description' => __('برای پروتکل native: unlimitsky. برای Marzban/Sanaei روی VPS: همان اتصال API + حالت «پنل خارجی».', 'unlimitsky-wc'),
         ]);
 
         woocommerce_wp_select([
@@ -84,7 +84,7 @@ class USK_WooCommerce
             'value'       => $current_provision,
             'wrapper_class' => 'usk-provision-mode-field',
             'desc_tip'    => true,
-            'description' => __('پنل‌های Marzban/Sanaei باید در پنل UnlimitSky روی VPS (Pro) متصل شده باشند.', 'unlimitsky-wc'),
+            'description' => __('پنل‌های Marzban/Sanaei باید در پنل unlimitsky روی VPS (Pro) متصل شده باشند.', 'unlimitsky-wc'),
         ]);
 
         woocommerce_wp_select([
@@ -94,12 +94,12 @@ class USK_WooCommerce
             'value'       => $current_ext_panel,
             'wrapper_class' => 'usk-external-panel-field',
             'desc_tip'    => true,
-            'description' => __('لیست از پنل UnlimitSky روی VPS خوانده می‌شود. فقط VLESS/VMess (Xray).', 'unlimitsky-wc'),
+            'description' => __('لیست از پنل unlimitsky روی VPS خوانده می‌شود. فقط VLESS/VMess (Xray).', 'unlimitsky-wc'),
         ]);
 
         if (count($external_panel_options) <= 1) {
             echo '<p class="form-field usk-external-panel-field"><span class="description" style="color:#b32d2e;">';
-            echo esc_html__('پنل Marzban/Sanaei در UnlimitSky VPS یافت نشد — ابتدا در پنل کلاینت (Pro) پنل را متصل کنید.', 'unlimitsky-wc');
+            echo esc_html__('پنل Marzban/Sanaei در unlimitsky VPS یافت نشد — ابتدا در پنل کلاینت (Pro) پنل را متصل کنید.', 'unlimitsky-wc');
             echo '</span></p>';
         }
 
@@ -131,7 +131,7 @@ class USK_WooCommerce
             'type'              => 'text',
             'custom_attributes' => ['dir' => 'ltr'],
             'desc_tip'          => true,
-            'description'       => __('کد پلن از پنل UnlimitSky → پلن‌ها. اگر پلن غیرفعال باشد، سفارش خودکار ساخته نمی‌شود.', 'unlimitsky-wc'),
+            'description'       => __('کد پلن از پنل unlimitsky → پلن‌ها. اگر پلن غیرفعال باشد، سفارش خودکار ساخته نمی‌شود.', 'unlimitsky-wc'),
         ]);
 
         woocommerce_wp_select([
@@ -251,7 +251,7 @@ class USK_WooCommerce
     public function add_product_tab(array $tabs): array
     {
         $tabs['UnlimitSky'] = [
-            'label'    => __('UnlimitSky VPN', 'unlimitsky-wc'),
+            'label'    => __('unlimitsky VPN', 'unlimitsky-wc'),
             'target'   => 'USK_product_data',
             'class'    => ['show_if_simple'],
             'priority' => 80,
@@ -263,7 +263,7 @@ class USK_WooCommerce
     {
         echo '<div id="USK_product_data" class="panel woocommerce_options_panel">';
         echo '<p class="form-field"><strong>' . esc_html__('راهنما:', 'unlimitsky-wc') . '</strong> ';
-        echo esc_html__('اتصال UnlimitSky (API) را از منوی پنل‌ها اضافه کنید. برای Marzban/Sanaei: در پنل VPS متصل کنید، سپس در محصول «پنل خارجی» را انتخاب کنید.', 'unlimitsky-wc');
+        echo esc_html__('اتصال unlimitsky (API) را از منوی پنل‌ها اضافه کنید. برای Marzban/Sanaei: در پنل VPS متصل کنید، سپس در محصول «پنل خارجی» را انتخاب کنید.', 'unlimitsky-wc');
         echo '</p></div>';
     }
 

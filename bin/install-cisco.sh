@@ -1,4 +1,4 @@
-#!/bin/bash
+﻿#!/bin/bash
 # Install Cisco AnyConnect (Ocserv) on Ubuntu
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$DIR/usk-common.sh"
@@ -20,8 +20,8 @@ cd /etc/ocserv
 
 if [ ! -f server-cert.pem ] || [ ! -f server-key.pem ]; then
   cat > ca.tmpl <<'EOF'
-cn = "UnlimitSky CA"
-organization = "UnlimitSky"
+cn = "unlimitsky CA"
+organization = "unlimitsky"
 expiration_days = 3650
 ca
 signing_key
@@ -31,8 +31,8 @@ EOF
   certtool --generate-self-signed --load-privkey ca-key.pem --template ca.tmpl --outfile ca-cert.pem
 
   cat > server.tmpl <<'EOF'
-cn = "UnlimitSky VPN"
-organization = "UnlimitSky"
+cn = "unlimitsky VPN"
+organization = "unlimitsky"
 expiration_days = 3650
 signing_key
 encryption_key

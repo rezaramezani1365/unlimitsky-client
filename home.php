@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 header('Content-Type: text/html; charset=utf-8');
 
 $base_url   = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/\\');
@@ -27,7 +27,7 @@ $tr = $t[$lang];
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UnlimitedSky</title>
+    <title>unlimitsky</title>
     <link href="<?= htmlspecialchars($base_url) ?>/admin/assets/css/fonts.css" rel="stylesheet">
     <link href="<?= htmlspecialchars($base_url) ?>/admin/assets/vendor/fontawesome/css/all.min.css" rel="stylesheet">
     <link href="<?= htmlspecialchars($base_url) ?>/<?= $bs ?>" rel="stylesheet">

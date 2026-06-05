@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 define('USK_API', true);
 define('USK_ROOT', dirname(__DIR__));
@@ -32,7 +32,7 @@ $action = preg_replace('/[^a-z-]/', '', $_GET['action'] ?? 'health');
 if ($action === 'health') {
     usk_api_response(200, array(
         'ok' => true,
-        'service' => 'UnlimitSky API',
+        'service' => 'unlimitsky API',
         'version' => '1.0',
         'protocols' => array_keys(USK_ProtocolManager::installed_protocols()),
     ));

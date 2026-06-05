@@ -1,5 +1,5 @@
-#!/bin/bash
-# Shared helpers for UnlimitSky user provisioning
+﻿#!/bin/bash
+# Shared helpers for unlimitsky user provisioning
 # Note: no "set -e" — scripts must call usk_json_fail explicitly
 
 DATA_ROOT="${USK_DATA_ROOT:-/var/lib/unlimitsky}"

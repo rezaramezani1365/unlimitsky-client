@@ -1,5 +1,5 @@
-#!/bin/bash
-# UnlimitSky Client — install from GitHub (reseller VPS)
+﻿#!/bin/bash
+# unlimitsky Client — install from GitHub (reseller VPS)
 #
 # One-liner (replace YOUR_GITHUB_USER with your repo):
 #   curl -fsSL https://raw.githubusercontent.com/YOUR_GITHUB_USER/unlimitsky-client/main/scripts/install.sh | sudo bash -s -- \

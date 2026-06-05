@@ -1,15 +1,15 @@
-# UnlimitSky VPN — WooCommerce Plugin
+﻿# unlimitsky VPN — WooCommerce Plugin
 
 > **فارسی:** بخش پایین همین فایل | **Full panel guide:** [../../README.md](../../README.md) (EN) · [../../README.fa.md](../../README.fa.md) (FA)
 
-WooCommerce plugin for automatic VPN config delivery via **UnlimitSky VPS API** (native protocols) and **Marzban / Sanaei (3x-ui)** (VLESS/VMess only).
+WooCommerce plugin for automatic VPN config delivery via **unlimitsky VPS API** (native protocols) and **Marzban / Sanaei (3x-ui)** (VLESS/VMess only).
 
 ---
 
 ## Install
 
 1. Copy `unlimitsky-woocommerce` to `wp-content/plugins/`
-2. **Plugins → UnlimitSky VPN - WooCommerce** → Activate
+2. **Plugins → unlimitsky VPN - WooCommerce** → Activate
 3. **WooCommerce** must be installed
 4. **Settings → Permalinks → Save** (once)
 
@@ -17,7 +17,7 @@ WooCommerce plugin for automatic VPN config delivery via **UnlimitSky VPS API** 
 
 ## Marzban / Sanaei — quick setup (read full guide on client README)
 
-### On UnlimitSky VPS (Pro required)
+### On unlimitsky VPS (Pro required)
 
 1. **Panel → Pro License** → activate `USK-...`
 2. **Panel → Panels / Servers** → add Marzban or Sanaei → **Save & test**
@@ -27,10 +27,10 @@ See [Marzban & Sanaei setup guide](../../README.md#marzban--sanaei-3x-ui--setup-
 
 ### On WordPress (recommended — Method A)
 
-1. **UnlimitSky → Panels** → type **UnlimitSky (native)** → API URL + API key → Test
+1. **unlimitsky → Panels** → type **unlimitsky (native)** → API URL + API key → Test
 2. **Products → VPN product:**
    - Check **VPN product**
-   - Connection: UnlimitSky panel
+   - Connection: unlimitsky panel
    - **Config target:** **Marzban / Sanaei panel (VLESS/VMess — Xray)**
    - Select panel from VPS list
    - Volume (GB), duration (days), price
@@ -38,7 +38,7 @@ See [Marzban & Sanaei setup guide](../../README.md#marzban--sanaei-3x-ui--setup-
 
 ### Alternative — direct Marzban/Sanaei in WordPress (Method B)
 
-Add panel type **Marzban** or **Sanaei** in **UnlimitSky → Panels** with panel URL + credentials. Assign that panel to the product directly.
+Add panel type **Marzban** or **Sanaei** in **unlimitsky → Panels** with panel URL + credentials. Assign that panel to the product directly.
 
 ---
 
@@ -46,7 +46,7 @@ Add panel type **Marzban** or **Sanaei** in **UnlimitSky → Panels** with panel
 
 1. Install protocol on VPS: **Panel → Protocols**
 2. **Panel → API Keys** on VPS
-3. WordPress: UnlimitSky panel type + API key
+3. WordPress: unlimitsky panel type + API key
 4. Product: **Config target = Native protocol** → choose protocol
 
 ---
@@ -54,7 +54,7 @@ Add panel type **Marzban** or **Sanaei** in **UnlimitSky → Panels** with panel
 ## Flow
 
 ```
-Customer pays → WooCommerce hook → UnlimitSky API or Marzban/Sanaei API → config link delivered
+Customer pays → WooCommerce hook → unlimitsky API or Marzban/Sanaei API → config link delivered
 ```
 
 ---
@@ -62,12 +62,12 @@ Customer pays → WooCommerce hook → UnlimitSky API or Marzban/Sanaei API → 
 ## Requirements
 
 - PHP 7.4+, WordPress 5.8+, WooCommerce 5.0+, cURL
-- WordPress host can reach UnlimitSky API URL
+- WordPress host can reach unlimitsky API URL
 - For Method B: WordPress host can reach Marzban/Sanaei panel URL
 
 ---
 
-# پلاگین ووکامرس UnlimitSky — فارسی
+# پلاگین ووکامرس unlimitsky — فارسی
 
 ## نصب
 
@@ -81,7 +81,7 @@ Customer pays → WooCommerce hook → UnlimitSky API or Marzban/Sanaei API → 
 
 **راهنمای کامل:** [README.fa.md](../../README.fa.md#راهنمای-اتصال-پنل-marzban-و-sanaei-3x-ui)
 
-### روی VPS UnlimitSky (نیاز به Pro)
+### روی VPS unlimitsky (نیاز به Pro)
 
 1. **پنل → لایسنس Pro**
 2. **پنل → پنل‌ها / سرور** → Marzban یا Sanaei → ذخیره و تست
@@ -89,7 +89,7 @@ Customer pays → WooCommerce hook → UnlimitSky API or Marzban/Sanaei API → 
 
 ### روی وردپرس (روش الف — پیشنهادی)
 
-1. **UnlimitSky → پنل‌ها** → نوع **UnlimitSky (native)** + API + تست
+1. **unlimitsky → پنل‌ها** → نوع **unlimitsky (native)** + API + تست
 2. **محصول VPN:**
    - محصول VPN ✓
    - محل ساخت: **پنل Marzban / Sanaei**
@@ -99,7 +99,7 @@ Customer pays → WooCommerce hook → UnlimitSky API or Marzban/Sanaei API → 
 
 ### روش ب — Marzban/Sanaei مستقیم در وردپرس
 
-در **UnlimitSky → پنل‌ها** نوع Marzban یا Sanaei را با URL و یوزر/رمز اضافه کن و در محصول همان پنل را انتخاب کن.
+در **unlimitsky → پنل‌ها** نوع Marzban یا Sanaei را با URL و یوزر/رمز اضافه کن و در محصول همان پنل را انتخاب کن.
 
 ---
 

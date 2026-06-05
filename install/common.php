@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -9,7 +9,7 @@ function usk_install_t($key, $lang)
     if ($packs === null) {
         $packs = array(
             'fa' => array(
-                'brand' => 'UnlimitedSky',
+                'brand' => 'unlimitsky',
                 'step1_title' => 'انتخاب زبان پیش‌فرض',
                 'step1_sub' => 'ابتدا زبان پنل مدیریت را انتخاب کنید',
                 'step2_title' => 'تنظیمات نصب',
@@ -30,7 +30,7 @@ function usk_install_t($key, $lang)
                 'selected_lang' => 'زبان انتخاب‌شده',
             ),
             'en' => array(
-                'brand' => 'UnlimitedSky',
+                'brand' => 'unlimitsky',
                 'step1_title' => 'Choose default language',
                 'step1_sub' => 'First, select the admin panel language',
                 'step2_title' => 'Installation setup',
@@ -69,7 +69,7 @@ function usk_install_head($lang, $title)
         : '../admin/assets/vendor/bootstrap/bootstrap.rtl.min.css';
     echo '<!DOCTYPE html><html lang="' . htmlspecialchars($lang) . '" dir="' . $dir . '" data-bs-theme="dark">';
     echo '<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">';
-    echo '<title>' . htmlspecialchars($title) . ' | UnlimitedSky</title>';
+    echo '<title>' . htmlspecialchars($title) . ' | unlimitsky</title>';
     echo '<link rel="stylesheet" href="../admin/assets/css/fonts.css">';
     echo '<link rel="stylesheet" href="../admin/assets/vendor/fontawesome/css/all.min.css">';
     echo '<link rel="stylesheet" href="' . htmlspecialchars($bs) . '">';

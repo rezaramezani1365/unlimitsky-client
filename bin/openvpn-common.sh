@@ -1,5 +1,5 @@
-#!/bin/bash
-# Shared OpenVPN helpers for UnlimitSky
+﻿#!/bin/bash
+# Shared OpenVPN helpers for unlimitsky
 OVPN_SUBNET="${OVPN_SUBNET:-10.9.0.0/24}"
 OVPN_NET="${OVPN_NET:-10.9.0.0}"
 OVPN_MASK="${OVPN_MASK:-255.255.255.0}"

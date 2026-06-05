@@ -51,6 +51,7 @@ $dir = usk_dir();
     <?php usk_enqueue_head(); ?>
 </head>
 <body class="login-page">
+    <div class="login-page-shell">
     <div class="login-card">
         <div class="login-brand">Unlimited<span>Sky</span></div>
         <p class="text-center text-muted small mb-4"><?= __('login_sub') ?></p>
@@ -84,6 +85,7 @@ $dir = usk_dir();
         <div class="text-center mt-3">
             <button type="button" class="btn btn-sm btn-outline-usk" id="theme-toggle"><i class="fa-solid fa-moon" id="theme-icon"></i></button>
         </div>
+    </div>
     </div>
     <?php require __DIR__ . '/includes/footer.php'; ?>
     <?php usk_enqueue_foot(); ?>

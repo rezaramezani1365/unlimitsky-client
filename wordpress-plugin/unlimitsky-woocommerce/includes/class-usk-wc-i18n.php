@@ -60,7 +60,7 @@ class USK_WC_I18n
             'Panel for product "%s" not found.' => 'پنل محصول «%s» یافت نشد.',
             'External panel (Marzban/Sanaei) not selected for this product.' => 'پنل Marzban/Sanaei برای این محصول انتخاب نشده است.',
             'Unknown error' => 'خطای نامشخص',
-            'UnlimitSky requires WooCommerce to be installed and active.' => 'UnlimitSky نیاز به نصب و فعال‌سازی ووکامرس دارد.',
+            'unlimitsky requires WooCommerce to be installed and active.' => 'unlimitsky نیاز به نصب و فعال‌سازی ووکامرس دارد.',
             'Volume / duration' => 'حجم / مدت',
             'Volume:' => 'حجم:',
             'Duration:' => 'مدت:',

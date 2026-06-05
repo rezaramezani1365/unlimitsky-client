@@ -1,10 +1,10 @@
-<?php
+﻿<?php
 /**
- * Plugin Name: UnlimitedSky - WooCommerce
+ * Plugin Name: unlimitsky - WooCommerce
  * Plugin URI:  https://iranip.online
  * Description: فروش خودکار کانفیگ VPN — پروتکل native (WireGuard/OpenVPN/Xray/L2TP) + Marzban/Sanaei
  * Version:     1.3.0
- * Author:      UnlimitedSky
+ * Author:      unlimitsky
  * Text Domain: unlimitsky-wc
  * Requires at least: 5.8
  * Requires PHP: 7.4
@@ -29,7 +29,7 @@ add_action('plugins_loaded', static function () {
     if (!class_exists('WooCommerce')) {
         add_action('admin_notices', static function () {
             echo '<div class="notice notice-error"><p>';
-            esc_html_e('UnlimitSky requires WooCommerce to be installed and active.', 'unlimitsky-wc');
+            esc_html_e('unlimitsky requires WooCommerce to be installed and active.', 'unlimitsky-wc');
             echo '</p></div>';
         });
         return;

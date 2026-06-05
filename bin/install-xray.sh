@@ -1,4 +1,4 @@
-#!/bin/bash
+﻿#!/bin/bash
 # Install Xray — VLESS + Reality (port 443, Iran-optimized)
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$DIR/usk-common.sh"

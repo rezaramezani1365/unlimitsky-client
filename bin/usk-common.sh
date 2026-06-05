@@ -1,5 +1,5 @@
-#!/bin/bash
-# UnlimitSky shared helpers
+﻿#!/bin/bash
+# unlimitsky shared helpers
 set -e
 echo "[USK] Running as $(whoami)"
 if [ "$EUID" -ne 0 ]; then echo "USK_ERR: run as root"; exit 1; fi
@@ -26,6 +26,6 @@ usk_mark_installed() {
 
 ensure_ufw_port() {
   if command -v ufw >/dev/null 2>&1; then
-    ufw allow "$1"/"$2" comment "UnlimitSky $3" || true
+    ufw allow "$1"/"$2" comment "unlimitsky $3" || true
   fi
 }

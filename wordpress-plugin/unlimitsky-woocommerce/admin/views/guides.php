@@ -1,11 +1,11 @@
-<?php defined('ABSPATH') || exit; ?>
+﻿<?php defined('ABSPATH') || exit; ?>
 
 <div class="wrap usk-admin-wrap">
     <div class="usk-theme-bar">
         <button type="button" id="usk-wp-theme-toggle"><span id="usk-wp-theme-icon">🌙</span> <?php esc_html_e('تم', 'unlimitsky-wc'); ?></button>
     </div>
     <h1><?php esc_html_e('راهنمای اتصال پنل', 'unlimitsky-wc'); ?></h1>
-    <p><?php esc_html_e('UnlimitedSky روی هاست وردپرس اجرا می‌شود؛ ساخت کانفیگ از API سرور Marzban یا Sanaei روی VPS انجام می‌شود.', 'unlimitsky-wc'); ?></p>
+    <p><?php esc_html_e('unlimitsky روی هاست وردپرس اجرا می‌شود؛ ساخت کانفیگ از API سرور Marzban یا Sanaei روی VPS انجام می‌شود.', 'unlimitsky-wc'); ?></p>
 
     <div class="usk-grid">
         <div class="usk-card">

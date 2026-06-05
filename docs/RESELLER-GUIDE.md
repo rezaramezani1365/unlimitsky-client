@@ -1,12 +1,12 @@
-# UnlimitSky — Reseller Guide
+﻿# unlimitsky — Reseller Guide
 
-For **VPN business owners** who bought / use UnlimitSky panel.
+For **VPN business owners** who bought / use unlimitsky panel.
 
 ## Your role
 
 You are a **reseller**: you run VPN on your VPS and sell to **your customers** through your WooCommerce store.
 
-You are **not** the platform owner. Pro license comes from **UnlimitSky vendor**.
+You are **not** the platform owner. Pro license comes from **unlimitsky vendor**.
 
 ## Setup checklist
 
@@ -62,7 +62,7 @@ Requires `sudo` for `www-data` (configured by `install-ubuntu.sh`).
 
 | Person | Uses |
 |--------|------|
-| **Platform vendor (UnlimitSky)** | `vendor/` panel — licenses only |
+| **Platform vendor (unlimitsky)** | `vendor/` panel — licenses only |
 | **You (reseller)** | `client/` panel — this VPS |
 | **Your customer** | Your WooCommerce shop only |
 

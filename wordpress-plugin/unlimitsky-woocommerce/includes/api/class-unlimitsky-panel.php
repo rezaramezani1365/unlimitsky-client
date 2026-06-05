@@ -30,7 +30,7 @@ class USK_UnlimitSky_Panel
     {
         $url = self::normalize_api_url($api_url);
         if ($url === '') {
-            return ['ok' => false, 'error' => __('آدرس API پنل UnlimitSky خالی است.', 'unlimitsky-wc')];
+            return ['ok' => false, 'error' => __('آدرس API پنل unlimitsky خالی است.', 'unlimitsky-wc')];
         }
 
         $url = add_query_arg('action', $action, $url);
@@ -61,11 +61,11 @@ class USK_UnlimitSky_Panel
         $data = json_decode($raw, true);
 
         if (!is_array($data)) {
-            return ['ok' => false, 'error' => __('پاسخ نامعتبر از پنل UnlimitSky.', 'unlimitsky-wc')];
+            return ['ok' => false, 'error' => __('پاسخ نامعتبر از پنل unlimitsky.', 'unlimitsky-wc')];
         }
 
         if ($code >= 400 || empty($data['ok'])) {
-            return ['ok' => false, 'error' => $data['error'] ?? __('خطا در API پنل UnlimitSky', 'unlimitsky-wc')];
+            return ['ok' => false, 'error' => $data['error'] ?? __('خطا در API پنل unlimitsky', 'unlimitsky-wc')];
         }
 
         return ['ok' => true, 'data' => $data];
@@ -102,7 +102,7 @@ class USK_UnlimitSky_Panel
     {
         $api_key = $panel['token'] ?? '';
         if ($api_key === '') {
-            return ['success' => false, 'error' => __('کلید API پنل UnlimitSky تنظیم نشده.', 'unlimitsky-wc')];
+            return ['success' => false, 'error' => __('کلید API پنل unlimitsky تنظیم نشده.', 'unlimitsky-wc')];
         }
 
         $external_panel_code = preg_replace('/[^0-9]/', '', $external_panel_code);

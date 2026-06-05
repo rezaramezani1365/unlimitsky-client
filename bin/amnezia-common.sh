@@ -1,5 +1,5 @@
-#!/bin/bash
-# AmneziaWG (Amnezia VPN) — shared helpers for UnlimitSky
+﻿#!/bin/bash
+# AmneziaWG (Amnezia VPN) — shared helpers for unlimitsky
 
 AMNEZIA_CONF_DIR="/etc/amnezia/amneziawg"
 AMNEZIA_CONF="${AMNEZIA_CONF_DIR}/awg0.conf"

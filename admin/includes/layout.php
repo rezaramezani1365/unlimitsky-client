@@ -53,9 +53,11 @@ $lang = usk_lang();
 
 <body class="usk-body">
 
-<div class="container-fluid">
+<div class="usk-body-shell">
 
-    <div class="row g-0">
+<div class="container-fluid flex-grow-1">
+
+    <div class="row g-0 min-vh-100">
 
         <nav class="col-lg-2 usk-sidebar p-3">
 
@@ -99,7 +101,7 @@ $lang = usk_lang();
 
 
 
-        <main class="col-lg-10 px-3 px-lg-4 py-3 d-flex flex-column min-vh-100">
+        <main class="col-lg-10 px-3 px-lg-4 py-3">
 
             <div class="usk-topbar d-flex flex-wrap align-items-center justify-content-between gap-2">
 
@@ -149,17 +151,17 @@ $lang = usk_lang();
 
 
 
-            <div class="usk-main-content flex-grow-1">
             <?= $content ?>
-            </div>
-
-            <?php require __DIR__ . '/footer.php'; ?>
 
         </main>
 
     </div>
 
 </div>
+
+</div>
+
+<?php require __DIR__ . '/footer.php'; ?>
 
 <?php usk_enqueue_foot(); ?>
 

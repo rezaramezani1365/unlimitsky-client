@@ -1,4 +1,4 @@
-#!/bin/bash
+﻿#!/bin/bash
 # Background protocol install worker (called from panel — avoids nginx 504)
 set +e
 
@@ -23,7 +23,7 @@ export USK_DATA_ROOT="${USK_DATA_ROOT:-/var/lib/unlimitsky}"
 export USK_AMNEZIA_FAST="${USK_AMNEZIA_FAST:-1}"
 
 {
-  echo "=== UnlimitSky install ${PROTO} $(date -Iseconds) ==="
+  echo "=== unlimitsky install ${PROTO} $(date -Iseconds) ==="
   if [ ! -x "$SCRIPT" ]; then
     echo "USK_ERR: script_missing"
     echo "failed $(date -Iseconds)" > "$JOB_FILE"

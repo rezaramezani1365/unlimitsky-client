@@ -1,4 +1,4 @@
-#!/bin/bash
+﻿#!/bin/bash
 # Finish incomplete install — normally not needed; curl install handles everything.
 # Usage: sudo bash install/finish-install.sh 'YourPass123'
 set -euo pipefail

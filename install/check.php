@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/guard.php';
 usk_install_guard();
 ini_set('display_errors', '1');
@@ -8,7 +8,7 @@ header('Content-Type: text/html; charset=utf-8');
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>UnlimitedSky Install Check</title>
+    <title>unlimitsky Install Check</title>
     <style>
         body{font-family:tahoma,sans-serif;background:#111;color:#eee;padding:24px;max-width:720px;margin:0 auto}
         h1{color:#0099ff;font-size:1.25rem}
@@ -18,7 +18,7 @@ header('Content-Type: text/html; charset=utf-8');
     </style>
 </head>
 <body>
-<h1>UnlimitedSky — Install Check</h1>
+<h1>unlimitsky — Install Check</h1>
 <ul>
 <?php
 $checks = array(

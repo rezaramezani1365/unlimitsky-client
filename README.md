@@ -1,4 +1,4 @@
-# UnlimitSky — VPN Reseller Panel (Client)
+﻿# unlimitsky — VPN Reseller Panel (Client)
 
 
 
@@ -26,8 +26,8 @@ Full guide: [Installation](#installation-guide--zero-to-production) below.
 
 ```
 You (VPN reseller)
-    ├── Ubuntu VPS     →  UnlimitSky Panel (this project)
-    └── WordPress host →  WooCommerce + UnlimitSky plugin
+    ├── Ubuntu VPS     →  unlimitsky Panel (this project)
+    └── WordPress host →  WooCommerce + unlimitsky plugin
                                 ↓
                   Customer pays → config delivered automatically
 ```
@@ -40,7 +40,7 @@ You (VPN reseller)
 
 ### Built-in protocols on your VPS (main feature)
 
-UnlimitSky **installs and runs VPN protocols directly on your Ubuntu VPS** — no third-party panel required:
+unlimitsky **installs and runs VPN protocols directly on your Ubuntu VPS** — no third-party panel required:
 
 | Protocol | Role |
 |----------|------|
@@ -101,12 +101,12 @@ From **Panel → Protocols**, the installer script sets up each protocol **on th
 
 | | Native protocols (built-in) | Marzban / Sanaei (optional) |
 |---|---------------------------|----------------------------|
-| Installed by | UnlimitSky on your VPS | Separate panel (you may already have it) |
+| Installed by | unlimitsky on your VPS | Separate panel (you may already have it) |
 | Server setup | ✅ Panel → Protocols | You manage Marzban/Sanaei yourself |
 | Manual config in admin | ✅ Panel → Create config | ✅ Panel → Create config |
 | WooCommerce auto-delivery | ✅ Panel → API Keys + plugin | ✅ Available now |
 
-**Recommendation:** install **WireGuard** from **Panel → Protocols**, create an **API key**, connect WooCommerce with panel type **UnlimitSky (native)**.
+**Recommendation:** install **WireGuard** from **Panel → Protocols**, create an **API key**, connect WooCommerce with panel type **unlimitsky (native)**.
 
 ---
 
@@ -173,7 +173,7 @@ Replace `Pass123` with your own password (at least 6 characters). Omit `--admin-
 
 ### Optional — Pro license (from vendor)
 
-If you have a **Pro license** from the UnlimitSky platform owner, add:
+If you have a **Pro license** from the unlimitsky platform owner, add:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/rezaramezani1365/unlimitsky-client/main/scripts/install.sh | sudo bash -s -- \
@@ -256,7 +256,7 @@ sudo apt update
 sudo apt install apache2 mysql-server php php-mbstring php-zip php-gd php-json php-curl -y
 ```
 
-**Nginx (LEMP — same stack as UnlimitSky):**
+**Nginx (LEMP — same stack as unlimitsky):**
 
 ```bash
 sudo apt install nginx mysql-server php-fpm php-mysql php-mbstring php-zip php-gd php-json php-curl -y
@@ -279,7 +279,7 @@ sudo phpenmod mbstring
 sudo systemctl restart apache2
 ```
 
-#### Option B: Nginx (recommended if UnlimitSky panel runs on Nginx)
+#### Option B: Nginx (recommended if unlimitsky panel runs on Nginx)
 
 ```bash
 sudo apt install phpmyadmin -y
@@ -421,7 +421,7 @@ Without `add-user-*.sh`, creating configs from the panel or WooCommerce will fai
 - Then OpenVPN, Xray, or L2TP as needed
 - Each runs **on this VPS** — the script installs packages, writes config, opens firewall ports, and starts the service
 
-This is the **primary** way UnlimitSky is designed to work: **your VPS = your VPN server**.
+This is the **primary** way unlimitsky is designed to work: **your VPS = your VPN server**.
 
 ### 2. Create sales plans
 
@@ -443,7 +443,7 @@ This is the **primary** way UnlimitSky is designed to work: **your VPS = your VP
 
 - Create an API key (shown once — copy it)
 - Note the **API URL** (e.g. `http://YOUR_IP:8082/api/v1.php`)
-- In WordPress plugin: add panel type **UnlimitSky (native)** with API URL + key
+- In WordPress plugin: add panel type **unlimitsky (native)** with API URL + key
 
 Extended guide: [docs/RESELLER-GUIDE.md](docs/RESELLER-GUIDE.md)
 
@@ -459,7 +459,7 @@ Extended guide: [docs/RESELLER-GUIDE.md](docs/RESELLER-GUIDE.md)
 |-------------|---------|
 | **Pro license** | Connecting Marzban/Sanaei in **Panel → Panels / Servers** requires **Pro** (`Panel → Pro License`) |
 | **Marzban or Sanaei** | Already installed and reachable on a VPS (same server or another) |
-| **WooCommerce** | WordPress host must reach the UnlimitSky API URL and (if used) the Marzban/Sanaei panel URL |
+| **WooCommerce** | WordPress host must reach the unlimitsky API URL and (if used) the Marzban/Sanaei panel URL |
 
 ## Supported protocols on external panels
 
@@ -472,7 +472,7 @@ Native protocols (WireGuard, OpenVPN, Xray Reality on VPS, Amnezia, L2TP) use **
 
 ---
 
-## Part 1 — Connect panel in UnlimitSky admin (VPS)
+## Part 1 — Connect panel in unlimitsky admin (VPS)
 
 1. Activate **Pro:** **Panel → Pro License** → enter your `USK-...` key  
 2. Open **Panel → Panels / Servers** (sidebar)  
@@ -523,19 +523,19 @@ vless://%s1@%s2?encryption=none&security=tls&type=ws&host=example.com&path=/path
 
 Get the exact format from your inbound in 3x-ui (QR export or share link), then replace uuid/host/remark with `%s1`, `%s2`, `%s3`.
 
-**Inbound on 3x-ui:** must already exist with VLESS or VMess — UnlimitSky adds a **client** to that inbound, not a new inbound.
+**Inbound on 3x-ui:** must already exist with VLESS or VMess — unlimitsky adds a **client** to that inbound, not a new inbound.
 
 ---
 
 ## Part 2 — WooCommerce auto-delivery
 
-Two supported setups. **Method A is recommended** if you already configured Marzban/Sanaei on the UnlimitSky VPS.
+Two supported setups. **Method A is recommended** if you already configured Marzban/Sanaei on the unlimitsky VPS.
 
-### Method A — External panel via UnlimitSky API (recommended)
+### Method A — External panel via unlimitsky API (recommended)
 
 Panels are managed once on the VPS; WooCommerce picks which panel to use per product.
 
-**On VPS (UnlimitSky panel):**
+**On VPS (unlimitsky panel):**
 
 1. **Pro** active  
 2. Marzban and/or Sanaei connected (**Part 1**)  
@@ -543,15 +543,15 @@ Panels are managed once on the VPS; WooCommerce picks which panel to use per pro
 
 **On WordPress:**
 
-1. **UnlimitSky → Panels → Add panel**  
-   - Type: **UnlimitSky (native)**  
+1. **unlimitsky → Panels → Add panel**  
+   - Type: **unlimitsky (native)**  
    - API URL: `http://YOUR_VPS_IP:8082` (or full `.../api/v1.php`)  
    - API key: `USK-API-...`  
    - **Test connection**
 
 2. **Products → VPN product**  
    - Check **VPN product**  
-   - Connection: your **UnlimitSky** panel  
+   - Connection: your **unlimitsky** panel  
    - **Config target:** **Marzban / Sanaei panel (VLESS/VMess — Xray)**  
    - **Marzban / Sanaei panel (on VPS):** choose from list (loaded from VPS)  
    - Set volume (GB) and duration (days) + price  
@@ -563,16 +563,16 @@ Customer pays (WooCommerce)
         ↓
 WordPress plugin → POST /api/v1.php?action=create-service  (panel_code)
         ↓
-UnlimitSky VPS → Marzban API or Sanaei addClient
+unlimitsky VPS → Marzban API or Sanaei addClient
         ↓
 Subscription / VLESS link returned to customer
 ```
 
 ### Method B — Direct Marzban/Sanaei in WordPress
 
-Use if the VPN panel is **not** registered on UnlimitSky VPS (legacy setup).
+Use if the VPN panel is **not** registered on unlimitsky VPS (legacy setup).
 
-1. **UnlimitSky → Panels → Add panel** → type **Marzban** or **Sanaei**  
+1. **unlimitsky → Panels → Add panel** → type **Marzban** or **Sanaei**  
 2. Enter panel URL, username, password (+ inbound ID / link template for Sanaei)  
 3. **Test connection**  
 4. **Products → VPN product** → select that Marzban/Sanaei panel directly  
@@ -642,7 +642,7 @@ Or ZIP and upload via **Plugins → Add New → Upload**.
 
 ### 3. Activate
 
-- **Plugins → UnlimitedSky - WooCommerce** → Activate
+- **Plugins → unlimitsky - WooCommerce** → Activate
 - **Settings → Permalinks → Save** (once)
 
 ---
@@ -657,17 +657,17 @@ Or ZIP and upload via **Plugins → Add New → Upload**.
 
 | Method | Setup |
 |--------|--------|
-| **Native protocols** | Panel → API Keys → WordPress: UnlimitSky panel type |
+| **Native protocols** | Panel → API Keys → WordPress: unlimitsky panel type |
 | **Marzban / Sanaei** | WordPress: add Marzban/Sanaei panel |
 
 ### A. Native protocols (recommended)
 
 1. **Panel → API Keys** — create key, copy API URL
-2. **WordPress → UnlimitSky → Panels** — type: **UnlimitSky (native)**
+2. **WordPress → unlimitsky → Panels** — type: **unlimitsky (native)**
    - API URL: `http://YOUR_VPS_IP:8082`
    - API key: `USK-API-...`
    - Default protocol: WireGuard / OpenVPN / Xray / L2TP
-3. **Products → VPN product** — select UnlimitSky panel, set volume/duration
+3. **Products → VPN product** — select unlimitsky panel, set volume/duration
 4. Customer pays → config delivered automatically
 
 ### B. Marzban / Sanaei (Pro + external panels)
@@ -678,7 +678,7 @@ Short checklist:
 
 1. **VPS:** Pro license → **Panel → Panels / Servers** → connect Marzban or Sanaei → test OK  
 2. **VPS:** **Panel → API Keys** → create API key  
-3. **WordPress:** UnlimitSky panel type **UnlimitSky (native)** + API URL + key  
+3. **WordPress:** unlimitsky panel type **unlimitsky (native)** + API URL + key  
 4. **Product:** Config target = **Marzban / Sanaei** → select panel from VPS list  
 5. Customer pays → VLESS/VMess link delivered automatically  
 
@@ -690,14 +690,14 @@ Alternative: add Marzban/Sanaei **directly in WordPress** (Method B in the guide
 
 ```
 ┌──────────────────── VPS (Ubuntu) ────────────────────┐
-│  UnlimitSky Panel :8082                              │
+│  unlimitsky Panel :8082                              │
 │  ├── MySQL (plans, users, orders)                    │
 │  ├── ★ WireGuard / OpenVPN / Xray / L2TP (built-in)│
 │  └── Marzban or Sanaei (optional — WC auto today)    │
 └──────────────────────────────────────────────────────┘
                           ↑ API (Marzban/Sanaei today)
 ┌──────────────── WordPress Host ──────────────────────┐
-│  WooCommerce + UnlimitSky plugin                     │
+│  WooCommerce + unlimitsky plugin                     │
 │  └── customer purchase → auto config delivery        │
 └──────────────────────────────────────────────────────┘
 ```
@@ -716,7 +716,7 @@ Alternative: add Marzban/Sanaei **directly in WordPress** (Method B in the guide
 | Create config / WooCommerce fails (permission) | Add `add-user-*.sh` line to sudoers — see **Sudo for VPN scripts** |
 | WooCommerce no config | Test panel connection in WP + order status Completed |
 | External panel list empty in product | Connect Marzban/Sanaei on VPS (Pro) + valid API key |
-| `panels_pro_required` API error | Activate Pro on UnlimitSky VPS |
+| `panels_pro_required` API error | Activate Pro on unlimitsky VPS |
 | Plugin cURL error | Enable cURL in PHP on WordPress host |
 
 **Verify install:**

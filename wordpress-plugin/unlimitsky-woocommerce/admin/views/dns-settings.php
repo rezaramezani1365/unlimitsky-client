@@ -1,4 +1,4 @@
-<?php defined('ABSPATH') || exit;
+﻿<?php defined('ABSPATH') || exit;
 
 $connect = USK_Dns_Settings::connect_host();
 ?>
@@ -7,7 +7,7 @@ $connect = USK_Dns_Settings::connect_host();
     <div class="usk-theme-bar">
         <button type="button" id="usk-wp-theme-toggle"><span id="usk-wp-theme-icon">🌙</span> <?php esc_html_e('تم', 'unlimitsky-wc'); ?></button>
     </div>
-    <h1><?php esc_html_e('UnlimitedSky — تنظیمات DNS / اتصال', 'unlimitsky-wc'); ?></h1>
+    <h1><?php esc_html_e('unlimitsky — تنظیمات DNS / اتصال', 'unlimitsky-wc'); ?></h1>
 
     <?php if (!empty($_GET['saved'])) : ?>
         <div class="notice notice-success is-dismissible"><p><?php esc_html_e('تنظیمات ذخیره شد.', 'unlimitsky-wc'); ?></p></div>

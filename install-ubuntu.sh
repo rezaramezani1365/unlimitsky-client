@@ -1,5 +1,5 @@
-#!/bin/bash
-# UnlimitSky Client (reseller panel) — Ubuntu one-command installer
+﻿#!/bin/bash
+# unlimitsky Client (reseller panel) — Ubuntu one-command installer
 #
 # Full auto (default admin/admin — change on first login):
 #   sudo bash install-ubuntu.sh --auto --port 8082 --open-firewall
@@ -50,7 +50,7 @@ while [ $# -gt 0 ]; do
         --open-firewall) OPEN_FW=1; shift ;;
         -h|--help)
             cat <<'HELP'
-UnlimitSky Client (reseller panel) installer
+unlimitsky Client (reseller panel) installer
 
 Options:
   --auto                 Create MySQL DB + admin via CLI (no browser)
@@ -176,7 +176,7 @@ done
 if [ "$AUTO" -eq 1 ] && [ -f "$WEB_ROOT/install/unlimitsky.install" ] && ! usk_config_incomplete "$WEB_ROOT"; then
     usk_secure_app_files "$WEB_ROOT"
     usk_print_box \
-        "UnlimitSky Client updated" \
+        "unlimitsky Client updated" \
         "" \
         "URL:        ${PUBLIC_URL}" \
         "Admin:      ${PUBLIC_URL}/admin/login.php" \
@@ -232,7 +232,7 @@ else
 fi
 
 usk_print_box \
-    "UnlimitSky Client ready" \
+    "unlimitsky Client ready" \
     "" \
     "URL:        ${PUBLIC_URL}" \
     "Admin:      ${PUBLIC_URL}/admin/login.php" \
