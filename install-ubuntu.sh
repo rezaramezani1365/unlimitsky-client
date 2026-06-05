@@ -114,6 +114,7 @@ chown -R www-data:www-data "$WEB_ROOT/data" "$WEB_ROOT/admin/data"
 SUDOERS="/etc/sudoers.d/unlimitsky"
 cat > "$SUDOERS" <<SUDO
 www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/install-*.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/run-protocol-install.sh *
 www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/repair-*.sh *
 www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/probe-protocol.sh *
 www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/add-user-*.sh *
@@ -150,6 +151,8 @@ server {
         include snippets/fastcgi-php.conf;
         fastcgi_pass unix:${PHP_SOCK};
         fastcgi_hide_header X-Powered-By;
+        fastcgi_read_timeout 600s;
+        fastcgi_send_timeout 600s;
     }
 
     location ~ /\. { deny all; }

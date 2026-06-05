@@ -267,40 +267,63 @@ class USK_ProtocolManager
         @file_put_contents($dir . '/' . $proto . '-last.log', $log);
     }
 
-    public static function install($proto, array $ports = array())
+    public static function async_install_protocols()
     {
-        $allowed = array_keys(self::list());
-        if (!in_array($proto, $allowed, true)) {
-            return array('ok' => false, 'msg' => 'invalid_protocol', 'log' => 'invalid_protocol');
-        }
-        $script = self::bin_path($proto);
-        if (!file_exists($script)) {
-            self::write_install_log($proto, '', '', 'script_missing: ' . $script);
-            return array('ok' => false, 'msg' => 'script_missing', 'log' => 'script_missing');
-        }
+        return array('amnezia');
+    }
 
-        if (empty($ports)) {
-            $ports = self::parse_ports($proto, array());
-        }
+    public static function uses_async_install($proto)
+    {
+        return in_array($proto, self::async_install_protocols(), true);
+    }
 
-        $argv = self::build_install_argv($proto, $ports);
-        $cmd = 'sudo -n bash ' . escapeshellarg($script);
-        if ($argv !== '') {
-            $cmd .= ' ' . $argv;
-        }
-        $cmd .= ' 2>&1';
+    public static function install_job_file($proto)
+    {
+        return USK_ROOT . '/data/protocols/' . $proto . '-install.job';
+    }
 
-        $prev = self::read_status($proto);
-        $out = shell_exec($cmd);
-        if ($out === null) {
-            $out = '';
-        }
-        self::write_install_log($proto, $cmd, $out);
+    public static function install_running_log($proto)
+    {
+        return USK_ROOT . '/data/protocols/' . $proto . '-install-running.log';
+    }
 
-        if (trim((string) $out) === '') {
-            $out = 'USK_ERR: sudo_denied or empty output — add probe-protocol.sh to /etc/sudoers.d/unlimitsky';
+    public static function is_install_job_running($proto)
+    {
+        $f = self::install_job_file($proto);
+        if (!is_file($f)) {
+            return false;
         }
+        $line = trim((string) file_get_contents($f));
+        if (strpos($line, 'running') !== 0) {
+            return false;
+        }
+        if (preg_match('/^running\s+(.+)$/', $line, $m)) {
+            $started = strtotime($m[1]);
+            if ($started && (time() - $started) > 3600) {
+                return false;
+            }
+        }
+        return true;
+    }
 
+    private static function ports_from_status($proto, array $st)
+    {
+        $meta = self::list()[$proto] ?? null;
+        if (!$meta) {
+            return array();
+        }
+        $ports = array();
+        foreach ($meta['port_fields'] ?? array() as $field) {
+            $key = $field['key'];
+            if (isset($st[$key])) {
+                $ports[$key] = self::effective_port($st[$key], $field['default']);
+            }
+        }
+        return $ports;
+    }
+
+    private static function apply_install_output($proto, array $ports, $out, array $prev)
+    {
         $scriptOk = (strpos((string) $out, 'USK_OK') !== false);
         $systemOk = self::is_installed($proto);
         $ok = $scriptOk || $systemOk;
@@ -312,6 +335,7 @@ class USK_ProtocolManager
             'updated_at' => date('c'),
             'log' => substr((string) $out, -2000),
         ));
+        unset($status['install_state'], $status['install_started_at']);
         if ($ok) {
             $status['verified_at'] = date('c');
         }
@@ -380,6 +404,130 @@ class USK_ProtocolManager
             'msg' => $ok ? ($warn ? 'installed_with_warning' : 'installed') : 'failed',
             'log' => $out,
         );
+    }
+
+    public static function poll_install_job($proto)
+    {
+        if (!self::uses_async_install($proto)) {
+            return null;
+        }
+        $jobFile = self::install_job_file($proto);
+        if (!is_file($jobFile)) {
+            return null;
+        }
+        $line = trim((string) file_get_contents($jobFile));
+        if (strpos($line, 'running') === 0) {
+            if (!self::is_install_job_running($proto)) {
+                $prev = self::read_status($proto);
+                $failed = array_merge($prev, array(
+                    'status' => 'failed',
+                    'log' => 'Install timed out after 60 minutes.',
+                    'updated_at' => date('c'),
+                ));
+                unset($failed['install_state'], $failed['install_started_at']);
+                self::set_status($proto, $failed);
+                @unlink($jobFile);
+                return array('ok' => false, 'msg' => 'install_timed_out');
+            }
+            return array('ok' => false, 'async' => true, 'msg' => 'install_running');
+        }
+        $logFile = self::install_running_log($proto);
+        $out = is_file($logFile) ? (string) file_get_contents($logFile) : '';
+        $prev = self::read_status($proto);
+        $ports = self::ports_from_status($proto, $prev);
+        if (empty($ports)) {
+            $ports = self::parse_ports($proto, array());
+        }
+        self::write_install_log($proto, 'async:' . $proto, $out, $line);
+        $result = self::apply_install_output($proto, $ports, $out, $prev);
+        @unlink($jobFile);
+        return $result;
+    }
+
+    public static function poll_all_install_jobs()
+    {
+        foreach (self::async_install_protocols() as $proto) {
+            self::poll_install_job($proto);
+        }
+    }
+
+    public static function start_install_async($proto, array $ports)
+    {
+        $worker = USK_ROOT . '/bin/run-protocol-install.sh';
+        if (!file_exists($worker)) {
+            return array('ok' => false, 'msg' => 'script_missing', 'log' => 'run-protocol-install.sh missing');
+        }
+        $argv = self::build_install_argv($proto, $ports);
+        $inner = escapeshellarg($worker) . ' ' . escapeshellarg($proto) . ' ' . escapeshellarg(USK_ROOT);
+        if ($argv !== '') {
+            $inner .= ' ' . $argv;
+        }
+        $cmd = 'nohup sudo -n bash -c ' . escapeshellarg($inner) . ' </dev/null >/dev/null 2>&1 &';
+        shell_exec($cmd);
+
+        $prev = self::read_status($proto);
+        $status = array_merge($prev, self::default_status_fields($proto), array(
+            'installed' => false,
+            'status' => 'installing',
+            'install_state' => 'running',
+            'install_started_at' => date('c'),
+            'updated_at' => date('c'),
+        ));
+        foreach ($ports as $k => $v) {
+            $status[$k] = (int) $v;
+        }
+        self::set_status($proto, $status);
+        self::write_install_log($proto, $cmd, '', 'async_install_started');
+
+        return array('ok' => true, 'async' => true, 'msg' => 'install_started');
+    }
+
+    public static function install($proto, array $ports = array())
+    {
+        $allowed = array_keys(self::list());
+        if (!in_array($proto, $allowed, true)) {
+            return array('ok' => false, 'msg' => 'invalid_protocol', 'log' => 'invalid_protocol');
+        }
+        $script = self::bin_path($proto);
+        if (!file_exists($script)) {
+            self::write_install_log($proto, '', '', 'script_missing: ' . $script);
+            return array('ok' => false, 'msg' => 'script_missing', 'log' => 'script_missing');
+        }
+
+        if (empty($ports)) {
+            $ports = self::parse_ports($proto, array());
+        }
+
+        if (self::uses_async_install($proto)) {
+            if (self::is_install_job_running($proto)) {
+                return array('ok' => false, 'async' => true, 'msg' => 'install_already_running');
+            }
+            self::poll_install_job($proto);
+            if (self::is_install_job_running($proto)) {
+                return array('ok' => false, 'async' => true, 'msg' => 'install_already_running');
+            }
+            return self::start_install_async($proto, $ports);
+        }
+
+        $argv = self::build_install_argv($proto, $ports);
+        $cmd = 'sudo -n bash ' . escapeshellarg($script);
+        if ($argv !== '') {
+            $cmd .= ' ' . $argv;
+        }
+        $cmd .= ' 2>&1';
+
+        $prev = self::read_status($proto);
+        $out = shell_exec($cmd);
+        if ($out === null) {
+            $out = '';
+        }
+        self::write_install_log($proto, $cmd, $out);
+
+        if (trim((string) $out) === '') {
+            $out = 'USK_ERR: sudo_denied or empty output — add probe-protocol.sh to /etc/sudoers.d/unlimitsky';
+        }
+
+        return self::apply_install_output($proto, $ports, $out, $prev);
     }
 
     public static function installed_protocols()

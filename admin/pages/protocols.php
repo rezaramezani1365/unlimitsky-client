@@ -12,12 +12,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['install_protocol'])) 
     $wasInstalled = !empty(USK_ProtocolManager::get_status($proto)['installed']);
     $ports = USK_ProtocolManager::parse_ports($proto, $_POST);
     $res = USK_ProtocolManager::install($proto, $ports);
-    if (!empty($res['ok'])) {
+    if (!empty($res['async']) && !empty($res['ok'])) {
+        usk_flash(__('protocol_install_started'), 'info');
+    } elseif (!empty($res['ok'])) {
         if (!empty($res['warn'])) {
             usk_flash(__('protocol_reinstalled_warn'), 'warning');
         } else {
             usk_flash($wasInstalled ? __('protocol_reinstalled') : __('protocol_installed'));
         }
+    } elseif (!empty($res['async']) && ($res['msg'] ?? '') === 'install_already_running') {
+        usk_flash(__('protocol_install_running'), 'warning');
     } else {
         usk_flash(__('protocol_failed') . (isset($res['log']) ? ': ' . substr($res['log'], -400) : ''), 'error');
     }
@@ -25,9 +29,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['install_protocol'])) 
     exit;
 }
 
+USK_ProtocolManager::poll_all_install_jobs();
 USK_ProtocolManager::refresh_all_status();
 
 $protocols = USK_ProtocolManager::list();
+$anyInstallRunning = false;
+foreach (array_keys($protocols) as $_pk) {
+    $s = USK_ProtocolManager::get_status($_pk);
+    if (($s['install_state'] ?? '') === 'running' || USK_ProtocolManager::is_install_job_running($_pk)) {
+        $anyInstallRunning = true;
+        break;
+    }
+}
+unset($_pk, $s);
 ?>
 <div class="alert alert-usk-info mb-4">
     <i class="fa-solid fa-server"></i> <?= __('protocols_intro') ?>
@@ -37,9 +51,13 @@ $protocols = USK_ProtocolManager::list();
 <?php foreach ($protocols as $key => $meta) :
     $st = USK_ProtocolManager::get_status($key);
     $installed = !empty($st['installed']);
+    $installing = !$installed && (
+        ($st['install_state'] ?? '') === 'running'
+        || USK_ProtocolManager::is_install_job_running($key)
+    );
     $portFields = $meta['port_fields'] ?? array();
 ?>
-    <div class="col-md-6 col-lg-4">
+    <div class="col-md-6 col-lg-4"<?= $installing ? ' data-install-running="1"' : '' ?>>
         <div class="usk-card h-100">
             <div class="usk-card-header">
                 <i class="fa-solid <?= $meta['icon'] ?>"></i> <?= usk_esc($meta['name']) ?>
@@ -88,6 +106,9 @@ $protocols = USK_ProtocolManager::list();
                 <p class="mb-3">
                     <?php if ($installed) : ?>
                         <span class="badge badge-success"><i class="fa-solid fa-check"></i> <?= __('protocol_active') ?></span>
+                    <?php elseif ($installing) : ?>
+                        <span class="badge badge-warning"><i class="fa-solid fa-spinner fa-spin"></i> <?= __('protocol_installing') ?></span>
+                        <p class="text-muted small mt-2 mb-0"><?= __('protocol_installing_hint') ?></p>
                     <?php else : ?>
                         <span class="badge badge-danger"><?= __('protocol_not_installed') ?></span>
                     <?php endif; ?>
@@ -101,13 +122,17 @@ $protocols = USK_ProtocolManager::list();
                     <div class="form-group mb-2">
                         <label class="small mb-1"><?= usk_esc($field['label']) ?></label>
                         <input type="number" class="form-control form-control-sm" name="port_<?= usk_esc($fkey) ?>"
-                               min="1" max="65535" value="<?= $fval ?>" required>
+                               min="1" max="65535" value="<?= $fval ?>" required<?= $installing ? ' disabled' : '' ?>>
                     </div>
                     <?php endforeach; ?>
                     <?php if ($key === 'wireguard') : ?>
                     <p class="text-muted small mb-2"><?= __('protocol_wg_tcp_port_hint') ?></p>
                     <?php endif; ?>
-                    <?php if (!$installed) : ?>
+                    <?php if ($installing) : ?>
+                    <button type="button" class="btn btn-outline-secondary btn-sm w-100 mt-2" disabled>
+                        <i class="fa-solid fa-spinner fa-spin"></i> <?= __('protocol_installing') ?>
+                    </button>
+                    <?php elseif (!$installed) : ?>
                     <button type="submit" class="btn btn-usk-primary btn-sm w-100 mt-2" onclick="return confirm('<?= __('protocol_install_confirm') ?>')">
                         <i class="fa-solid fa-download"></i> <?= __('protocol_install') ?>
                     </button>
@@ -155,7 +180,15 @@ www-data ALL=(root) NOPASSWD: /bin/bash <?= usk_esc(USK_ROOT) ?>/bin/remove-user
     <div class="p-3 text-muted small">
         <p><?= __('protocol_sudo_note') ?></p>
         <pre class="usk-code p-2" style="white-space:pre-wrap;direction:ltr;text-align:left">www-data ALL=(root) NOPASSWD: /bin/bash <?= usk_esc(USK_ROOT) ?>/bin/install-*.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash <?= usk_esc(USK_ROOT) ?>/bin/run-protocol-install.sh *
 www-data ALL=(root) NOPASSWD: /bin/bash <?= usk_esc(USK_ROOT) ?>/bin/probe-protocol.sh *
 www-data ALL=(root) NOPASSWD: /bin/bash <?= usk_esc(USK_ROOT) ?>/bin/add-user-*.sh *</pre>
     </div>
 </div>
+<?php if ($anyInstallRunning) : ?>
+<script>
+(function () {
+    setTimeout(function () { window.location.reload(); }, 15000);
+})();
+</script>
+<?php endif; ?>

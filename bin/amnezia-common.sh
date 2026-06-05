@@ -150,18 +150,49 @@ usk_amnezia_install_go_bootstrap() {
   [ -x "$go_bin" ]
 }
 
+usk_amnezia_go_cache_path() {
+  echo "${USK_DATA_ROOT:-/var/lib/unlimitsky}/cache/amneziawg-go-$(usk_amnezia_detect_arch)"
+}
+
+usk_amnezia_install_go_cache() {
+  local go_bin="/usr/local/bin/amneziawg-go"
+  local cache
+  cache=$(usk_amnezia_go_cache_path)
+  [ -x "$cache" ] || return 1
+  install -m 755 "$cache" "$go_bin"
+  [ -x "$go_bin" ]
+}
+
+usk_amnezia_save_go_cache() {
+  local go_bin="/usr/local/bin/amneziawg-go"
+  local cache
+  cache=$(usk_amnezia_go_cache_path)
+  [ -x "$go_bin" ] || return 0
+  mkdir -p "$(dirname "$cache")"
+  cp "$go_bin" "$cache" 2>/dev/null && chmod 755 "$cache"
+}
+
 usk_amnezia_install_go_binary() {
   local go_bin="/usr/local/bin/amneziawg-go"
   [ -x "$go_bin" ] && return 0
   usk_amnezia_apt_optional ca-certificates curl wget tar git
 
+  if usk_amnezia_install_go_cache; then
+    return 0
+  fi
   if usk_amnezia_install_go_docker; then
+    usk_amnezia_save_go_cache
     return 0
   fi
   if usk_amnezia_install_go_goinstall; then
+    usk_amnezia_save_go_cache
     return 0
   fi
+  if [ "${USK_AMNEZIA_FAST:-0}" = "1" ] || [ "${USK_AMNEZIA_SKIP_BOOTSTRAP:-0}" = "1" ]; then
+    return 1
+  fi
   if usk_amnezia_install_go_bootstrap; then
+    usk_amnezia_save_go_cache
     return 0
   fi
   return 1
@@ -261,16 +292,16 @@ usk_amnezia_install_userspace() {
   usk_amnezia_apt_optional iptables iproute2 ca-certificates curl wget
   usk_amnezia_apt_optional qrencode unzip
 
-  if ! usk_amnezia_install_go_binary; then
-    echo "USK_ERR: amnezia_go_download_failed" >&2
-    return 1
-  fi
   if ! usk_amnezia_install_tools_zip; then
     echo "USK_WARN: amnezia_tools_zip_failed" >&2
     if ! usk_amnezia_install_tools_build; then
       echo "USK_ERR: amnezia_tools_install_failed" >&2
       return 1
     fi
+  fi
+  if ! usk_amnezia_install_go_binary; then
+    echo "USK_ERR: amnezia_go_download_failed" >&2
+    return 1
   fi
   usk_amnezia_setup_userspace_systemd
   command -v awg >/dev/null 2>&1 && command -v awg-quick >/dev/null 2>&1
