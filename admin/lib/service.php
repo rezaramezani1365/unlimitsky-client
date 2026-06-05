@@ -28,10 +28,12 @@ class USK_Service
             'ok' => true,
             'subscription' => $sub,
             'links' => $links,
+            'config' => $created['config'] ?? $links,
             'username' => $username,
             'protocol' => $protocol,
             'qr_png' => $created['qr_png'] ?? '',
             'expires_at' => $created['expires_at'] ?? null,
+            'raw' => $created['raw'] ?? array(),
         );
     }
 

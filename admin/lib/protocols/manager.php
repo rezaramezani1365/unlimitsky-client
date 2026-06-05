@@ -18,7 +18,8 @@ class USK_ProtocolManager
                 'port' => 1194,
                 'icon' => 'fa-lock',
                 'port_fields' => array(
-                    array('key' => 'port', 'label' => 'Port (UDP)', 'default' => 1194),
+                    array('key' => 'udp_port', 'label' => 'UDP port', 'default' => 1194),
+                    array('key' => 'tcp_port', 'label' => 'TCP port', 'default' => 443),
                 ),
             ),
             'cisco' => array(
@@ -128,6 +129,8 @@ class USK_ProtocolManager
         switch ($proto) {
             case 'xray':
                 return escapeshellarg($ports['vless_port'] ?? 2053) . ' ' . escapeshellarg($ports['vmess_port'] ?? 8443);
+            case 'openvpn':
+                return escapeshellarg($ports['udp_port'] ?? 1194) . ' ' . escapeshellarg($ports['tcp_port'] ?? 443);
             case 'l2tp':
                 return '';
             default:
@@ -176,6 +179,11 @@ class USK_ProtocolManager
         } elseif ($proto === 'cisco' && preg_match('/USK_META:port=(\d+)/', $out, $m)) {
             $status['port'] = (int) $m[1];
             $status['firewall_note'] = 'Open TCP/UDP ' . $m[1] . ' in your VPS cloud firewall (security group).';
+        } elseif ($proto === 'openvpn' && preg_match('/USK_META:udp_port=(\d+);tcp_port=(\d+)/', $out, $m)) {
+            $status['udp_port'] = (int) $m[1];
+            $status['tcp_port'] = (int) $m[2];
+            $status['port'] = (int) $m[1];
+            $status['firewall_note'] = 'Open UDP ' . $m[1] . ' and TCP ' . $m[2] . ' in your VPS cloud firewall.';
         } elseif (isset($status['port'])) {
             $p = (int) $status['port'];
             $protoLabel = $proto === 'wireguard' ? 'UDP' : ($proto === 'openvpn' ? 'UDP' : 'TCP');

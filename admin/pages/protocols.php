@@ -41,6 +41,11 @@ $protocols = USK_ProtocolManager::list();
                         VLESS: <code class="usk-code"><?= (int) $st['vless_port'] ?></code>
                         · VMess: <code class="usk-code"><?= (int) ($st['vmess_port'] ?? 8443) ?></code>
                     </p>
+                    <?php elseif ($key === 'openvpn' && (!empty($st['udp_port']) || !empty($st['tcp_port']))) : ?>
+                    <p class="text-muted small mb-2">
+                        UDP: <code class="usk-code"><?= (int) ($st['udp_port'] ?? 1194) ?></code>
+                        · TCP: <code class="usk-code"><?= (int) ($st['tcp_port'] ?? 443) ?></code>
+                    </p>
                     <?php elseif (!empty($st['port'])) : ?>
                     <p class="text-muted small mb-2"><?= __('protocol_active_port') ?>: <code class="usk-code"><?= (int) $st['port'] ?></code></p>
                     <?php endif; ?>

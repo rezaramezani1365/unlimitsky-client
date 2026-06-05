@@ -21,7 +21,11 @@ class USK_Order_Display
         echo '<li><strong>' . esc_html__('Volume', 'unlimitsky-wc') . ':</strong> ' . esc_html($service['volume_gb']) . ' GB</li>';
         echo '<li><strong>' . esc_html__('Duration', 'unlimitsky-wc') . ':</strong> ' . esc_html($service['duration_days']) . ' ' . esc_html__('days', 'unlimitsky-wc') . '</li>';
         if ($protocol !== '') {
-            echo '<li><strong>' . esc_html__('Protocol', 'unlimitsky-wc') . ':</strong> ' . esc_html(strtoupper($protocol)) . '</li>';
+            $protoLabel = strtoupper($protocol);
+            if ($protocol === 'openvpn' && !empty($service['openvpn_proto'])) {
+                $protoLabel .= ' (' . strtoupper($service['openvpn_proto']) . ')';
+            }
+            echo '<li><strong>' . esc_html__('Protocol', 'unlimitsky-wc') . ':</strong> ' . esc_html($protoLabel) . '</li>';
         }
         if ($expires !== '') {
             echo '<li><strong>' . esc_html__('Expires', 'unlimitsky-wc') . ':</strong> ' . esc_html(self::format_expires($expires)) . '</li>';
@@ -37,12 +41,28 @@ class USK_Order_Display
             echo '<p style="font-size:12px;color:#666;">' . esc_html__('Scan with the WireGuard app on your phone.', 'unlimitsky-wc') . '</p>';
         }
 
-        echo '<p><strong>' . esc_html__('Config / subscription', 'unlimitsky-wc') . ':</strong></p>';
-        self::render_config($service['subscription_url'] ?? '');
+        $downloadUrl = $service['download_url'] ?? '';
+        if ($downloadUrl === '' && $protocol === 'openvpn') {
+            $sub = $service['subscription_url'] ?? '';
+            if ($sub !== '' && filter_var($sub, FILTER_VALIDATE_URL) && strpos($sub, 'download-config.php') !== false) {
+                $downloadUrl = $sub;
+            }
+        }
 
-        if (!empty($service['config_links']) && ($service['config_links'] !== ($service['subscription_url'] ?? ''))) {
-            echo '<p style="margin-top:12px;"><strong>' . esc_html__('Additional links', 'unlimitsky-wc') . ':</strong></p>';
-            self::render_config($service['config_links']);
+        if ($downloadUrl !== '') {
+            $fname = $service['ovpn_filename'] ?? (($service['service_username'] ?? 'client') . '.ovpn');
+            echo '<p><strong>' . esc_html__('OpenVPN profile', 'unlimitsky-wc') . ':</strong></p>';
+            echo '<p><a class="button" href="' . esc_url($downloadUrl) . '" download="' . esc_attr($fname) . '">';
+            echo esc_html__('Download .ovpn file', 'unlimitsky-wc');
+            echo '</a></p>';
+        } else {
+            echo '<p><strong>' . esc_html__('Config / subscription', 'unlimitsky-wc') . ':</strong></p>';
+            self::render_config($service['subscription_url'] ?? '');
+
+            if (!empty($service['config_links']) && ($service['config_links'] !== ($service['subscription_url'] ?? ''))) {
+                echo '<p style="margin-top:12px;"><strong>' . esc_html__('Additional links', 'unlimitsky-wc') . ':</strong></p>';
+                self::render_config($service['config_links']);
+            }
         }
 
         echo '</div>';
@@ -68,12 +88,21 @@ class USK_Order_Display
         $lines[] = __('Volume', 'unlimitsky-wc') . ': ' . $service['volume_gb'] . ' GB';
         $lines[] = __('Duration', 'unlimitsky-wc') . ': ' . $service['duration_days'] . ' ' . __('days', 'unlimitsky-wc');
         if (!empty($service['protocol'])) {
-            $lines[] = __('Protocol', 'unlimitsky-wc') . ': ' . strtoupper($service['protocol']);
+            $proto = strtoupper($service['protocol']);
+            if ($service['protocol'] === 'openvpn' && !empty($service['openvpn_proto'])) {
+                $proto .= ' (' . strtoupper($service['openvpn_proto']) . ')';
+            }
+            $lines[] = __('Protocol', 'unlimitsky-wc') . ': ' . $proto;
         }
         if (!empty($service['expires_at'])) {
             $lines[] = __('Expires', 'unlimitsky-wc') . ': ' . self::format_expires($service['expires_at']);
         }
-        $lines[] = __('Config', 'unlimitsky-wc') . ': ' . ($service['subscription_url'] ?? '');
+        $dl = $service['download_url'] ?? ($service['subscription_url'] ?? '');
+        if (!empty($service['protocol']) && $service['protocol'] === 'openvpn' && $dl !== '') {
+            $lines[] = __('Download .ovpn file', 'unlimitsky-wc') . ': ' . $dl;
+        } else {
+            $lines[] = __('Config', 'unlimitsky-wc') . ': ' . ($service['subscription_url'] ?? '');
+        }
         return implode("\n", $lines) . "\n\n";
     }
 

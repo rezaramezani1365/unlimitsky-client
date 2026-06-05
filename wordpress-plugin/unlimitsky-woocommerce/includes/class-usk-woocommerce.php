@@ -93,6 +93,18 @@ class USK_WooCommerce
             'description' => __('برای پنل UnlimitSky — اگر خالی باشد از پروتکل پیش‌فرض پنل استفاده می‌شود.', 'unlimitsky-wc'),
         ]);
 
+        woocommerce_wp_select([
+            'id'          => '_usk_openvpn_proto',
+            'label'       => __('OpenVPN: UDP یا TCP', 'unlimitsky-wc'),
+            'options'     => [
+                'udp' => 'UDP (' . __('پیشنهادی', 'unlimitsky-wc') . ')',
+                'tcp' => 'TCP',
+            ],
+            'wrapper_class' => 'usk-openvpn-proto-field',
+            'desc_tip'      => true,
+            'description'   => __('فقط برای محصولات OpenVPN — UDP سریع‌تر است؛ TCP برای شبکه‌های فیلترشده.', 'unlimitsky-wc'),
+        ]);
+
         echo '</div>';
 
         wc_enqueue_js("
@@ -103,8 +115,17 @@ class USK_WooCommerce
                     $('.unlimitsky-fields').hide();
                 }
             }
+            function UnlimitSkyToggleOpenvpnProto() {
+                if ($('#_usk_protocol').val() === 'openvpn') {
+                    $('.usk-openvpn-proto-field').show();
+                } else {
+                    $('.usk-openvpn-proto-field').hide();
+                }
+            }
             $('#_usk_is_vpn').change(UnlimitSkyToggleFields);
+            $('#_usk_protocol').change(UnlimitSkyToggleOpenvpnProto);
             UnlimitSkyToggleFields();
+            UnlimitSkyToggleOpenvpnProto();
         ");
     }
 
@@ -117,6 +138,8 @@ class USK_WooCommerce
         update_post_meta($post_id, '_usk_duration_days', absint($_POST['_usk_duration_days'] ?? 0));
         update_post_meta($post_id, '_usk_plan_code', preg_replace('/[^0-9]/', '', (string) ($_POST['_usk_plan_code'] ?? '')));
         update_post_meta($post_id, '_usk_protocol', sanitize_text_field($_POST['_usk_protocol'] ?? ''));
+        $ovpnProto = strtolower(sanitize_text_field($_POST['_usk_openvpn_proto'] ?? 'udp'));
+        update_post_meta($post_id, '_usk_openvpn_proto', in_array($ovpnProto, ['udp', 'tcp'], true) ? $ovpnProto : 'udp');
     }
 
     public function add_product_tab(array $tabs): array

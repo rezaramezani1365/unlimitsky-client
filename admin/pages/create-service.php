@@ -49,6 +49,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($protocol !== 'xray' && !empty($_POST['custom_port'])) {
                     $provisionMeta['port'] = (int) $_POST['custom_port'];
                 }
+                if ($protocol === 'openvpn') {
+                    $ovpnProto = strtolower((string) ($_POST['openvpn_proto'] ?? 'udp'));
+                    $provisionMeta['openvpn_proto'] = in_array($ovpnProto, array('udp', 'tcp'), true) ? $ovpnProto : 'udp';
+                }
                 $created = USK_Service::create_native($protocol, $volume_gb, $duration_days, $username, $provisionMeta);
 
                 if (!$created['ok']) {
@@ -65,11 +69,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if (empty($order['ok'])) {
                         usk_flash(__('create_order_save_failed') . ' (' . ($order['error'] ?? '') . ')', 'error');
                     } else {
+                        $raw = $created['raw'] ?? array();
+                        $downloadUrl = USK_ProtocolProvisioner::openvpn_download_url($order['code'], $raw);
+                        if ($downloadUrl !== '') {
+                            global $sql;
+                            $dl_esc = $sql->real_escape_string($downloadUrl);
+                            $code_esc = $sql->real_escape_string($order['code']);
+                            $sql->query("UPDATE `orders` SET `link`='$dl_esc' WHERE `code`='$code_esc'");
+                        }
                         $result = $created;
                         $result['code'] = $order['code'];
                         $result['protocol'] = $protocol;
                         $result['qr_png'] = $created['qr_png'] ?? '';
                         $result['expires_at'] = $created['expires_at'] ?? null;
+                        $result['download_url'] = $downloadUrl;
+                        $result['ovpn_filename'] = $raw['ovpn_filename'] ?? ($username . '.ovpn');
+                        $result['openvpn_proto'] = $raw['proto'] ?? ($provisionMeta['openvpn_proto'] ?? 'udp');
                         usk_flash(__('create_success'));
                     }
                 }
@@ -176,6 +191,14 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
                 <div id="create-port-fixed" style="display:none;">
                     <p class="text-muted small mb-0" id="create-port-fixed-text"></p>
                 </div>
+                <div id="create-openvpn-proto" style="display:none;">
+                    <label class="small mb-1"><?= __('create_openvpn_proto') ?></label>
+                    <select class="form-control" name="openvpn_proto" id="openvpn-proto-select">
+                        <option value="udp">UDP (<?= __('recommended') ?>)</option>
+                        <option value="tcp">TCP</option>
+                    </select>
+                    <p class="text-muted small mt-1 mb-0"><?= __('create_openvpn_proto_hint') ?></p>
+                </div>
             </div>
             <div class="form-group panel-field" style="display:none;">
                 <label><?= __('create_panel_select') ?></label>
@@ -202,19 +225,27 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         var single = document.getElementById('create-port-single');
         var xray = document.getElementById('create-port-xray');
         var fixed = document.getElementById('create-port-fixed');
+        var openvpnProto = document.getElementById('create-openvpn-proto');
         if (!wrap || !proto || !protocolPorts[proto]) {
             if (wrap) wrap.style.display = 'none';
+            if (openvpnProto) openvpnProto.style.display = 'none';
             return;
         }
         wrap.style.display = '';
         single.style.display = 'none';
         xray.style.display = 'none';
         fixed.style.display = 'none';
+        if (openvpnProto) openvpnProto.style.display = 'none';
         var cfg = protocolPorts[proto];
         if (proto === 'xray') {
             xray.style.display = '';
             document.getElementById('xray-ports-readonly').textContent =
                 'VLESS ' + (cfg.vless_port || 2053) + ' · VMess ' + (cfg.vmess_port || 8443);
+        } else if (proto === 'openvpn') {
+            if (openvpnProto) openvpnProto.style.display = '';
+            fixed.style.display = '';
+            document.getElementById('create-port-fixed-text').textContent =
+                'UDP ' + (cfg.udp_port || 1194) + ' · TCP ' + (cfg.tcp_port || 443);
         } else if (cfg.fixed_ports) {
             fixed.style.display = '';
             document.getElementById('create-port-fixed-text').textContent = cfg.fixed_ports;
@@ -259,7 +290,18 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         <p class="text-muted small"><?= __('wireguard_qr_hint') ?></p>
     <?php endif; ?>
     <?php if (!empty($result['protocol'])) : ?>
-        <p><strong><?= __('protocol') ?>:</strong> <?= usk_esc($result['protocol']) ?></p>
+        <p><strong><?= __('protocol') ?>:</strong> <?= usk_esc($result['protocol']) ?>
+        <?php if (!empty($result['openvpn_proto'])) : ?>
+            (<?= strtoupper(usk_esc($result['openvpn_proto'])) ?>)
+        <?php endif; ?>
+        </p>
+    <?php endif; ?>
+    <?php if (!empty($result['download_url'])) : ?>
+        <p class="mt-2">
+            <a class="btn btn-usk-primary" href="<?= usk_esc($result['download_url']) ?>" download="<?= usk_esc($result['ovpn_filename'] ?? 'client.ovpn') ?>">
+                <i class="fa-solid fa-download"></i> <?= __('download_ovpn') ?>
+            </a>
+        </p>
     <?php endif; ?>
     <p class="mt-2"><strong><?= __('config_label') ?>:</strong></p>
     <code class="d-block p-3" style="white-space:pre-wrap;direction:ltr;text-align:left;"><?= usk_esc($result['subscription']) ?></code>

@@ -151,8 +151,36 @@ function usk_service_status_badge($status)
         <?php endif; ?>
     <?php endif; ?>
 
+    <?php
+    $ovpnDownload = '';
+    $ovpnFilename = ($native_info['username'] ?? 'client') . '.ovpn';
+    if (($s['protocol'] ?? '') === 'openvpn') {
+        if (!empty($s['link']) && strpos($s['link'], 'download-config.php') !== false) {
+            $ovpnDownload = $s['link'];
+        } elseif (!empty($client['download_token'])) {
+            require_once dirname(__DIR__) . '/lib/config-download.php';
+            $ovpnDownload = usk_config_download_url($s['code'], $client['download_token']);
+        }
+        if (!empty($client['ovpn_filename'])) {
+            $ovpnFilename = $client['ovpn_filename'];
+        }
+    }
+    ?>
+
+    <?php if ($ovpnDownload !== '') : ?>
+        <p class="mt-3"><strong><?= __('config_label') ?>:</strong></p>
+        <p>
+            <a class="btn btn-usk-primary" href="<?= usk_esc($ovpnDownload) ?>" download="<?= usk_esc($ovpnFilename) ?>">
+                <i class="fa-solid fa-download"></i> <?= __('download_ovpn') ?>
+            </a>
+            <?php if (!empty($client['proto'])) : ?>
+                <span class="text-muted small ms-2"><?= strtoupper(usk_esc($client['proto'])) ?></span>
+            <?php endif; ?>
+        </p>
+    <?php else : ?>
     <p class="mt-3"><strong><?= __('config_label') ?>:</strong></p>
     <code style="display:block;padding:12px;white-space:pre-wrap;direction:ltr;text-align:left;"><?= usk_esc($s['link']) ?></code>
+    <?php endif; ?>
 
     <div class="mt-4 d-flex gap-2 flex-wrap">
         <a class="btn btn-outline" href="<?= usk_admin_url('services') ?>"><?= __('back') ?></a>

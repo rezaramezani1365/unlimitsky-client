@@ -1,16 +1,18 @@
 #!/bin/bash
-# Install OpenVPN on Ubuntu
+# Install OpenVPN (UDP + TCP) on Ubuntu
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$DIR/usk-common.sh"
+source "$DIR/openvpn-common.sh"
 
-PORT="${1:-1194}"
-PORT=$(echo "$PORT" | tr -dc '0-9')
-if [ -z "$PORT" ] || [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ] 2>/dev/null; then
-  PORT=1194
-fi
+UDP_PORT="${1:-1194}"
+TCP_PORT="${2:-443}"
+UDP_PORT=$(echo "$UDP_PORT" | tr -dc '0-9')
+TCP_PORT=$(echo "$TCP_PORT" | tr -dc '0-9')
+[ -n "$UDP_PORT" ] && [ "$UDP_PORT" -ge 1 ] && [ "$UDP_PORT" -le 65535 ] 2>/dev/null || UDP_PORT=1194
+[ -n "$TCP_PORT" ] && [ "$TCP_PORT" -ge 1 ] && [ "$TCP_PORT" -le 65535 ] 2>/dev/null || TCP_PORT=443
 
 apt-get update -qq
-apt-get install -y openvpn easy-rsa
+apt-get install -y openvpn easy-rsa iptables-persistent 2>/dev/null || apt-get install -y openvpn easy-rsa
 
 if [ ! -d /etc/openvpn/easy-rsa ]; then
   make-cadir /etc/openvpn/easy-rsa
@@ -24,29 +26,16 @@ if [ ! -f pki/ca.crt ]; then
   ./easyrsa gen-dh
 fi
 
-cat > /etc/openvpn/server.conf <<OVPN
-port ${PORT}
-proto udp
-dev tun
-ca /etc/openvpn/easy-rsa/pki/ca.crt
-cert /etc/openvpn/easy-rsa/pki/issued/server.crt
-key /etc/openvpn/easy-rsa/pki/private/server.key
-dh /etc/openvpn/easy-rsa/pki/dh.pem
-server 10.9.0.0 255.255.255.0
-push "redirect-gateway def1 bypass-dhcp"
-push "dhcp-option DNS 1.1.1.1"
-keepalive 10 120
-persist-key
-persist-tun
-user nobody
-group nogroup
-verb 3
-OVPN
+usk_openvpn_write_server "server-udp" "$UDP_PORT" "udp"
+usk_openvpn_write_server "server-tcp" "$TCP_PORT" "tcp"
 
-sysctl -w net.ipv4.ip_forward=1
-systemctl enable openvpn@server
-systemctl restart openvpn@server || systemctl start openvpn@server
+usk_openvpn_setup_nat
 
-ensure_ufw_port "$PORT" udp openvpn
-echo "USK_META:port=${PORT}"
+usk_openvpn_enable_service "server-udp" || usk_fail "openvpn_udp_failed"
+usk_openvpn_enable_service "server-tcp" || usk_fail "openvpn_tcp_failed"
+
+ensure_ufw_port "$UDP_PORT" udp openvpn-udp
+ensure_ufw_port "$TCP_PORT" tcp openvpn-tcp
+
+echo "USK_META:udp_port=${UDP_PORT};tcp_port=${TCP_PORT};port=${UDP_PORT}"
 usk_ok

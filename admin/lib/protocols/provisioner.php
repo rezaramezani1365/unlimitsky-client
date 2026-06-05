@@ -61,6 +61,13 @@ class USK_ProtocolProvisioner
         } elseif ($protocol !== 'xray' && !empty($st['port'])) {
             $envParts[] = 'USK_PORT=' . (int) $st['port'];
         }
+        if ($protocol === 'openvpn') {
+            $ovpnProto = strtolower((string) ($meta['openvpn_proto'] ?? 'udp'));
+            if (!in_array($ovpnProto, array('udp', 'tcp'), true)) {
+                $ovpnProto = 'udp';
+            }
+            $envParts[] = 'USK_OPENVPN_PROTO=' . $ovpnProto;
+        }
         $env = implode(' ', $envParts);
         if ($env !== '') {
             $env .= ' ';
@@ -141,7 +148,7 @@ class USK_ProtocolProvisioner
             $record['status'] = 'active';
         }
         if (!empty($record['meta']) && is_array($record['meta'])) {
-            foreach (array('public_key', 'client_ip', 'uuid', 'password', 'psk', 'config', 'qr_png', 'endpoint') as $k) {
+            foreach (array('public_key', 'client_ip', 'uuid', 'password', 'psk', 'config', 'qr_png', 'endpoint', 'download_token', 'ovpn_filename', 'proto', 'port') as $k) {
                 if (isset($record['meta'][$k]) && $record['meta'][$k] !== '') {
                     $record[$k] = $record['meta'][$k];
                 }
@@ -176,6 +183,26 @@ class USK_ProtocolProvisioner
         }
 
         return array('ok' => true, 'code' => $code, 'order_id' => $sql->insert_id);
+    }
+
+    public static function openvpn_download_url($order_code, array $raw)
+    {
+        if (empty($raw['download_token'])) {
+            return '';
+        }
+        require_once dirname(__DIR__) . '/config-download.php';
+        return usk_config_download_url($order_code, $raw['download_token']);
+    }
+
+    public static function finalize_order_link($protocol, array $raw, $order_code, $fallback_link)
+    {
+        if ($protocol === 'openvpn') {
+            $url = self::openvpn_download_url($order_code, $raw);
+            if ($url !== '') {
+                return $url;
+            }
+        }
+        return $fallback_link;
     }
 
     private static function load_protocol_clients($protocol)

@@ -91,6 +91,14 @@ if ($action === 'create-service') {
         usk_api_response(400, array('ok' => false, 'error' => 'invalid_username'));
     }
 
+    $ovpnProto = null;
+    if ($protocol === 'openvpn' && isset($body['openvpn_proto'])) {
+        $ovpnProto = strtolower((string) $body['openvpn_proto']);
+        if (!in_array($ovpnProto, array('udp', 'tcp'), true)) {
+            $ovpnProto = 'udp';
+        }
+    }
+
     $created = USK_ProtocolProvisioner::create($protocol, $username, $volume_gb, $duration_days, array(
         'source' => 'woocommerce',
         'wc_order_id' => $wc_order_id,
@@ -98,6 +106,7 @@ if ($action === 'create-service') {
         'port' => isset($body['port']) ? (int) $body['port'] : null,
         'vless_port' => isset($body['vless_port']) ? (int) $body['vless_port'] : null,
         'vmess_port' => isset($body['vmess_port']) ? (int) $body['vmess_port'] : null,
+        'openvpn_proto' => $ovpnProto,
     ));
 
     if (empty($created['ok'])) {
@@ -125,14 +134,26 @@ if ($action === 'create-service') {
         ));
     }
 
+    $raw = $created['raw'] ?? array();
+    $downloadUrl = USK_ProtocolProvisioner::openvpn_download_url($order['code'], $raw);
+    if ($downloadUrl !== '') {
+        global $sql;
+        $dl_esc = $sql->real_escape_string($downloadUrl);
+        $code_esc = $sql->real_escape_string($order['code']);
+        $sql->query("UPDATE `orders` SET `link`='$dl_esc' WHERE `code`='$code_esc'");
+    }
+
     usk_api_response(200, array(
         'ok' => true,
         'username' => $username,
         'protocol' => $protocol,
         'service_code' => $order['code'],
-        'subscription_url' => $created['subscription'],
+        'subscription_url' => $downloadUrl !== '' ? $downloadUrl : $created['subscription'],
         'config' => $created['config'],
         'config_links' => $created['links'],
+        'download_url' => $downloadUrl,
+        'ovpn_filename' => $raw['ovpn_filename'] ?? ($username . '.ovpn'),
+        'openvpn_proto' => $raw['proto'] ?? $ovpnProto,
         'volume_gb' => $volume_gb,
         'duration_days' => $duration_days,
         'qr_png' => $created['qr_png'] ?? '',

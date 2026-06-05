@@ -85,7 +85,7 @@ class USK_UnlimitSky_Panel
     /**
      * @return array{success:bool, subscription_url?:string, config_links?:string, username?:string, error?:string}
      */
-    public static function create_service(array $panel, int $volume_gb, int $duration_days, string $username, string $protocol = '', int $wc_order_id = 0, string $plan_code = ''): array
+    public static function create_service(array $panel, int $volume_gb, int $duration_days, string $username, string $protocol = '', int $wc_order_id = 0, string $plan_code = '', string $openvpn_proto = 'udp'): array
     {
         $api_key = $panel['token'] ?? '';
         if ($api_key === '') {
@@ -111,6 +111,10 @@ class USK_UnlimitSky_Panel
         if ($plan_code !== '') {
             $payload['plan_code'] = $plan_code;
         }
+        if ($protocol === 'openvpn') {
+            $openvpn_proto = strtolower($openvpn_proto);
+            $payload['openvpn_proto'] = in_array($openvpn_proto, ['udp', 'tcp'], true) ? $openvpn_proto : 'udp';
+        }
 
         $result = self::request($panel['login_link'], $api_key, 'create-service', $payload, 'POST');
         if (empty($result['ok'])) {
@@ -118,13 +122,17 @@ class USK_UnlimitSky_Panel
         }
 
         $data = $result['data'];
+        $downloadUrl = $data['download_url'] ?? '';
         $config = $data['config_links'] ?? ($data['config'] ?? '');
-        $sub    = $data['subscription_url'] ?? $config;
+        $sub    = $downloadUrl !== '' ? $downloadUrl : ($data['subscription_url'] ?? $config);
 
         return [
             'success'          => true,
             'subscription_url' => $sub,
             'config_links'     => $config,
+            'download_url'     => $downloadUrl,
+            'ovpn_filename'    => $data['ovpn_filename'] ?? ($username . '.ovpn'),
+            'openvpn_proto'    => $data['openvpn_proto'] ?? '',
             'username'         => $data['username'] ?? $username,
             'panel'            => $panel,
             'protocol'         => $data['protocol'] ?? $protocol,

@@ -103,6 +103,9 @@ class USK_Activator
         if (!in_array('expires_at', $cols, true)) {
             $wpdb->query("ALTER TABLE {$table} ADD expires_at datetime DEFAULT NULL");
         }
+        if (!in_array('openvpn_proto', $cols, true)) {
+            $wpdb->query("ALTER TABLE {$table} ADD openvpn_proto varchar(10) DEFAULT NULL");
+        }
     }
 
     public static function deactivate(): void
