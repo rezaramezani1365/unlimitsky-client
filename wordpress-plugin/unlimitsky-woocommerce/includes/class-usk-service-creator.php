@@ -7,10 +7,10 @@ class USK_Service_Creator
     /**
      * @return array{success:bool, subscription_url?:string, config_links?:string, username?:string, error?:string}
      */
-    public static function create(array $panel, int $volume_gb, int $duration_days, string $service_username, string $protocol = '', int $wc_order_id = 0, string $plan_code = '', string $openvpn_proto = 'tcp', string $wireguard_transport = 'tcp'): array
+    public static function create(array $panel, int $volume_gb, int $duration_days, string $service_username, string $protocol = '', int $wc_order_id = 0, string $plan_code = '', string $openvpn_proto = 'tcp', string $wireguard_transport = 'tcp', string $external_panel_code = ''): array
     {
         if ($panel['type'] === 'unlimitsky') {
-            return self::create_unlimitsky($panel, $volume_gb, $duration_days, $service_username, $protocol, $wc_order_id, $plan_code, $openvpn_proto, $wireguard_transport);
+            return self::create_unlimitsky($panel, $volume_gb, $duration_days, $service_username, $protocol, $wc_order_id, $plan_code, $openvpn_proto, $wireguard_transport, $external_panel_code);
         }
 
         $panel = USK_Panel_Manager::refresh_panel_token($panel);
@@ -26,9 +26,9 @@ class USK_Service_Creator
         return ['success' => false, 'error' => __('نوع پنل پشتیبانی نمی‌شود.', 'unlimitsky-wc')];
     }
 
-    private static function create_unlimitsky(array $panel, int $volume_gb, int $duration_days, string $username, string $protocol = '', int $wc_order_id = 0, string $plan_code = '', string $openvpn_proto = 'tcp', string $wireguard_transport = 'tcp'): array
+    private static function create_unlimitsky(array $panel, int $volume_gb, int $duration_days, string $username, string $protocol = '', int $wc_order_id = 0, string $plan_code = '', string $openvpn_proto = 'tcp', string $wireguard_transport = 'tcp', string $external_panel_code = ''): array
     {
-        return USK_UnlimitSky_Panel::create_service($panel, $volume_gb, $duration_days, $username, $protocol, $wc_order_id, $plan_code, $openvpn_proto, $wireguard_transport);
+        return USK_UnlimitSky_Panel::create_service($panel, $volume_gb, $duration_days, $username, $protocol, $wc_order_id, $plan_code, $openvpn_proto, $wireguard_transport, $external_panel_code);
     }
 
     private static function create_marzban(array $panel, int $volume_gb, int $duration_days, string $username): array
@@ -65,6 +65,7 @@ class USK_Service_Creator
             'config_links'      => USK_Marzban::extract_links($result),
             'username'          => $username,
             'panel'             => $panel,
+            'protocol'          => 'xray',
         ];
     }
 
@@ -98,6 +99,7 @@ class USK_Service_Creator
             'config_links'     => $links,
             'username'         => $username,
             'panel'            => $panel,
+            'protocol'         => 'xray',
         ];
     }
 

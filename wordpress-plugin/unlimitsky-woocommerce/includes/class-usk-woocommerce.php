@@ -42,15 +42,70 @@ class USK_WooCommerce
 
         $panels = USK_Panel_Manager::get_panels();
         $options = ['' => __('— انتخاب پنل —', 'unlimitsky-wc')];
+        $panel_types = [];
         foreach ($panels as $panel) {
             $options[$panel['id']] = $panel['name'] . ' (' . $panel['type'] . ')';
+            $panel_types[(int) $panel['id']] = $panel['type'];
         }
+
+        $external_panel_options = ['' => __('— انتخاب پنل Marzban/Sanaei —', 'unlimitsky-wc')];
+        foreach ($panels as $panel) {
+            if (($panel['type'] ?? '') !== 'unlimitsky' || empty($panel['token'])) {
+                continue;
+            }
+            $remote = USK_UnlimitSky_Panel::list_external_panels($panel['login_link'], $panel['token']);
+            foreach ($remote as $rp) {
+                $label = ($rp['name'] ?? '') . ' (' . ($rp['type'] ?? '') . ' — VLESS/VMess)';
+                $external_panel_options[(string) ($rp['code'] ?? '')] = $label;
+            }
+            if (!empty($remote)) {
+                break;
+            }
+        }
+
+        $current_provision = get_post_meta($post->ID, '_usk_provision_mode', true) ?: 'native';
+        $current_ext_panel = get_post_meta($post->ID, '_usk_external_panel_code', true) ?: '';
 
         woocommerce_wp_select([
             'id'      => '_usk_panel_id',
-            'label'   => __('پنل / سرور', 'unlimitsky-wc'),
+            'label'   => __('اتصال UnlimitSky / پنل', 'unlimitsky-wc'),
             'options' => $options,
+            'desc_tip'    => true,
+            'description' => __('برای پروتکل native: UnlimitSky. برای Marzban/Sanaei روی VPS: همان اتصال API + حالت «پنل خارجی».', 'unlimitsky-wc'),
         ]);
+
+        woocommerce_wp_select([
+            'id'          => '_usk_provision_mode',
+            'label'       => __('محل ساخت کانفیگ', 'unlimitsky-wc'),
+            'options'     => [
+                'native'   => __('پروتکل native روی VPS (WireGuard, OpenVPN, Xray, …)', 'unlimitsky-wc'),
+                'external' => __('پنل Marzban / Sanaei (VLESS/VMess — Xray)', 'unlimitsky-wc'),
+            ],
+            'value'       => $current_provision,
+            'wrapper_class' => 'usk-provision-mode-field',
+            'desc_tip'    => true,
+            'description' => __('پنل‌های Marzban/Sanaei باید در پنل UnlimitSky روی VPS (Pro) متصل شده باشند.', 'unlimitsky-wc'),
+        ]);
+
+        woocommerce_wp_select([
+            'id'          => '_usk_external_panel_code',
+            'label'       => __('پنل Marzban / Sanaei (روی VPS)', 'unlimitsky-wc'),
+            'options'     => $external_panel_options,
+            'value'       => $current_ext_panel,
+            'wrapper_class' => 'usk-external-panel-field',
+            'desc_tip'    => true,
+            'description' => __('لیست از پنل UnlimitSky روی VPS خوانده می‌شود. فقط VLESS/VMess (Xray).', 'unlimitsky-wc'),
+        ]);
+
+        if (count($external_panel_options) <= 1) {
+            echo '<p class="form-field usk-external-panel-field"><span class="description" style="color:#b32d2e;">';
+            echo esc_html__('پنل Marzban/Sanaei در UnlimitSky VPS یافت نشد — ابتدا در پنل کلاینت (Pro) پنل را متصل کنید.', 'unlimitsky-wc');
+            echo '</span></p>';
+        }
+
+        echo '<p class="form-field usk-xray-panel-note" style="display:none;"><span class="description">';
+        echo esc_html__('این محصول روی پنل Marzban/Sanaei مستقیم ساخته می‌شود — فقط VLESS/VMess (Xray).', 'unlimitsky-wc');
+        echo '</span></p>';
 
         woocommerce_wp_text_input([
             'id'                => '_usk_volume_gb',
@@ -81,17 +136,18 @@ class USK_WooCommerce
 
         woocommerce_wp_select([
             'id'      => '_usk_protocol',
-            'label'   => __('پروتکل (اختیاری)', 'unlimitsky-wc'),
+            'label'   => __('پروتکل native (اختیاری)', 'unlimitsky-wc'),
             'options' => [
                 ''          => __('— پیش‌فرض پنل —', 'unlimitsky-wc'),
                 'wireguard' => 'WireGuard',
                 'openvpn'   => 'OpenVPN',
-                'xray'      => 'Xray',
+                'xray'      => 'Xray (VLESS Reality)',
                 'l2tp'      => 'L2TP/IPsec',
                 'amnezia'   => 'Amnezia (AmneziaWG)',
             ],
+            'wrapper_class' => 'usk-native-protocol-field',
             'desc_tip'    => true,
-            'description' => __('برای پنل UnlimitSky — اگر خالی باشد از پروتکل پیش‌فرض پنل استفاده می‌شود.', 'unlimitsky-wc'),
+            'description' => __('فقط برای حالت «پروتکل native» — Marzban/Sanaei از VLESS/VMess پشتیبانی می‌کنند.', 'unlimitsky-wc'),
         ]);
 
         woocommerce_wp_select([
@@ -120,13 +176,30 @@ class USK_WooCommerce
 
         echo '</div>';
 
+        $panel_types_json = wp_json_encode($panel_types);
+
         wc_enqueue_js("
+            var uskPanelTypes = {$panel_types_json};
+            function uskPanelType() {
+                var id = $('#_usk_panel_id').val();
+                return uskPanelTypes[id] || '';
+            }
             function UnlimitSkyToggleFields() {
                 if ($('#_usk_is_vpn').is(':checked')) {
                     $('.unlimitsky-fields').show();
                 } else {
                     $('.unlimitsky-fields').hide();
                 }
+            }
+            function UnlimitSkyToggleProvision() {
+                var ptype = uskPanelType();
+                var mode = $('#_usk_provision_mode').val();
+                var isUnlimitSky = ptype === 'unlimitsky';
+                var isXrayPanel = ptype === 'marzban' || ptype === 'sanayi';
+                $('.usk-provision-mode-field').toggle(isUnlimitSky);
+                $('.usk-external-panel-field').toggle(isUnlimitSky && mode === 'external');
+                $('.usk-native-protocol-field, .usk-openvpn-proto-field, .usk-wireguard-transport-field').toggle(isUnlimitSky && mode === 'native');
+                $('.usk-xray-panel-note').toggle(isXrayPanel);
             }
             function UnlimitSkyToggleOpenvpnProto() {
                 if ($('#_usk_protocol').val() === 'openvpn') {
@@ -143,11 +216,15 @@ class USK_WooCommerce
                 }
             }
             $('#_usk_is_vpn').change(UnlimitSkyToggleFields);
+            $('#_usk_panel_id, #_usk_provision_mode').change(function(){
+                UnlimitSkyToggleProvision();
+            });
             $('#_usk_protocol').change(function(){
                 UnlimitSkyToggleOpenvpnProto();
                 UnlimitSkyToggleWireguardTransport();
             });
             UnlimitSkyToggleFields();
+            UnlimitSkyToggleProvision();
             UnlimitSkyToggleOpenvpnProto();
             UnlimitSkyToggleWireguardTransport();
         ");
@@ -158,6 +235,9 @@ class USK_WooCommerce
         $is_vpn = isset($_POST['_usk_is_vpn']) ? 'yes' : 'no';
         update_post_meta($post_id, '_usk_is_vpn', $is_vpn);
         update_post_meta($post_id, '_usk_panel_id', absint($_POST['_usk_panel_id'] ?? 0));
+        $provision_mode = sanitize_text_field($_POST['_usk_provision_mode'] ?? 'native');
+        update_post_meta($post_id, '_usk_provision_mode', in_array($provision_mode, ['native', 'external'], true) ? $provision_mode : 'native');
+        update_post_meta($post_id, '_usk_external_panel_code', preg_replace('/[^0-9]/', '', (string) ($_POST['_usk_external_panel_code'] ?? '')));
         update_post_meta($post_id, '_usk_volume_gb', absint($_POST['_usk_volume_gb'] ?? 0));
         update_post_meta($post_id, '_usk_duration_days', absint($_POST['_usk_duration_days'] ?? 0));
         update_post_meta($post_id, '_usk_plan_code', preg_replace('/[^0-9]/', '', (string) ($_POST['_usk_plan_code'] ?? '')));
@@ -183,7 +263,7 @@ class USK_WooCommerce
     {
         echo '<div id="USK_product_data" class="panel woocommerce_options_panel">';
         echo '<p class="form-field"><strong>' . esc_html__('راهنما:', 'unlimitsky-wc') . '</strong> ';
-        echo esc_html__('ابتدا پنل را از منوی UnlimitSky VPN اضافه کنید، سپس این محصول را به آن پنل متصل کنید.', 'unlimitsky-wc');
+        echo esc_html__('اتصال UnlimitSky (API) را از منوی پنل‌ها اضافه کنید. برای Marzban/Sanaei: در پنل VPS متصل کنید، سپس در محصول «پنل خارجی» را انتخاب کنید.', 'unlimitsky-wc');
         echo '</p></div>';
     }
 

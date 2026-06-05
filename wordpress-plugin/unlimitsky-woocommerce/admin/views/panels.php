@@ -26,7 +26,10 @@ $native_protocols = [
     <div class="usk-guide-box">
         <?php esc_html_e('برای راهنمای کامل فیلدها به منوی', 'unlimitsky-wc'); ?>
         <a href="<?php echo esc_url(admin_url('admin.php?page=unlimitsky-guides')); ?>"><strong><?php esc_html_e('راهنما', 'unlimitsky-wc'); ?></strong></a>
-        <?php esc_html_e('بروید. برای پروتکل native از نوع UnlimitSky استفاده کنید.', 'unlimitsky-wc'); ?>
+        <?php esc_html_e('بروید.', 'unlimitsky-wc'); ?>
+        <p class="description" style="margin:8px 0 0;">
+            <?php esc_html_e('پروتکل native: نوع UnlimitSky + API. Marzban/Sanaei: در پنل UnlimitSky روی VPS (Pro) متصل کنید؛ در محصول ووکامرس «پنل خارجی» را انتخاب کنید (VLESS/VMess).', 'unlimitsky-wc'); ?>
+        </p>
     </div>
 
     <?php if (!empty($_GET['saved'])) : ?>

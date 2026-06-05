@@ -1,5 +1,6 @@
 {
   "brand": "UnlimitedSky",
+  "footer_github": "Project source on GitHub",
   "panel": "Panel",
   "login_title": "Sign in",
   "login_sub": "Personal VPN management",

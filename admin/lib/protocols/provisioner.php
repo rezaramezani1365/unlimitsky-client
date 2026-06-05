@@ -210,6 +210,36 @@ class USK_ProtocolProvisioner
         return array('ok' => true, 'code' => $code, 'order_id' => $sql->insert_id);
     }
 
+    public static function save_external_panel_order(array $panel, $username, $volume_gb, $duration_days, $link, $wc_order_id = null)
+    {
+        global $sql;
+        $ptype = $panel['type'] ?? 'marzban';
+        if (!in_array($ptype, array('marzban', 'sanayi'), true)) {
+            return array('ok' => false, 'error' => 'invalid_panel_type');
+        }
+        $code = (string) rand(111111, 999999);
+        $from_id = $wc_order_id ? ('wc-' . (int) $wc_order_id) : ('native-' . $username);
+        $location = $sql->real_escape_string($panel['name'] ?? strtoupper($ptype));
+        $volume = $sql->real_escape_string((string) $volume_gb);
+        $date = $sql->real_escape_string((string) $duration_days);
+        $link_esc = $sql->real_escape_string($link);
+        $proto = $sql->real_escape_string('null');
+        $from_esc = $sql->real_escape_string($from_id);
+        $type_esc = $sql->real_escape_string($ptype);
+
+        $ok = $sql->query("INSERT INTO `orders` (`from_id`,`location`,`protocol`,`date`,`volume`,`link`,`price`,`code`,`status`,`type`) VALUES ('$from_esc','$location','$proto','$date','$volume','$link_esc','0','$code','active','$type_esc')");
+        if (!$ok) {
+            return array('ok' => false, 'error' => $sql->error ?: 'order_insert_failed', 'code' => $code);
+        }
+
+        $panel_code = $sql->real_escape_string($panel['code'] ?? '');
+        if ($panel_code !== '') {
+            $sql->query("UPDATE `panels` SET `count_create` = count_create + 1 WHERE `code`='$panel_code'");
+        }
+
+        return array('ok' => true, 'code' => $code, 'order_id' => $sql->insert_id);
+    }
+
     public static function openvpn_download_url($order_code, array $raw)
     {
         if (empty($raw['download_token'])) {

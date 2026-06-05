@@ -66,3 +66,14 @@ function usk_service_name($code, $suffix = 'web')
 {
     return base64_encode($code) . '_' . $suffix . '_' . time();
 }
+
+function usk_github_repo_url()
+{
+    return 'https://github.com/rezaramezani1365/unlimitsky-client';
+}
+
+function usk_panel_version()
+{
+    global $config;
+    return (string) ($config['version'] ?? '2.5');
+}

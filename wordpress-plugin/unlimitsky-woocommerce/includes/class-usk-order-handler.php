@@ -48,6 +48,8 @@ class USK_Order_Handler
             $volume_gb     = (int) $product->get_meta('_usk_volume_gb');
             $duration_days = (int) $product->get_meta('_usk_duration_days');
             $protocol      = sanitize_text_field($product->get_meta('_usk_protocol') ?: '');
+            $provision_mode = sanitize_text_field($product->get_meta('_usk_provision_mode') ?: 'native');
+            $external_panel_code = preg_replace('/[^0-9]/', '', (string) $product->get_meta('_usk_external_panel_code'));
             $openvpn_proto = sanitize_text_field($product->get_meta('_usk_openvpn_proto') ?: 'tcp');
             $wireguard_transport = sanitize_text_field($product->get_meta('_usk_wireguard_transport') ?: 'tcp');
             $plan_code     = preg_replace('/[^0-9]/', '', (string) $product->get_meta('_usk_plan_code'));
@@ -58,10 +60,20 @@ class USK_Order_Handler
                 continue;
             }
 
+            if ($panel['type'] === 'unlimitsky' && $provision_mode === 'external') {
+                if ($external_panel_code === '') {
+                    $errors[] = sprintf('%s: %s', $item->get_name(), usk_wc__('External panel (Marzban/Sanaei) not selected for this product.'));
+                    continue;
+                }
+            } elseif (in_array($panel['type'], ['marzban', 'sanayi'], true)) {
+                $protocol = 'xray';
+            }
+
             $code     = USK_generate_code();
             $username = USK_service_username($order_id, $item_id, $code);
 
-            $result = USK_Service_Creator::create($panel, $volume_gb, $duration_days, $username, $protocol, $order_id, $plan_code, $openvpn_proto, $wireguard_transport);
+            $extCode = ($panel['type'] === 'unlimitsky' && $provision_mode === 'external') ? $external_panel_code : '';
+            $result = USK_Service_Creator::create($panel, $volume_gb, $duration_days, $username, $protocol, $order_id, $plan_code, $openvpn_proto, $wireguard_transport, $extCode);
             $result = USK_Service_Creator::apply_dns_wrap($result);
 
             if (!$result['success']) {
@@ -74,8 +86,8 @@ class USK_Order_Handler
                 'wc_order_id'               => $order_id,
                 'wc_order_item_id'          => $item_id,
                 'user_id'                   => $order->get_user_id(),
-                'panel_name'                => $panel['name'],
-                'panel_type'                => $panel['type'],
+                'panel_name'                => ($result['panel']['name'] ?? $panel['name']),
+                'panel_type'                => ($result['panel']['type'] ?? $panel['type']),
                 'protocol'                  => $result['protocol'] ?? $protocol,
                 'volume_gb'                 => $volume_gb,
                 'duration_days'             => $duration_days,
@@ -85,7 +97,7 @@ class USK_Order_Handler
                 'connect_host'              => $result['connect_host'] ?? '',
                 'proxy_token'               => $result['proxy_token'] ?? '',
                 'service_username'          => $result['username'],
-                'service_code'              => $code,
+                'service_code'              => !empty($result['service_code']) ? $result['service_code'] : $code,
                 'price'                     => $item->get_total(),
                 'openvpn_proto'             => $result['openvpn_proto'] ?? ($protocol === 'openvpn' ? $openvpn_proto : ''),
                 'wireguard_transport'       => $result['wireguard_transport'] ?? ($protocol === 'wireguard' ? $wireguard_transport : ''),

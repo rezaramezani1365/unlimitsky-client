@@ -83,13 +83,64 @@ class USK_UnlimitSky_Panel
     }
 
     /**
+     * @return array<int, array{code:string,name:string,type:string,protocols?:string,protocol_label?:string}>
+     */
+    public static function list_external_panels(string $api_url, string $api_key): array
+    {
+        $result = self::request($api_url, $api_key, 'panels');
+        if (empty($result['ok'])) {
+            return [];
+        }
+        $panels = $result['data']['panels'] ?? [];
+        return is_array($panels) ? $panels : [];
+    }
+
+    /**
      * @return array{success:bool, subscription_url?:string, config_links?:string, username?:string, error?:string}
      */
-    public static function create_service(array $panel, int $volume_gb, int $duration_days, string $username, string $protocol = '', int $wc_order_id = 0, string $plan_code = '', string $openvpn_proto = 'tcp', string $wireguard_transport = 'tcp'): array
+    public static function create_service(array $panel, int $volume_gb, int $duration_days, string $username, string $protocol = '', int $wc_order_id = 0, string $plan_code = '', string $openvpn_proto = 'tcp', string $wireguard_transport = 'tcp', string $external_panel_code = ''): array
     {
         $api_key = $panel['token'] ?? '';
         if ($api_key === '') {
             return ['success' => false, 'error' => __('کلید API پنل UnlimitSky تنظیم نشده.', 'unlimitsky-wc')];
+        }
+
+        $external_panel_code = preg_replace('/[^0-9]/', '', $external_panel_code);
+
+        if ($external_panel_code !== '') {
+            $payload = [
+                'panel_code'    => $external_panel_code,
+                'volume_gb'     => $volume_gb,
+                'duration_days' => $duration_days,
+                'username'      => $username,
+                'wc_order_id'   => $wc_order_id,
+            ];
+            if ($plan_code !== '') {
+                $payload['plan_code'] = $plan_code;
+            }
+
+            $result = self::request($panel['login_link'], $api_key, 'create-service', $payload, 'POST');
+            if (empty($result['ok'])) {
+                return ['success' => false, 'error' => $result['error'] ?? __('خطا در ساخت سرویس روی پنل خارجی', 'unlimitsky-wc')];
+            }
+
+            $data = $result['data'];
+            $config = $data['config_links'] ?? ($data['config'] ?? '');
+            $sub = $data['subscription_url'] ?? $config;
+
+            return [
+                'success'          => true,
+                'subscription_url' => $sub,
+                'config_links'     => $config,
+                'username'         => $data['username'] ?? $username,
+                'panel'            => array_merge($panel, [
+                    'type' => $data['panel_type'] ?? 'marzban',
+                    'name' => $data['panel_name'] ?? $panel['name'],
+                ]),
+                'protocol'         => $data['protocol'] ?? 'xray',
+                'panel_code'       => $data['panel_code'] ?? $external_panel_code,
+                'service_code'     => $data['service_code'] ?? '',
+            ];
         }
 
         $protocol = $protocol !== '' ? $protocol : trim(str_replace('|', '', $panel['protocols'] ?? 'wireguard'));

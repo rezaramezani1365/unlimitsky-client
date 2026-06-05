@@ -58,6 +58,7 @@ class USK_WC_I18n
             'Config' => 'کانفیگ',
             'You have not purchased any VPN service yet.' => 'هنوز سرویسی خریداری نکرده‌اید.',
             'Panel for product "%s" not found.' => 'پنل محصول «%s» یافت نشد.',
+            'External panel (Marzban/Sanaei) not selected for this product.' => 'پنل Marzban/Sanaei برای این محصول انتخاب نشده است.',
             'Unknown error' => 'خطای نامشخص',
             'UnlimitSky requires WooCommerce to be installed and active.' => 'UnlimitSky نیاز به نصب و فعال‌سازی ووکامرس دارد.',
             'Volume / duration' => 'حجم / مدت',

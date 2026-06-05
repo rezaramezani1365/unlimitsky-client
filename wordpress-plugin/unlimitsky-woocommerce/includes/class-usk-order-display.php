@@ -21,11 +21,13 @@ class USK_Order_Display
         echo '<li><strong>' . esc_html__('Volume', 'unlimitsky-wc') . ':</strong> ' . esc_html($service['volume_gb']) . ' GB</li>';
         echo '<li><strong>' . esc_html__('Duration', 'unlimitsky-wc') . ':</strong> ' . esc_html($service['duration_days']) . ' ' . esc_html__('days', 'unlimitsky-wc') . '</li>';
         if ($protocol !== '') {
-            $protoLabel = strtoupper($protocol);
+            $protoLabel = $protocol === 'xray' ? 'VLESS/VMess (Xray)' : strtoupper($protocol);
             if ($protocol === 'openvpn' && !empty($service['openvpn_proto'])) {
                 $protoLabel .= ' (' . strtoupper($service['openvpn_proto']) . ')';
             }
             echo '<li><strong>' . esc_html__('Protocol', 'unlimitsky-wc') . ':</strong> ' . esc_html($protoLabel) . '</li>';
+        } elseif (in_array($service['panel_type'] ?? '', ['marzban', 'sanayi'], true)) {
+            echo '<li><strong>' . esc_html__('Protocol', 'unlimitsky-wc') . ':</strong> VLESS/VMess (Xray)</li>';
         }
         if ($expires !== '') {
             echo '<li><strong>' . esc_html__('Expires', 'unlimitsky-wc') . ':</strong> ' . esc_html(self::format_expires($expires)) . '</li>';

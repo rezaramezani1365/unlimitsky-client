@@ -99,7 +99,7 @@ $lang = usk_lang();
 
 
 
-        <main class="col-lg-10 px-3 px-lg-4 py-3">
+        <main class="col-lg-10 px-3 px-lg-4 py-3 d-flex flex-column min-vh-100">
 
             <div class="usk-topbar d-flex flex-wrap align-items-center justify-content-between gap-2">
 
@@ -149,7 +149,11 @@ $lang = usk_lang();
 
 
 
+            <div class="usk-main-content flex-grow-1">
             <?= $content ?>
+            </div>
+
+            <?php require __DIR__ . '/footer.php'; ?>
 
         </main>
 

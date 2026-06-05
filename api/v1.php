@@ -57,6 +57,28 @@ if ($action === 'protocols') {
     usk_api_response(200, array('ok' => true, 'protocols' => $list));
 }
 
+if ($action === 'panels') {
+    if (!USK_License::can_use_external_panels()) {
+        usk_api_response(403, array('ok' => false, 'error' => 'panels_pro_required'));
+    }
+    global $sql;
+    $panels = array();
+    $res = $sql->query("SELECT `code`,`name`,`type`,`protocols`,`status`,`count_create` FROM `panels` WHERE `status`='active' AND `type` IN ('marzban','sanayi') ORDER BY `name` ASC");
+    if ($res) {
+        while ($row = $res->fetch_assoc()) {
+            $panels[] = array(
+                'code' => $row['code'],
+                'name' => $row['name'],
+                'type' => $row['type'],
+                'protocols' => $row['protocols'],
+                'protocol_label' => 'VLESS/VMess (Xray)',
+                'count_create' => (int) $row['count_create'],
+            );
+        }
+    }
+    usk_api_response(200, array('ok' => true, 'panels' => $panels));
+}
+
 if ($action === 'create-service') {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         usk_api_response(405, array('ok' => false, 'error' => 'method_not_allowed'));
@@ -68,6 +90,7 @@ if ($action === 'create-service') {
     }
 
     $protocol = USK_ProtocolManager::sanitize_key($body['protocol'] ?? '');
+    $panel_code = preg_replace('/[^0-9]/', '', (string) ($body['panel_code'] ?? ''));
     $volume_gb = (int) ($body['volume_gb'] ?? 0);
     $duration_days = (int) ($body['duration_days'] ?? 0);
     $wc_order_id = isset($body['wc_order_id']) ? (int) $body['wc_order_id'] : null;
@@ -76,6 +99,73 @@ if ($action === 'create-service') {
 
     if ($plan_code !== '' && !USK_License::plan_is_usable($plan_code)) {
         usk_api_response(403, array('ok' => false, 'error' => 'plan_inactive_or_missing'));
+    }
+
+    if ($panel_code !== '') {
+        if (!USK_License::can_use_external_panels()) {
+            usk_api_response(403, array('ok' => false, 'error' => 'panels_pro_required'));
+        }
+        if ($volume_gb < 1 || $duration_days < 1) {
+            usk_api_response(400, array('ok' => false, 'error' => 'volume_duration_required'));
+        }
+
+        global $sql;
+        $code_esc = $sql->real_escape_string($panel_code);
+        $panel = $sql->query("SELECT * FROM `panels` WHERE `code`='$code_esc' AND `status`='active' LIMIT 1")->fetch_assoc();
+        if (!$panel || !in_array($panel['type'], array('marzban', 'sanayi'), true)) {
+            usk_api_response(400, array('ok' => false, 'error' => 'invalid_panel'));
+        }
+
+        require_once dirname(__DIR__) . '/admin/lib/service.php';
+
+        $order_code = (string) rand(111111, 999999);
+        $suffix = $wc_order_id ? ('wc' . $wc_order_id) : 'api';
+        $username = !empty($body['username'])
+            ? preg_replace('/[^a-zA-Z0-9_-]/', '', $body['username'])
+            : base64_encode($order_code) . '_' . $suffix . '_' . time();
+        if ($username === '') {
+            usk_api_response(400, array('ok' => false, 'error' => 'invalid_username'));
+        }
+
+        $created = USK_Service::create_on_panel($panel, $volume_gb, $duration_days, $username);
+        if (empty($created['ok'])) {
+            usk_api_response(500, array(
+                'ok' => false,
+                'error' => $created['error'] ?? 'panel_create_failed',
+            ));
+        }
+
+        $link = $created['links'] ?: ($created['subscription'] ?? '');
+        $order = USK_ProtocolProvisioner::save_external_panel_order(
+            $panel,
+            $username,
+            $volume_gb,
+            $duration_days,
+            $link,
+            $wc_order_id
+        );
+        if (empty($order['ok'])) {
+            usk_api_response(500, array(
+                'ok' => false,
+                'error' => $order['error'] ?? 'order_save_failed',
+                'provisioned' => true,
+            ));
+        }
+
+        usk_api_response(200, array(
+            'ok' => true,
+            'username' => $username,
+            'protocol' => 'xray',
+            'panel_type' => $panel['type'],
+            'panel_name' => $panel['name'],
+            'panel_code' => $panel['code'],
+            'service_code' => $order['code'],
+            'subscription_url' => $created['subscription'] ?? $link,
+            'config' => $created['config'] ?? '',
+            'config_links' => $created['links'] ?? $link,
+            'volume_gb' => $volume_gb,
+            'duration_days' => $duration_days,
+        ));
     }
 
     if ($protocol === '') {

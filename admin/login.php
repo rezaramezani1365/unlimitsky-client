@@ -85,6 +85,7 @@ $dir = usk_dir();
             <button type="button" class="btn btn-sm btn-outline-usk" id="theme-toggle"><i class="fa-solid fa-moon" id="theme-icon"></i></button>
         </div>
     </div>
+    <?php require __DIR__ . '/includes/footer.php'; ?>
     <?php usk_enqueue_foot(); ?>
 </body>
 </html>
