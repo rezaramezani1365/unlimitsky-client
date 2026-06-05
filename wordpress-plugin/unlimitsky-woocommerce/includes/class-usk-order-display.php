@@ -36,9 +36,25 @@ class USK_Order_Display
         echo '</ul>';
 
         if ($qr !== '') {
-            echo '<p><strong>' . esc_html__('WireGuard QR code', 'unlimitsky-wc') . ':</strong></p>';
-            echo '<p style="text-align:center;"><img src="data:image/png;base64,' . esc_attr($qr) . '" alt="WireGuard QR" style="max-width:220px;height:auto;border:1px solid #eee;padding:8px;background:#fff;" /></p>';
-            echo '<p style="font-size:12px;color:#666;">' . esc_html__('Scan with the WireGuard app on your phone.', 'unlimitsky-wc') . '</p>';
+            $qrLabel = ($protocol === 'amnezia')
+                ? esc_html__('Amnezia app QR code', 'unlimitsky-wc')
+                : esc_html__('WireGuard QR code', 'unlimitsky-wc');
+            $qrHint = ($protocol === 'amnezia')
+                ? esc_html__('Scan with the Amnezia VPN app.', 'unlimitsky-wc')
+                : esc_html__('Scan with the WireGuard app on your phone.', 'unlimitsky-wc');
+            echo '<p><strong>' . esc_html($qrLabel) . ':</strong></p>';
+            echo '<p style="text-align:center;"><img src="data:image/png;base64,' . esc_attr($qr) . '" alt="VPN QR" style="max-width:220px;height:auto;border:1px solid #eee;padding:8px;background:#fff;" /></p>';
+            echo '<p style="font-size:12px;color:#666;">' . esc_html($qrHint) . '</p>';
+        }
+        $qrConf = $service['qr_conf_png'] ?? '';
+        if ($protocol === 'amnezia' && $qrConf !== '') {
+            echo '<p><strong>' . esc_html__('.conf QR (AmneziaWG)', 'unlimitsky-wc') . ':</strong></p>';
+            echo '<p style="text-align:center;"><img src="data:image/png;base64,' . esc_attr($qrConf) . '" alt="AmneziaWG QR" style="max-width:220px;height:auto;border:1px solid #eee;padding:8px;background:#fff;" /></p>';
+        }
+        $vpnUri = trim((string) ($service['vpn_uri'] ?? ''));
+        if ($protocol === 'amnezia' && $vpnUri !== '') {
+            echo '<p><strong>' . esc_html__('Amnezia import link (vpn://)', 'unlimitsky-wc') . ':</strong></p>';
+            echo '<code style="display:block;word-break:break-all;padding:10px;background:#f7f7f7;">' . esc_html($vpnUri) . '</code>';
         }
 
         $downloadUrl = $service['download_url'] ?? '';

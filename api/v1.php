@@ -176,6 +176,9 @@ if ($action === 'create-service') {
         'volume_gb' => $volume_gb,
         'duration_days' => $duration_days,
         'qr_png' => $created['qr_png'] ?? '',
+        'qr_conf_png' => $created['qr_conf_png'] ?? '',
+        'vpn_uri' => $created['vpn_uri'] ?? '',
+        'wg_conf' => $created['wg_conf'] ?? '',
         'expires_at' => $created['expires_at'] ?? null,
     ));
 }

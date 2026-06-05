@@ -90,6 +90,8 @@ class USK_Order_Handler
                 'openvpn_proto'             => $result['openvpn_proto'] ?? ($protocol === 'openvpn' ? $openvpn_proto : ''),
                 'wireguard_transport'       => $result['wireguard_transport'] ?? ($protocol === 'wireguard' ? $wireguard_transport : ''),
                 'qr_png'                    => $result['qr_png'] ?? '',
+                'qr_conf_png'               => $result['qr_conf_png'] ?? '',
+                'vpn_uri'                   => $result['vpn_uri'] ?? '',
                 'expires_at'                => $result['expires_at'] ?? null,
             ]);
 

@@ -143,6 +143,9 @@ class USK_UnlimitSky_Panel
             'panel'            => $panel,
             'protocol'         => $data['protocol'] ?? $protocol,
             'qr_png'           => $data['qr_png'] ?? '',
+            'qr_conf_png'      => $data['qr_conf_png'] ?? '',
+            'vpn_uri'          => $data['vpn_uri'] ?? '',
+            'wg_conf'          => $data['wg_conf'] ?? '',
             'expires_at'       => $data['expires_at'] ?? null,
         ];
     }

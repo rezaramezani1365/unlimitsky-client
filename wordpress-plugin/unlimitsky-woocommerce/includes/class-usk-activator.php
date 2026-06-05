@@ -106,6 +106,12 @@ class USK_Activator
         if (!in_array('openvpn_proto', $cols, true)) {
             $wpdb->query("ALTER TABLE {$table} ADD openvpn_proto varchar(10) DEFAULT NULL");
         }
+        if (!in_array('vpn_uri', $cols, true)) {
+            $wpdb->query("ALTER TABLE {$table} ADD vpn_uri longtext DEFAULT NULL");
+        }
+        if (!in_array('qr_conf_png', $cols, true)) {
+            $wpdb->query("ALTER TABLE {$table} ADD qr_conf_png longtext DEFAULT NULL");
+        }
     }
 
     public static function deactivate(): void

@@ -87,6 +87,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $result['code'] = $order['code'];
                         $result['protocol'] = $protocol;
                         $result['qr_png'] = $created['qr_png'] ?? '';
+                        $result['qr_conf_png'] = $created['qr_conf_png'] ?? '';
+                        $result['vpn_uri'] = $created['vpn_uri'] ?? '';
+                        $result['wg_conf'] = $created['wg_conf'] ?? '';
                         $result['expires_at'] = $created['expires_at'] ?? null;
                         $result['download_url'] = $downloadUrl;
                         $result['ovpn_filename'] = $raw['ovpn_filename'] ?? ($username . '.ovpn');
@@ -329,9 +332,25 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         <p><strong><?= __('expires_at') ?>:</strong> <?= usk_esc($result['expires_at']) ?></p>
     <?php endif; ?>
     <?php if (!empty($result['qr_png'])) : ?>
-        <p class="mt-2"><strong><?= ($result['protocol'] ?? '') === 'amnezia' ? __('amnezia_qr') : __('wireguard_qr') ?>:</strong></p>
+        <?php if (($result['protocol'] ?? '') === 'amnezia') : ?>
+        <p class="mt-2"><strong><?= __('amnezia_qr') ?>:</strong></p>
+        <p><img src="data:image/png;base64,<?= usk_esc($result['qr_png']) ?>" alt="Amnezia QR" style="max-width:220px;border:1px solid #333;padding:8px;background:#fff;" /></p>
+        <p class="text-muted small"><?= __('amnezia_qr_hint') ?></p>
+        <?php if (!empty($result['qr_conf_png'])) : ?>
+        <p class="mt-2"><strong><?= __('amnezia_qr_conf') ?>:</strong></p>
+        <p><img src="data:image/png;base64,<?= usk_esc($result['qr_conf_png']) ?>" alt="AmneziaWG QR" style="max-width:220px;border:1px solid #333;padding:8px;background:#fff;" /></p>
+        <p class="text-muted small"><?= __('amnezia_qr_conf_hint') ?></p>
+        <?php endif; ?>
+        <?php else : ?>
+        <p class="mt-2"><strong><?= __('wireguard_qr') ?>:</strong></p>
         <p><img src="data:image/png;base64,<?= usk_esc($result['qr_png']) ?>" alt="QR" style="max-width:220px;border:1px solid #333;padding:8px;background:#fff;" /></p>
-        <p class="text-muted small"><?= ($result['protocol'] ?? '') === 'amnezia' ? __('amnezia_qr_hint') : __('wireguard_qr_hint') ?></p>
+        <p class="text-muted small"><?= __('wireguard_qr_hint') ?></p>
+        <?php endif; ?>
+    <?php endif; ?>
+    <?php if (!empty($result['vpn_uri'])) : ?>
+        <p class="mt-2"><strong><?= __('amnezia_import_link') ?>:</strong></p>
+        <code class="d-block p-3" style="white-space:pre-wrap;word-break:break-all;direction:ltr;text-align:left;"><?= usk_esc($result['vpn_uri']) ?></code>
+        <p class="text-muted small"><?= __('amnezia_import_link_hint') ?></p>
     <?php endif; ?>
     <?php if (!empty($result['protocol'])) : ?>
         <p><strong><?= __('protocol') ?>:</strong> <?= usk_esc($result['protocol']) ?>
@@ -349,8 +368,13 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
             </a>
         </p>
     <?php endif; ?>
+    <?php if (!empty($result['wg_conf']) && ($result['protocol'] ?? '') === 'amnezia') : ?>
+        <p class="mt-2"><strong><?= __('amnezia_wg_conf') ?>:</strong></p>
+        <code class="d-block p-3" style="white-space:pre-wrap;direction:ltr;text-align:left;"><?= usk_esc($result['wg_conf']) ?></code>
+        <p class="text-muted small"><?= __('amnezia_wg_conf_hint') ?></p>
+    <?php endif; ?>
     <p class="mt-2"><strong><?= __('config_label') ?>:</strong></p>
-    <code class="d-block p-3" style="white-space:pre-wrap;direction:ltr;text-align:left;"><?= usk_esc($result['subscription']) ?></code>
+    <code class="d-block p-3" style="white-space:pre-wrap;direction:ltr;text-align:left;"><?= usk_esc(($result['protocol'] ?? '') === 'amnezia' ? ($result['config'] ?? $result['subscription']) : $result['subscription']) ?></code>
     <?php if (!empty($result['links']) && $result['links'] !== $result['subscription']) : ?>
         <p class="mt-2"><strong><?= __('links') ?>:</strong></p>
         <code class="d-block p-3" style="white-space:pre-wrap;direction:ltr;text-align:left;"><?= usk_esc($result['links']) ?></code>

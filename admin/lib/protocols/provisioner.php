@@ -103,7 +103,8 @@ class USK_ProtocolProvisioner
 
         $config = $data['config'] ?? ($data['links'] ?? '');
         $links = $data['links'] ?? $config;
-        $subscription = $data['subscription_url'] ?? $links;
+        $vpnUri = trim((string) ($data['vpn_uri'] ?? ''));
+        $subscription = $vpnUri !== '' ? $vpnUri : ($data['subscription_url'] ?? $links);
 
         self::save_client_record($protocol, $username, array(
             'volume_gb' => (int) $volume_gb,
@@ -115,6 +116,8 @@ class USK_ProtocolProvisioner
             'status' => 'active',
             'source' => $meta['source'] ?? 'admin',
             'wc_order_id' => $meta['wc_order_id'] ?? null,
+            'vpn_uri' => $vpnUri !== '' ? $vpnUri : null,
+            'qr_conf_png' => $data['qr_conf_png'] ?? '',
         ));
 
         return array(
@@ -124,7 +127,10 @@ class USK_ProtocolProvisioner
             'config' => $config,
             'links' => $links,
             'subscription' => $subscription,
+            'vpn_uri' => $vpnUri,
+            'wg_conf' => $data['wg_conf'] ?? '',
             'qr_png' => $data['qr_png'] ?? '',
+            'qr_conf_png' => $data['qr_conf_png'] ?? '',
             'expires_at' => $data['expires_at'] ?? null,
             'volume_gb' => (int) $volume_gb,
             'duration_days' => (int) $duration_days,
@@ -150,7 +156,7 @@ class USK_ProtocolProvisioner
             $record['status'] = 'active';
         }
         if (!empty($record['meta']) && is_array($record['meta'])) {
-            foreach (array('public_key', 'client_ip', 'uuid', 'password', 'psk', 'config', 'qr_png', 'endpoint', 'download_token', 'ovpn_filename', 'proto', 'port') as $k) {
+            foreach (array('public_key', 'client_ip', 'uuid', 'password', 'psk', 'config', 'qr_png', 'qr_conf_png', 'vpn_uri', 'wg_conf', 'endpoint', 'download_token', 'ovpn_filename', 'proto', 'port') as $k) {
                 if (isset($record['meta'][$k]) && $record['meta'][$k] !== '') {
                     $record[$k] = $record['meta'][$k];
                 }

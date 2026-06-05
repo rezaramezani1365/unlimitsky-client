@@ -290,7 +290,7 @@ UNIT
 
 usk_amnezia_install_userspace() {
   usk_amnezia_apt_optional iptables iproute2 ca-certificates curl wget
-  usk_amnezia_apt_optional qrencode unzip
+  usk_amnezia_apt_optional qrencode unzip python3
 
   if ! usk_amnezia_install_tools_zip; then
     echo "USK_WARN: amnezia_tools_zip_failed" >&2
@@ -548,8 +548,99 @@ usk_amnezia_try_bivlked_install() {
 }
 
 usk_amnezia_qr_b64() {
-  local conf="$1"
+  local payload="$1"
+  [ -n "$payload" ] || return 0
   if command -v qrencode >/dev/null 2>&1; then
-    qrencode -t PNG -o - "$conf" 2>/dev/null | base64 -w0 2>/dev/null || qrencode -t PNG -o - "$conf" 2>/dev/null | base64
+    qrencode -t PNG -o - "$payload" 2>/dev/null | base64 -w0 2>/dev/null || qrencode -t PNG -o - "$payload" 2>/dev/null | base64
   fi
+}
+
+usk_amnezia_generate_vpn_uri() {
+  local conf="$1"
+  local hostname="$2"
+  local port="$3"
+  [ -n "$conf" ] || return 1
+  [ -n "$hostname" ] || return 1
+  port=$(echo "$port" | tr -dc '0-9')
+  [ -n "$port" ] || return 1
+
+  usk_amnezia_load_obf_params
+
+  local client_priv client_ip server_pub allowed_ips i1="${AWG_I1:-}"
+  client_priv=$(echo "$conf" | grep -E '^PrivateKey' | head -1 | awk '{print $3}')
+  client_ip=$(echo "$conf" | grep -E '^Address' | head -1 | awk '{print $3}')
+  server_pub=$(echo "$conf" | grep -E '^PublicKey' | tail -1 | awk '{print $3}')
+  allowed_ips=$(echo "$conf" | grep -E '^AllowedIPs' | head -1 | cut -d= -f2- | tr -d ' ')
+  [ -n "$client_priv" ] && [ -n "$client_ip" ] && [ -n "$server_pub" ] || return 1
+  [ -n "$allowed_ips" ] || allowed_ips="0.0.0.0/0,::/0"
+
+  local script py tmpconf uri
+  script="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/amnezia-vpn-uri.py"
+  tmpconf=$(mktemp)
+  printf '%s\n' "$conf" > "$tmpconf"
+
+  if [ -f "$script" ] && command -v python3 >/dev/null 2>&1; then
+    uri=$(python3 "$script" "$tmpconf" \
+      "${AWG_H1}" "${AWG_H2}" "${AWG_H3}" "${AWG_H4}" \
+      "${AWG_Jc}" "${AWG_Jmin}" "${AWG_Jmax}" \
+      "${AWG_S1}" "${AWG_S2}" "${AWG_S3}" "${AWG_S4}" \
+      "$i1" "$port" "$hostname" "$client_ip" "$client_priv" "$server_pub" "$allowed_ips" 2>/dev/null) || uri=""
+  fi
+
+  if [ -z "$uri" ] && command -v perl >/dev/null 2>&1 \
+    && perl -MCompress::Zlib -MMIME::Base64 -e '1' 2>/dev/null; then
+    uri=$(perl -MCompress::Zlib -MMIME::Base64 -e '
+ my ($conf_path, $h1,$h2,$h3,$h4, $jc,$jmin,$jmax,
+     $s1,$s2,$s3,$s4, $i1, $port, $ep, $cip, $cpk, $spk, $aips) = @ARGV;
+ open my $fh, "<", $conf_path or die;
+ local $/; my $raw = <$fh>; close $fh;
+ chomp $raw;
+ sub je {
+   my $s = shift;
+   $s =~ s/\\/\\\\/g; $s =~ s/"/\\"/g;
+   $s =~ s/\n/\\n/g; $s =~ s/\r/\\r/g;
+   $s =~ s/\t/\\t/g; return $s;
+ }
+ my $inner = "{";
+ $inner .= qq("H1":"$h1","H2":"$h2","H3":"$h3","H4":"$h4",);
+ $inner .= qq("Jc":"$jc","Jmin":"$jmin","Jmax":"$jmax",);
+ $inner .= qq("S1":"$s1","S2":"$s2","S3":"$s3","S4":"$s4",);
+ if ($i1 ne "") {
+   my $ei1 = je($i1);
+   $inner .= qq("I1":"$ei1","I2":"","I3":"","I4":"","I5":"",);
+ }
+ my $eraw = je($raw);
+ my @ips = split(/,/, $aips);
+ my $ips_json = join(",", map { qq("$_") } @ips);
+ $inner .= qq("allowed_ips":[$ips_json],);
+ $inner .= qq("client_ip":"$cip","client_priv_key":"$cpk",);
+ $inner .= qq("config":"$eraw",);
+ $inner .= qq("hostName":"$ep","mtu":"1280",);
+ $inner .= qq("persistent_keep_alive":"33","port":$port,);
+ $inner .= qq("server_pub_key":"$spk"});
+ my $einner = je($inner);
+ my $outer = "{";
+ $outer .= qq("containers":[{"awg":{"isThirdPartyConfig":true,);
+ $outer .= qq("last_config":"$einner",);
+ $outer .= qq("port":"$port","protocol_version":"2",);
+ $outer .= qq("transport_proto":"udp"},"container":"amnezia-awg"}],);
+ $outer .= qq("defaultContainer":"amnezia-awg",);
+ $outer .= qq("description":"AWG Server",);
+ $outer .= qq("dns1":"1.1.1.1","dns2":"1.0.0.1",);
+ $outer .= qq("hostName":"$ep"});
+ my $compressed = compress($outer);
+ my $payload = pack("N", length($outer)) . $compressed;
+ my $b64 = encode_base64($payload, "");
+ $b64 =~ tr|+/|-_|;
+ $b64 =~ s/=+$//;
+ print "vpn://" . $b64;
+ ' "$tmpconf" \
+      "${AWG_H1}" "${AWG_H2}" "${AWG_H3}" "${AWG_H4}" \
+      "${AWG_Jc}" "${AWG_Jmin}" "${AWG_Jmax}" \
+      "${AWG_S1}" "${AWG_S2}" "${AWG_S3}" "${AWG_S4}" \
+      "$i1" "$port" "$hostname" "$client_ip" "$client_priv" "$server_pub" "$allowed_ips" 2>/dev/null) || uri=""
+  fi
+
+  rm -f "$tmpconf"
+  [ -n "$uri" ] && printf '%s' "$uri"
 }

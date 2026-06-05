@@ -30,16 +30,18 @@ PORT=$(echo "$PORT" | tr -dc '0-9')
 
 CONFIG=""
 QR_B64=""
+QR_CONF_B64=""
 CLIENT_IP=""
 CLIENT_PUB=""
 VPN_URI=""
+WG_CONF=""
 
 if usk_amnezia_bivlked; then
   safe_name=$(echo "$USERNAME" | tr -c 'a-zA-Z0-9_-' '_')
   bash "$BIVLKED_MGMT" add "$safe_name" 2>/dev/null || usk_json_fail "amnezia_user_create_failed"
   conf_file="${BIVLKED_AWG_DIR}/${safe_name}.conf"
   [ -f "$conf_file" ] || usk_json_fail "amnezia_user_create_failed"
-  CONFIG=$(cat "$conf_file")
+  WG_CONF=$(cat "$conf_file")
   [ -f "${BIVLKED_AWG_DIR}/${safe_name}.vpnuri" ] && VPN_URI=$(tr -d '\n\r' < "${BIVLKED_AWG_DIR}/${safe_name}.vpnuri")
   CLIENT_IP=$(grep -E '^Address' "$conf_file" | head -1 | awk '{print $3}' | cut -d/ -f1)
   CLIENT_PUB=$(grep -E '^PublicKey' "$conf_file" | tail -1 | awk '{print $3}')
@@ -48,7 +50,6 @@ if usk_amnezia_bivlked; then
     priv=$(grep -E '^PrivateKey' "$conf_file" | head -1 | awk '{print $3}')
     [ -n "$priv" ] && [ -n "$awg" ] && CLIENT_PUB=$(echo "$priv" | $awg pubkey)
   fi
-  QR_B64=$(usk_amnezia_qr_b64 "$CONFIG")
 else
   awg=$(usk_amnezia_awg_bin) || usk_json_fail "amnezia_not_installed"
   usk_amnezia_ensure_running || true
@@ -71,21 +72,36 @@ PEER
   fi
   usk_amnezia_apply_conf
 
-  CONFIG=$(usk_amnezia_render_client_conf "$USERNAME" "$CLIENT_IP" "$CLIENT_PRIV" "$SERVER_PUB" "$SERVER_IP" "$PORT")
-  QR_B64=$(usk_amnezia_qr_b64 "$CONFIG")
+  WG_CONF=$(usk_amnezia_render_client_conf "$USERNAME" "$CLIENT_IP" "$CLIENT_PRIV" "$SERVER_PUB" "$SERVER_IP" "$PORT")
 fi
 
-APP_NOTE="
----
-Import in Amnezia VPN app (Windows / Android / iOS):
-https://github.com/amnezia-vpn/amnezia-client/releases
-Scan QR or import the .conf file above."
+if [ -z "$VPN_URI" ]; then
+  VPN_URI=$(usk_amnezia_generate_vpn_uri "$WG_CONF" "$SERVER_IP" "$PORT" 2>/dev/null || true)
+fi
 
-CONFIG="${CONFIG}${APP_NOTE}"
 if [ -n "$VPN_URI" ]; then
-  CONFIG="${CONFIG}
-vpn:// URI: ${VPN_URI}"
+  QR_B64=$(usk_amnezia_qr_b64 "$VPN_URI")
+  QR_CONF_B64=$(usk_amnezia_qr_b64 "$WG_CONF")
+else
+  QR_B64=$(usk_amnezia_qr_b64 "$WG_CONF")
 fi
+
+LINKS="$VPN_URI"
+[ -n "$LINKS" ] && [ -n "$WG_CONF" ] && LINKS="${LINKS}
+
+--- AmneziaWG native (.conf) ---
+${WG_CONF}"
+[ -z "$LINKS" ] && LINKS="$WG_CONF"
+
+CONFIG="=== Amnezia VPN app (recommended) ===
+Copy the vpn:// link below into Amnezia VPN app, or scan the QR code labeled Amnezia app.
+
+${VPN_URI:-(vpn:// link could not be generated — install python3 on the server and retry)}
+
+=== AmneziaWG native (.conf) ===
+For AmneziaWG / WireGuard apps — import the .conf block below or scan the second QR.
+
+${WG_CONF}"
 
 ensure_jq
 if command -v jq >/dev/null 2>&1; then
@@ -99,16 +115,20 @@ if command -v jq >/dev/null 2>&1; then
   jq -n \
     --arg u "$USERNAME" \
     --arg cfg "$CONFIG" \
+    --arg links "$LINKS" \
+    --arg wg "$WG_CONF" \
     --arg ip "$CLIENT_IP" \
     --arg ep "${SERVER_IP}:${PORT}" \
     --arg qr "$QR_B64" \
+    --arg qrc "$QR_CONF_B64" \
     --arg exp "$EXPIRES" \
     --arg pk "$CLIENT_PUB" \
     --arg vuri "$VPN_URI" \
+    --arg sub "$VPN_URI" \
     --argjson vol "$VOLUME_GB" \
     --argjson days "$DURATION_DAYS" \
     --argjson port "$PORT" \
-    '{ok:true, username:$u, protocol:"amnezia", config:$cfg, links:$cfg, client_ip:$ip, endpoint:$ep, qr_png:$qr, expires_at:$exp, public_key:$pk, volume_gb:$vol, duration_days:$days, port:$port, vpn_uri:$vuri}'
+    '{ok:true, username:$u, protocol:"amnezia", config:$cfg, links:$links, wg_conf:$wg, client_ip:$ip, endpoint:$ep, qr_png:$qr, qr_conf_png:$qrc, subscription_url:$sub, expires_at:$exp, public_key:$pk, volume_gb:$vol, duration_days:$days, port:$port, vpn_uri:$vuri}'
   exit 0
 fi
 

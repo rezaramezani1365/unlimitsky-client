@@ -32,6 +32,9 @@ class USK_Service
             'username' => $username,
             'protocol' => $protocol,
             'qr_png' => $created['qr_png'] ?? '',
+            'qr_conf_png' => $created['qr_conf_png'] ?? '',
+            'vpn_uri' => $created['vpn_uri'] ?? '',
+            'wg_conf' => $created['wg_conf'] ?? '',
             'expires_at' => $created['expires_at'] ?? null,
             'raw' => $created['raw'] ?? array(),
         );
