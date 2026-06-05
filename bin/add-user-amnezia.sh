@@ -51,6 +51,7 @@ if usk_amnezia_bivlked; then
   QR_B64=$(usk_amnezia_qr_b64 "$CONFIG")
 else
   awg=$(usk_amnezia_awg_bin) || usk_json_fail "amnezia_not_installed"
+  usk_amnezia_ensure_running || true
   SERVER_PUB=$(usk_amnezia_server_pubkey) || usk_json_fail "amnezia_not_installed"
 
   CLIENT_IP=$(usk_next_ip "10.9.9.1" "$REGISTRY")

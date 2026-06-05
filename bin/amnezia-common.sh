@@ -6,8 +6,11 @@ AMNEZIA_CONF="${AMNEZIA_CONF_DIR}/awg0.conf"
 AMNEZIA_PRIV="${AMNEZIA_CONF_DIR}/server_private.key"
 AMNEZIA_PUB="${AMNEZIA_CONF_DIR}/server_public.key"
 AMNEZIA_PARAMS="${USK_DATA_ROOT:-/var/lib/unlimitsky}/amnezia/obf.params"
+AMNEZIA_MODE_FILE="${USK_DATA_ROOT:-/var/lib/unlimitsky}/amnezia/mode"
 BIVLKED_MGMT="/root/awg/manage_amneziawg.sh"
 BIVLKED_AWG_DIR="/root/awg"
+AWG_GO_VERSION="0.2.15"
+AWG_TOOLS_VERSION="v1.0.20260223"
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$DIR/usk-common.sh"
@@ -41,18 +44,167 @@ usk_amnezia_ensure_deb_src() {
   fi
 }
 
-usk_amnezia_install_packages() {
+usk_amnezia_detect_arch() {
+  case "$(uname -m)" in
+    x86_64|amd64) echo amd64 ;;
+    aarch64|arm64) echo arm64 ;;
+    *) echo amd64 ;;
+  esac
+}
+
+usk_amnezia_userspace_mode() {
+  [ -f "$AMNEZIA_MODE_FILE" ] && grep -q userspace "$AMNEZIA_MODE_FILE" 2>/dev/null
+}
+
+usk_amnezia_mark_mode() {
+  local mode="$1"
+  mkdir -p "$(dirname "$AMNEZIA_MODE_FILE")"
+  echo "$mode" > "$AMNEZIA_MODE_FILE"
+}
+
+usk_amnezia_install_go_binary() {
+  local arch go_bin url
+  arch=$(usk_amnezia_detect_arch)
+  go_bin="/usr/local/bin/amneziawg-go"
+  [ -x "$go_bin" ] && return 0
+  url="https://github.com/amnezia-vpn/amneziawg-go/releases/download/v${AWG_GO_VERSION}/amneziawg-go-linux-${arch}"
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL -o "$go_bin" "$url" 2>/dev/null || return 1
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q -O "$go_bin" "$url" 2>/dev/null || return 1
+  else
+    return 1
+  fi
+  chmod +x "$go_bin"
+  [ -x "$go_bin" ]
+}
+
+usk_amnezia_install_tools_zip() {
+  command -v awg >/dev/null 2>&1 && command -v awg-quick >/dev/null 2>&1 && return 0
+  apt-get install -y unzip 2>/dev/null || true
+  local arch zip_name tmpdir awg_bin quick_bin
+  arch=$(usk_amnezia_detect_arch)
+  zip_name="ubuntu-22.04-amneziawg-tools.zip"
+  [ "$arch" = "arm64" ] && zip_name="alpine-3.19-amneziawg-tools.zip"
+  tmpdir=$(mktemp -d)
+  local url="https://github.com/amnezia-vpn/amneziawg-tools/releases/download/${AWG_TOOLS_VERSION}/${zip_name}"
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL -o "$tmpdir/tools.zip" "$url" 2>/dev/null || { rm -rf "$tmpdir"; return 1; }
+  else
+    wget -q -O "$tmpdir/tools.zip" "$url" 2>/dev/null || { rm -rf "$tmpdir"; return 1; }
+  fi
+  unzip -q -o "$tmpdir/tools.zip" -d "$tmpdir" 2>/dev/null || { rm -rf "$tmpdir"; return 1; }
+  awg_bin=$(find "$tmpdir" -type f -name 'awg' ! -path '*quick*' 2>/dev/null | head -1)
+  quick_bin=$(find "$tmpdir" -type f -name 'awg-quick' 2>/dev/null | head -1)
+  [ -n "$awg_bin" ] && install -m 755 "$awg_bin" /usr/local/bin/awg
+  [ -n "$quick_bin" ] && install -m 755 "$quick_bin" /usr/local/bin/awg-quick
+  rm -rf "$tmpdir"
+  command -v awg >/dev/null 2>&1 && command -v awg-quick >/dev/null 2>&1
+}
+
+usk_amnezia_install_tools_build() {
+  command -v awg >/dev/null 2>&1 && command -v awg-quick >/dev/null 2>&1 && return 0
+  apt-get install -y git make gcc 2>/dev/null || apt-get install -y git make build-essential
+  local td
+  td=$(mktemp -d)
+  git clone --depth 1 https://github.com/amnezia-vpn/amneziawg-tools.git "$td/tools" 2>/dev/null || { rm -rf "$td"; return 1; }
+  make -C "$td/tools/src" 2>/dev/null && make -C "$td/tools/src" install PREFIX=/usr/local 2>/dev/null
+  rm -rf "$td"
+  command -v awg >/dev/null 2>&1 && command -v awg-quick >/dev/null 2>&1
+}
+
+usk_amnezia_install_systemd_unit() {
+  if [ -f /lib/systemd/system/awg-quick@.service ] || [ -f /etc/systemd/system/awg-quick@.service ]; then
+    return 0
+  fi
+  local quick_bin
+  quick_bin=$(command -v awg-quick 2>/dev/null || echo /usr/local/bin/awg-quick)
+  mkdir -p /etc/systemd/system
+  cat > /etc/systemd/system/awg-quick@.service <<UNIT
+[Unit]
+Description=AmneziaWG via awg-quick for %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=${quick_bin} up %i
+ExecStop=${quick_bin} down %i
+Environment=WG_QUICK_USERSPACE_IMPLEMENTATION=/usr/local/bin/amneziawg-go
+Environment=AWG_QUICK_USERSPACE_IMPLEMENTATION=/usr/local/bin/amneziawg-go
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+  systemctl daemon-reload 2>/dev/null || true
+}
+
+usk_amnezia_setup_userspace_systemd() {
+  usk_amnezia_install_systemd_unit
+  mkdir -p /etc/systemd/system/awg-quick@.service.d
+  cat > /etc/systemd/system/awg-quick@.service.d/unlimitsky-userspace.conf <<'UNIT'
+[Service]
+Environment=WG_QUICK_USERSPACE_IMPLEMENTATION=/usr/local/bin/amneziawg-go
+Environment=AWG_QUICK_USERSPACE_IMPLEMENTATION=/usr/local/bin/amneziawg-go
+UNIT
+  systemctl daemon-reload 2>/dev/null || true
+  usk_amnezia_mark_mode "userspace"
+}
+
+usk_amnezia_install_userspace() {
+  apt-get update -qq
+  apt-get install -y iptables curl wget qrencode iproute2 unzip git make 2>/dev/null || true
+  usk_amnezia_install_go_binary || return 1
+  usk_amnezia_install_tools_zip || usk_amnezia_install_tools_build || return 1
+  usk_amnezia_setup_userspace_systemd
+  command -v awg >/dev/null 2>&1
+}
+
+usk_amnezia_install_kernel_packages() {
   usk_amnezia_ensure_deb_src
   apt-get update -qq
-  apt-get install -y software-properties-common gnupg2 qrencode curl wget \
-    "linux-headers-$(uname -r)" 2>/dev/null || apt-get install -y linux-headers-generic
-
+  apt-get install -y software-properties-common gnupg2 qrencode curl wget iproute2 || true
+  local kver headers_pkg
+  kver=$(uname -r)
+  headers_pkg="linux-headers-${kver}"
+  if ! apt-cache show "$headers_pkg" >/dev/null 2>&1; then
+    apt-get install -y linux-headers-generic 2>/dev/null || true
+  else
+    apt-get install -y "$headers_pkg" 2>/dev/null || apt-get install -y linux-headers-generic 2>/dev/null || true
+  fi
   if ! command -v awg >/dev/null 2>&1; then
     add-apt-repository -y ppa:amnezia/ppa 2>/dev/null || true
     apt-get update -qq
-    apt-get install -y amneziawg || return 1
+    apt-get install -y amneziawg 2>/dev/null || return 1
   fi
+  usk_amnezia_mark_mode "kernel"
   command -v awg >/dev/null 2>&1
+}
+
+usk_amnezia_install_packages() {
+  usk_amnezia_install_userspace
+}
+
+usk_amnezia_ensure_running() {
+  if systemctl is-active --quiet awg-quick@awg0 2>/dev/null; then
+    return 0
+  fi
+  if command -v awg-quick >/dev/null 2>&1 && [ -f "$AMNEZIA_CONF" ]; then
+    awg-quick down awg0 2>/dev/null || true
+    awg-quick up awg0 2>/dev/null && return 0
+    systemctl enable awg-quick@awg0 2>/dev/null || true
+    systemctl restart awg-quick@awg0 2>/dev/null || systemctl start awg-quick@awg0 2>/dev/null || true
+  fi
+  sleep 1
+  if command -v awg >/dev/null 2>&1 && awg show awg0 >/dev/null 2>&1; then
+    return 0
+  fi
+  return 1
+}
+
+usk_amnezia_verify_installed() {
+  [ -f "$AMNEZIA_CONF" ] && command -v awg >/dev/null 2>&1
 }
 
 usk_amnezia_gen_obf_params() {
@@ -164,11 +316,14 @@ EOF
   if command -v awg-quick >/dev/null 2>&1; then
     systemctl enable awg-quick@awg0 2>/dev/null || true
     awg-quick down awg0 2>/dev/null || true
-    awg-quick up awg0 2>/dev/null || systemctl restart awg-quick@awg0 2>/dev/null || true
+    awg-quick up awg0 2>/dev/null || true
+    usk_amnezia_ensure_running || systemctl restart awg-quick@awg0 2>/dev/null || true
   else
     ip link del awg0 2>/dev/null || true
     $awg setconf awg0 "$AMNEZIA_CONF" 2>/dev/null || true
   fi
+
+  usk_amnezia_ensure_running || true
 
   ensure_ufw_port "$port" udp amnezia-awg
   echo "$port"
@@ -197,11 +352,12 @@ usk_amnezia_server_pubkey() {
 usk_amnezia_apply_conf() {
   local awg
   awg=$(usk_amnezia_awg_bin) || return 1
-  if command -v awg-quick >/dev/null 2>&1; then
+  usk_amnezia_ensure_running || true
+  if command -v awg-quick >/dev/null 2>&1 && awg show awg0 >/dev/null 2>&1; then
     awg-quick strip awg0 "$AMNEZIA_CONF" 2>/dev/null | $awg syncconf awg0 /dev/stdin 2>/dev/null \
       || systemctl restart awg-quick@awg0 2>/dev/null || true
   else
-    systemctl restart awg-quick@awg0 2>/dev/null || true
+    systemctl restart awg-quick@awg0 2>/dev/null || awg-quick up awg0 2>/dev/null || true
   fi
 }
 
@@ -242,14 +398,7 @@ EOF
 }
 
 usk_amnezia_try_bivlked_install() {
-  local port="$1"
-  local ver="v5.14.1"
-  local script="/tmp/install_amneziawg_en.sh"
-  wget -q -O "$script" "https://raw.githubusercontent.com/bivlked/amneziawg-installer/${ver}/install_amneziawg_en.sh" 2>/dev/null \
-    || curl -fsSL -o "$script" "https://raw.githubusercontent.com/bivlked/amneziawg-installer/${ver}/install_amneziawg_en.sh" 2>/dev/null \
-    || return 1
-  chmod +x "$script"
-  bash "$script" --yes --route-amnezia --port="${port}" --preset=mobile --no-tweaks 2>&1
+  return 1
 }
 
 usk_amnezia_qr_b64() {

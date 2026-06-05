@@ -237,6 +237,8 @@ class USK_ProtocolProvisioner
             'wireguard_tcp_not_installed' => 'err_wireguard_tcp_not_installed',
             'wireguard_tcp_port_in_use' => 'err_wireguard_tcp_port_in_use',
             'wireguard_tcp_bridge_start_failed' => 'err_wireguard_tcp_bridge_failed',
+            'amnezia_userspace_install_failed' => 'err_amnezia_userspace_install_failed',
+            'amnezia_config_failed' => 'err_amnezia_config_failed',
             'amnezia_not_installed' => 'err_amnezia_not_installed',
             'amnezia_install_failed' => 'err_amnezia_install_failed',
             'amnezia_user_create_failed' => 'err_amnezia_user_create_failed',

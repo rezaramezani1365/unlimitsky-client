@@ -42,7 +42,7 @@ case "$PROTO" in
     usk_fail "cisco_not_installed"
     ;;
   amnezia)
-    if [ -f /etc/amnezia/amneziawg/awg0.conf ] || [ -x /root/awg/manage_amneziawg.sh ]; then
+    if [ -f /etc/amnezia/amneziawg/awg0.conf ] || [ -x /root/awg/manage_amneziawg.sh ] || command -v awg >/dev/null 2>&1; then
       usk_mark_installed amnezia "$USK_ROOT"
       usk_ok
     fi
