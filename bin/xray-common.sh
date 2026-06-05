@@ -56,13 +56,50 @@ usk_xray_validate_clients_json() {
   echo "$raw" | jq -e 'type == "array"' >/dev/null 2>&1
 }
 
+usk_xray_reality_parse_kv() {
+  local line="$1"
+  local key val
+  key=$(echo "$line" | sed -E 's/^([^: ]+)[[:space:]:].*/\1/' | tr '[:upper:]' '[:lower:]' | tr -d ' ')
+  val=$(echo "$line" | sed -E 's/^[^:]*:[[:space:]]*//; s/^[[:space:]]+//')
+  case "$key" in
+    privatekey|private) echo "priv=$val" ;;
+    publickey|public) echo "pub=$val" ;;
+    password) echo "pub=$val" ;;
+  esac
+}
+
 usk_xray_reality_gen_keys() {
-  local xray_bin out priv pub
+  local xray_bin out priv pub line kv
   xray_bin=$(usk_xray_bin) || return 1
-  out=$("$xray_bin" x25519 2>/dev/null) || return 1
-  priv=$(echo "$out" | awk '/Private key:/ {print $3; exit}')
-  pub=$(echo "$out" | awk '/Public key:/ {print $3; exit}')
-  [ -n "$priv" ] && [ -n "$pub" ] || return 1
+  out=$("$xray_bin" x25519 2>&1) || return 1
+  priv=""
+  pub=""
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    kv=$(usk_xray_reality_parse_kv "$line")
+    case "$kv" in
+      priv=*) priv="${kv#priv=}" ;;
+      pub=*) pub="${kv#pub=}" ;;
+    esac
+  done <<EOF
+$out
+EOF
+  if [ -n "$priv" ] && [ -z "$pub" ]; then
+    out=$("$xray_bin" x25519 -i "$priv" 2>&1) || true
+    while IFS= read -r line; do
+      kv=$(usk_xray_reality_parse_kv "$line")
+      case "$kv" in
+        pub=*) pub="${kv#pub=}" ;;
+      esac
+    done <<EOF2
+$out
+EOF2
+  fi
+  if [ -z "$priv" ] || [ -z "$pub" ]; then
+    echo "USK_ERR: xray_x25519_parse_failed" >&2
+    echo "$out" | tail -6 >&2
+    return 1
+  fi
   REALITY_PRIVATE_KEY="$priv"
   REALITY_PUBLIC_KEY="$pub"
 }
@@ -79,8 +116,11 @@ usk_xray_ensure_reality_params() {
     if [ -n "${REALITY_PRIVATE_KEY:-}" ] && [ -n "${REALITY_PUBLIC_KEY:-}" ]; then
       return 0
     fi
+    rm -f "$USK_XRAY_REALITY_FILE" 2>/dev/null || true
   fi
-  usk_xray_reality_gen_keys || return 1
+  if ! usk_xray_reality_gen_keys; then
+    return 1
+  fi
   local sid
   sid=$(usk_xray_reality_gen_short_id)
   cat > "$USK_XRAY_REALITY_FILE" <<EOF
