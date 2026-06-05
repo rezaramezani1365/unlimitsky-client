@@ -70,29 +70,25 @@ class USK_ProtocolManager
         return is_file($marker);
     }
 
-    public static function probe_installed($proto)
+    public static function probe_via_sudo($proto)
+    {
+        $script = USK_ROOT . '/bin/probe-protocol.sh';
+        if (!file_exists($script)) {
+            return false;
+        }
+        $cmd = 'sudo -n bash ' . escapeshellarg($script) . ' '
+            . escapeshellarg($proto) . ' '
+            . escapeshellarg(USK_ROOT) . ' 2>&1';
+        $out = shell_exec($cmd);
+        return strpos((string) $out, 'USK_OK') !== false;
+    }
+
+    public static function is_installed($proto)
     {
         if (self::probe_marker($proto)) {
             return true;
         }
-        switch ($proto) {
-            case 'l2tp':
-                return is_file('/etc/xl2tpd/xl2tpd.conf')
-                    && is_file('/etc/ppp/options.xl2tpd')
-                    && is_file('/etc/unlimitsky-l2tp.psk');
-            case 'wireguard':
-                return is_file('/etc/wireguard/wg0.conf');
-            case 'openvpn':
-                return is_file('/etc/openvpn/server-udp.conf')
-                    || is_file('/etc/openvpn/server.conf');
-            case 'xray':
-                return is_file('/usr/local/etc/xray/config.json')
-                    || is_file('/etc/xray/config.json');
-            case 'cisco':
-                return is_file('/etc/ocserv/ocserv.conf');
-            default:
-                return false;
-        }
+        return self::probe_via_sudo($proto);
     }
 
     public static function default_status_fields($proto)
@@ -105,37 +101,50 @@ class USK_ProtocolManager
         return $out;
     }
 
-    public static function sync_probe_status($proto)
+    public static function sync_installed_status($proto)
     {
-        if (!self::probe_installed($proto)) {
+        if (!self::is_installed($proto)) {
             return false;
         }
         $st = self::read_status($proto);
-        if (!empty($st['installed'])) {
-            return true;
-        }
         self::set_status($proto, array_merge($st, self::default_status_fields($proto), array(
             'installed' => true,
             'status' => 'active',
             'updated_at' => date('c'),
-            'synced_from_system' => true,
+            'verified_at' => date('c'),
         )));
         return true;
     }
 
-    public static function sync_all_probe_status()
+    public static function refresh_all_status()
     {
         foreach (array_keys(self::list()) as $proto) {
-            self::sync_probe_status($proto);
+            self::get_status($proto);
         }
     }
 
     public static function get_status($proto)
     {
-        if (self::probe_installed($proto)) {
-            self::sync_probe_status($proto);
+        $st = self::read_status($proto);
+        $really = self::is_installed($proto);
+
+        if ($really) {
+            if (empty($st['installed'])) {
+                self::sync_installed_status($proto);
+                $st = self::read_status($proto);
+            }
+            return $st;
         }
-        return self::read_status($proto);
+
+        if (!empty($st['installed'])) {
+            $st['installed'] = false;
+            $st['status'] = 'not_installed';
+            $st['updated_at'] = date('c');
+            unset($st['synced_from_system']);
+            self::set_status($proto, $st);
+        }
+
+        return $st;
     }
 
     public static function set_status($proto, $data)
@@ -144,7 +153,7 @@ class USK_ProtocolManager
         if (!is_dir($dir)) {
             @mkdir($dir, 0755, true);
         }
-        file_put_contents(self::status_file($proto), json_encode($data, JSON_PRETTY_PRINT));
+        file_put_contents(self::status_file($proto), json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
     }
 
     public static function bin_path($proto)
@@ -212,13 +221,17 @@ class USK_ProtocolManager
         }
     }
 
-    private static function write_install_log($proto, $cmd, $out)
+    private static function write_install_log($proto, $cmd, $out, $extra = '')
     {
         $dir = USK_ROOT . '/data/protocols';
         if (!is_dir($dir)) {
             @mkdir($dir, 0755, true);
         }
-        $log = date('c') . "\nCMD: " . $cmd . "\n---\n" . (string) $out . "\n";
+        $log = date('c') . "\nCMD: " . $cmd . "\n";
+        if ($extra !== '') {
+            $log .= $extra . "\n";
+        }
+        $log .= "---\n" . (string) $out . "\n";
         @file_put_contents($dir . '/' . $proto . '-last.log', $log);
     }
 
@@ -226,11 +239,12 @@ class USK_ProtocolManager
     {
         $allowed = array_keys(self::list());
         if (!in_array($proto, $allowed, true)) {
-            return array('ok' => false, 'msg' => 'invalid_protocol');
+            return array('ok' => false, 'msg' => 'invalid_protocol', 'log' => 'invalid_protocol');
         }
         $script = self::bin_path($proto);
         if (!file_exists($script)) {
-            return array('ok' => false, 'msg' => 'script_missing');
+            self::write_install_log($proto, '', '', 'script_missing: ' . $script);
+            return array('ok' => false, 'msg' => 'script_missing', 'log' => 'script_missing');
         }
 
         if (empty($ports)) {
@@ -243,14 +257,20 @@ class USK_ProtocolManager
             $cmd .= ' ' . $argv;
         }
         $cmd .= ' 2>&1';
+
         $prev = self::read_status($proto);
         $out = shell_exec($cmd);
-        self::write_install_log($proto, $cmd, $out);
-        if ($out === null || trim((string) $out) === '') {
-            $out = 'USK_ERR: sudo_denied or empty output — check /etc/sudoers.d/unlimitsky for www-data';
+        if ($out === null) {
+            $out = '';
         }
+        self::write_install_log($proto, $cmd, $out);
+
+        if (trim((string) $out) === '') {
+            $out = 'USK_ERR: sudo_denied or empty output — add probe-protocol.sh to /etc/sudoers.d/unlimitsky';
+        }
+
         $scriptOk = (strpos((string) $out, 'USK_OK') !== false);
-        $systemOk = self::probe_installed($proto);
+        $systemOk = self::is_installed($proto);
         $ok = $scriptOk || $systemOk;
         $warn = !$scriptOk && $systemOk;
 
@@ -260,6 +280,9 @@ class USK_ProtocolManager
             'updated_at' => date('c'),
             'log' => substr((string) $out, -2000),
         ));
+        if ($ok) {
+            $status['verified_at'] = date('c');
+        }
         if ($warn) {
             $status['last_install_warning'] = substr((string) $out, -500);
         } else {
@@ -306,8 +329,8 @@ class USK_ProtocolManager
     {
         $out = array();
         foreach (self::list() as $k => $meta) {
-            $s = self::get_status($k);
-            if (!empty($s['installed'])) {
+            if (self::is_installed($k)) {
+                self::sync_installed_status($k);
                 $out[$k] = $meta;
             }
         }

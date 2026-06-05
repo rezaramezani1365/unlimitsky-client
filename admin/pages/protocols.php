@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['install_protocol'])) 
     exit;
 }
 
-USK_ProtocolManager::sync_all_probe_status();
+USK_ProtocolManager::refresh_all_status();
 
 $protocols = USK_ProtocolManager::list();
 ?>
@@ -131,6 +131,7 @@ www-data ALL=(root) NOPASSWD: /bin/bash <?= usk_esc(USK_ROOT) ?>/bin/remove-user
     <div class="p-3 text-muted small">
         <p><?= __('protocol_sudo_note') ?></p>
         <pre class="usk-code p-2" style="white-space:pre-wrap;direction:ltr;text-align:left">www-data ALL=(root) NOPASSWD: /bin/bash <?= usk_esc(USK_ROOT) ?>/bin/install-*.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash <?= usk_esc(USK_ROOT) ?>/bin/probe-protocol.sh *
 www-data ALL=(root) NOPASSWD: /bin/bash <?= usk_esc(USK_ROOT) ?>/bin/add-user-*.sh *</pre>
     </div>
 </div>

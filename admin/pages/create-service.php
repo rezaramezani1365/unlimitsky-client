@@ -6,6 +6,7 @@ $GLOBALS['page_title'] = __('nav_create');
 $GLOBALS['active_nav'] = 'create-service';
 
 $result = null;
+USK_ProtocolManager::refresh_all_status();
 $installed = USK_ProtocolManager::installed_protocols();
 $protocolPortDefaults = array();
 foreach (USK_ProtocolManager::list() as $pkey => $pmeta) {
@@ -39,6 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($plan) {
         if ($mode === 'native') {
+            $installed = USK_ProtocolManager::installed_protocols();
             $protocol = preg_replace('/[^a-z]/', '', $_POST['protocol'] ?? '');
             if ($protocol === '' || !isset($installed[$protocol])) {
                 usk_flash(__('create_protocol_invalid'), 'error');

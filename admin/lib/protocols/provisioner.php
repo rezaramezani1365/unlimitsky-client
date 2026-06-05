@@ -38,7 +38,7 @@ class USK_ProtocolProvisioner
         }
 
         $status = USK_ProtocolManager::get_status($protocol);
-        if (empty($status['installed'])) {
+        if (!USK_ProtocolManager::is_installed($protocol)) {
             return array('ok' => false, 'error' => 'protocol_not_installed');
         }
 
