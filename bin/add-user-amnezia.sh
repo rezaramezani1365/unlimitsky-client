@@ -58,8 +58,14 @@ else
   CLIENT_IP=$(usk_next_ip "10.9.9.1" "$REGISTRY")
   CLIENT_PRIV=$($awg genkey)
   CLIENT_PUB=$(echo "$CLIENT_PRIV" | $awg pubkey)
+  CLIENT_PSK=$($awg genpsk 2>/dev/null || true)
 
-  $awg set awg0 peer "$CLIENT_PUB" allowed-ips "${CLIENT_IP}/32" 2>/dev/null || true
+  if [ -n "$CLIENT_PSK" ]; then
+    $awg set awg0 peer "$CLIENT_PUB" preshared-key <(echo "$CLIENT_PSK") allowed-ips "${CLIENT_IP}/32" 2>/dev/null \
+      || $awg set awg0 peer "$CLIENT_PUB" allowed-ips "${CLIENT_IP}/32" 2>/dev/null || true
+  else
+    $awg set awg0 peer "$CLIENT_PUB" allowed-ips "${CLIENT_IP}/32" 2>/dev/null || true
+  fi
 
   if ! grep -q "$CLIENT_PUB" "$AMNEZIA_CONF" 2>/dev/null; then
     cat >> "$AMNEZIA_CONF" <<PEER
@@ -67,23 +73,40 @@ else
 [Peer]
 # $USERNAME
 PublicKey = $CLIENT_PUB
+PEER
+    if [ -n "$CLIENT_PSK" ]; then
+      echo "PresharedKey = $CLIENT_PSK" >> "$AMNEZIA_CONF"
+    fi
+    cat >> "$AMNEZIA_CONF" <<PEER
 AllowedIPs = ${CLIENT_IP}/32
 PEER
   fi
   usk_amnezia_apply_conf
 
-  WG_CONF=$(usk_amnezia_render_client_conf "$USERNAME" "$CLIENT_IP" "$CLIENT_PRIV" "$SERVER_PUB" "$SERVER_IP" "$PORT")
+  WG_CONF=$(usk_amnezia_render_client_conf "$USERNAME" "$CLIENT_IP" "$CLIENT_PRIV" "$SERVER_PUB" "$SERVER_IP" "$PORT" "$CLIENT_PSK")
 fi
+
+ensure_jq
+
+PAYLOADS=$(usk_amnezia_encode_payloads "$WG_CONF" "$SERVER_IP" 2>/dev/null || true)
+if [ -z "$VPN_URI" ] && [ -n "$PAYLOADS" ]; then
+  VPN_URI=$(echo "$PAYLOADS" | jq -r '.vpn_uri // empty' 2>/dev/null)
+fi
+VPN_QR_PAYLOAD=$(echo "$PAYLOADS" | jq -r '.vpn_qr // empty' 2>/dev/null)
+AWG_QR_PAYLOAD=$(echo "$PAYLOADS" | jq -r '.awg_qr // empty' 2>/dev/null)
 
 if [ -z "$VPN_URI" ]; then
-  VPN_URI=$(usk_amnezia_generate_vpn_uri "$WG_CONF" "$SERVER_IP" "$PORT" 2>/dev/null || true)
+  VPN_URI=$(usk_amnezia_generate_vpn_uri "$WG_CONF" "$SERVER_IP" 2>/dev/null || true)
 fi
 
-if [ -n "$VPN_URI" ]; then
-  QR_B64=$(usk_amnezia_qr_b64 "$VPN_URI")
-  QR_CONF_B64=$(usk_amnezia_qr_b64 "$WG_CONF")
-else
-  QR_B64=$(usk_amnezia_qr_b64 "$WG_CONF")
+if [ -n "$VPN_QR_PAYLOAD" ]; then
+  QR_B64=$(usk_amnezia_qr_b64 "$VPN_QR_PAYLOAD")
+elif [ -n "$VPN_URI" ]; then
+  QR_B64=$(usk_amnezia_qr_b64 "${VPN_URI#vpn://}")
+fi
+
+if [ -n "$AWG_QR_PAYLOAD" ]; then
+  QR_CONF_B64=$(usk_amnezia_qr_b64 "$AWG_QR_PAYLOAD")
 fi
 
 LINKS="$VPN_URI"
@@ -93,17 +116,20 @@ LINKS="$VPN_URI"
 ${WG_CONF}"
 [ -z "$LINKS" ] && LINKS="$WG_CONF"
 
-CONFIG="=== Amnezia VPN app (recommended) ===
-Copy the vpn:// link below into Amnezia VPN app, or scan the QR code labeled Amnezia app.
+CONFIG="=== Amnezia VPN app ===
+1) Scan QR code «Amnezia VPN app»
+2) Or paste vpn:// link: Import → Paste from clipboard
 
-${VPN_URI:-(vpn:// link could not be generated — install python3 on the server and retry)}
+${VPN_URI:-(vpn:// not generated — install python3 on server)}
 
-=== AmneziaWG native (.conf) ===
-For AmneziaWG / WireGuard apps — import the .conf block below or scan the second QR.
+=== AmneziaWG app ===
+1) Scan QR code «AmneziaWG app»
+2) Or save .conf below and import as file (recommended if QR fails)
 
-${WG_CONF}"
+${WG_CONF}
 
-ensure_jq
+Note: Standard WireGuard app does NOT support AmneziaWG obfuscation."
+
 if command -v jq >/dev/null 2>&1; then
   tmp=$(mktemp)
   jq --arg u "$USERNAME" --arg ip "$CLIENT_IP" --arg pk "$CLIENT_PUB" --arg ts "$(date -Iseconds)" \
