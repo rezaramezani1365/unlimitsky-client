@@ -52,8 +52,9 @@ $dir = usk_dir();
 </head>
 <body class="login-page">
     <div class="login-page-shell">
+        <div class="login-stack">
     <div class="login-card">
-        <div class="login-brand">Unlimited<span>Sky</span></div>
+        <div class="login-brand"><?= __('brand') ?></div>
         <p class="text-center text-muted small mb-4"><?= __('login_sub') ?></p>
         <div class="lang-switch justify-content-center mb-3 d-flex">
             <a href="?lang=fa" class="<?= $lang === 'fa' ? 'active' : '' ?>">FA</a>
@@ -86,8 +87,9 @@ $dir = usk_dir();
             <button type="button" class="btn btn-sm btn-outline-usk" id="theme-toggle"><i class="fa-solid fa-moon" id="theme-icon"></i></button>
         </div>
     </div>
+            <?php require __DIR__ . '/includes/footer.php'; ?>
+        </div>
     </div>
-    <?php require __DIR__ . '/includes/footer.php'; ?>
     <?php usk_enqueue_foot(); ?>
 </body>
 </html>
