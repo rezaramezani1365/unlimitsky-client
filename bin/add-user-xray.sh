@@ -34,8 +34,12 @@ VMESS_PORT=8443
 
 tmp=$(mktemp)
 if ! jq --arg id "$UUID" --arg email "$USERNAME" \
-  '.inbounds[0].settings.clients = ((.inbounds[0].settings.clients // []) + [{"id":$id,"email":$email,"flow":"xtls-rprx-vision"}]) |
-   .inbounds[1].settings.clients = ((.inbounds[1].settings.clients // []) + [{"id":$id,"email":$email,"alterId":0}])' \
+  '.inbounds[0].listen = "0.0.0.0" |
+   .inbounds[1].listen = "0.0.0.0" |
+   .inbounds[0].settings.clients = ((.inbounds[0].settings.clients // []) | map(del(.flow)) + [{"id":$id,"email":$email}]) |
+   .inbounds[1].settings.clients = ((.inbounds[1].settings.clients // []) + [{"id":$id,"email":$email,"alterId":0}]) |
+   .inbounds[0].streamSettings = {"network":"tcp","security":"none","tcpSettings":{"header":{"type":"none"}}} |
+   .inbounds[1].streamSettings = {"network":"tcp","security":"none"}' \
   "$XRAY_CFG" > "$tmp"; then
   rm -f "$tmp"
   usk_json_fail "xray_config_update_failed"
@@ -44,14 +48,14 @@ mv "$tmp" "$XRAY_CFG"
 
 systemctl restart xray 2>/dev/null || systemctl restart xray.service 2>/dev/null || usk_json_fail "xray_restart_failed"
 
-VLESS="vless://${UUID}@${SERVER_IP}:${VLESS_PORT}?encryption=none&security=none&type=tcp#${USERNAME}-vless"
-VMESS_JSON=$(jq -n \
+VLESS="vless://${UUID}@${SERVER_IP}:${VLESS_PORT}?encryption=none&security=none&type=tcp&headerType=none#${USERNAME}-vless"
+VMESS_JSON=$(jq -cn \
   --arg id "$UUID" \
   --arg add "$SERVER_IP" \
   --argjson port "$VMESS_PORT" \
   --arg ps "${USERNAME}-vmess" \
   '{v:"2",ps:$ps,add:$add,port:$port,id:$id,aid:0,net:"tcp",type:"none",host:"",path:"",tls:""}')
-VMESS="vmess://$(echo -n "$VMESS_JSON" | base64 -w0 2>/dev/null || echo -n "$VMESS_JSON" | base64)"
+VMESS="vmess://$(echo -n "$VMESS_JSON" | base64 -w0 2>/dev/null || echo -n "$VMESS_JSON" | base64 | tr -d '\n')"
 LINKS="${VLESS}
 ${VMESS}"
 
@@ -69,7 +73,7 @@ fi
 mv "$tmp2" "$REGISTRY"
 
 echo -n "USK_JSON:"
-jq -n \
+jq -cn \
   --arg u "$USERNAME" \
   --arg links "$LINKS" \
   --arg vless "$VLESS" \
