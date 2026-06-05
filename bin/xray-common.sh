@@ -36,6 +36,23 @@ usk_xray_pick_free_port() {
   echo "$p"
 }
 
+usk_xray_fix_perms() {
+  local cfg="$1"
+  local dir
+  dir=$(dirname "$cfg")
+  mkdir -p "$dir"
+  chmod 755 "$dir" 2>/dev/null || true
+  if [ -f "$cfg" ]; then
+    chmod 644 "$cfg" 2>/dev/null || true
+    chown root:root "$cfg" 2>/dev/null || true
+  fi
+}
+
+usk_xray_validate_clients_json() {
+  local raw="$1"
+  echo "$raw" | jq -e 'type == "array"' >/dev/null 2>&1
+}
+
 usk_xray_load_clients() {
   local cfg="$1"
   local proto="$2"
@@ -59,6 +76,10 @@ usk_xray_write_config() {
   local vless_port="$4"
   local vmess_port="$5"
   local tmp
+
+  usk_xray_validate_clients_json "$vless_json" || vless_json='[]'
+  usk_xray_validate_clients_json "$vmess_json" || vmess_json='[]'
+
   tmp=$(mktemp)
   if ! jq -n \
     --argjson vless "$vless_json" \
@@ -74,11 +95,7 @@ usk_xray_write_config() {
           protocol: "vless",
           tag: "vless-in",
           settings: { clients: $vless, decryption: "none" },
-          streamSettings: {
-            network: "tcp",
-            security: "none",
-            tcpSettings: { header: { type: "none" } }
-          },
+          streamSettings: { network: "tcp", security: "none" },
           sniffing: { enabled: true, destOverride: ["http", "tls"] }
         },
         {
@@ -91,7 +108,14 @@ usk_xray_write_config() {
           sniffing: { enabled: true, destOverride: ["http", "tls"] }
         }
       ],
-      outbounds: [{ protocol: "freedom", tag: "direct" }]
+      outbounds: [
+        { protocol: "freedom", tag: "direct" },
+        { protocol: "blackhole", tag: "block" }
+      ],
+      routing: {
+        domainStrategy: "AsIs",
+        rules: []
+      }
     }' > "$tmp"; then
     rm -f "$tmp"
     return 1
@@ -102,11 +126,12 @@ usk_xray_write_config() {
   fi
   mkdir -p "$(dirname "$cfg")"
   mv "$tmp" "$cfg"
-  chmod 644 "$cfg"
+  usk_xray_fix_perms "$cfg"
   return 0
 }
 
 usk_xray_service_restart() {
+  usk_xray_fix_perms "$XRAY_CFG"
   systemctl daemon-reload 2>/dev/null || true
   systemctl restart xray 2>/dev/null || systemctl restart xray.service 2>/dev/null || return 1
   sleep 2
@@ -117,8 +142,16 @@ usk_xray_test_config() {
   local cfg="$1"
   local bin out
   bin=$(usk_xray_bin) || return 1
+  usk_xray_fix_perms "$cfg"
+  if id nobody >/dev/null 2>&1; then
+    out=$(sudo -u nobody "$bin" run -test -config "$cfg" 2>&1) || {
+      echo "$out" | tail -8
+      return 1
+    }
+    return 0
+  fi
   out=$("$bin" run -test -config "$cfg" 2>&1) || {
-    echo "$out" | tail -5
+    echo "$out" | tail -8
     return 1
   }
   return 0
@@ -126,8 +159,10 @@ usk_xray_test_config() {
 
 usk_xray_ports_from_config() {
   local cfg="$1"
-  USK_XRAY_VLESS_PORT=$(jq -r '.inbounds[0].port // 2053' "$cfg" 2>/dev/null || echo 2053)
-  USK_XRAY_VMESS_PORT=$(jq -r '.inbounds[1].port // 8443' "$cfg" 2>/dev/null || echo 8443)
+  USK_XRAY_VLESS_PORT=$(jq -r '(.inbounds[]? | select(.protocol=="vless") | .port) // empty' "$cfg" 2>/dev/null | head -1)
+  USK_XRAY_VMESS_PORT=$(jq -r '(.inbounds[]? | select(.protocol=="vmess") | .port) // empty' "$cfg" 2>/dev/null | head -1)
+  USK_XRAY_VLESS_PORT=${USK_XRAY_VLESS_PORT:-2053}
+  USK_XRAY_VMESS_PORT=${USK_XRAY_VMESS_PORT:-8443}
 }
 
 usk_xray_port_listening() {

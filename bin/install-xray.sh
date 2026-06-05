@@ -50,6 +50,8 @@ if ! usk_xray_write_config "$XRAY_CFG" "$EXISTING_VLESS" "$EXISTING_VMESS" "$VLE
   usk_fail "xray_config_json_failed"
 fi
 
+usk_xray_fix_perms "$XRAY_CFG"
+
 if ! usk_xray_test_config "$XRAY_CFG"; then
   UUID=$(cat /proc/sys/kernel/random/uuid)
   EXISTING_VLESS="[{\"id\":\"$UUID\",\"email\":\"bootstrap\"}]"

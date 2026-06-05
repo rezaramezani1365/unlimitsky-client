@@ -41,13 +41,14 @@ tmp=$(mktemp)
 if ! jq --arg id "$UUID" --arg email "$USERNAME" \
   '.inbounds[0].settings.clients = ((.inbounds[0].settings.clients // []) | map(del(.flow)) + [{"id":$id,"email":$email}]) |
    .inbounds[1].settings.clients = ((.inbounds[1].settings.clients // []) + [{"id":$id,"email":$email}]) |
-   .inbounds[0].streamSettings = {"network":"tcp","security":"none","tcpSettings":{"header":{"type":"none"}}} |
+   .inbounds[0].streamSettings = {"network":"tcp","security":"none"} |
    .inbounds[1].streamSettings = {"network":"tcp","security":"none"}' \
   "$XRAY_CFG" > "$tmp"; then
   rm -f "$tmp" "$CFG_BAK"
   usk_json_fail "xray_config_update_failed"
 fi
 mv "$tmp" "$XRAY_CFG"
+usk_xray_fix_perms "$XRAY_CFG"
 
 if ! usk_xray_test_config "$XRAY_CFG"; then
   mv "$CFG_BAK" "$XRAY_CFG"
