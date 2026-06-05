@@ -88,7 +88,7 @@ REALITY_DEST=${USK_XRAY_DEFAULT_DEST}
 REALITY_SNI=${USK_XRAY_DEFAULT_SNI}
 REALITY_PRIVATE_KEY=${REALITY_PRIVATE_KEY}
 REALITY_PUBLIC_KEY=${REALITY_PUBLIC_KEY}
-REALITY_SHORT_IDS=,${sid}
+REALITY_SHORT_IDS=${sid}
 REALITY_FINGERPRINT=${USK_XRAY_DEFAULT_FP}
 EOF
   chmod 600 "$USK_XRAY_REALITY_FILE"
@@ -120,8 +120,14 @@ usk_xray_reality_short_id_for_client() {
 }
 
 usk_xray_reality_short_ids_json() {
-  local ids="${REALITY_SHORT_IDS:-,}"
-  echo "$ids" | tr ',' '\n' | jq -R -s 'split("\n") | map(select(length > 0))'
+  local ids="${REALITY_SHORT_IDS:-}"
+  local sid
+  sid=$(echo "$ids" | tr ',' '\n' | grep -E '^[0-9a-fA-F]{2,16}$' | head -1)
+  if [ -n "$sid" ]; then
+    jq -cn --arg s "$sid" '["", $s]'
+  else
+    echo '[""]'
+  fi
 }
 
 usk_xray_load_clients() {

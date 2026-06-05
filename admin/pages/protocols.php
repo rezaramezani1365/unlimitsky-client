@@ -16,7 +16,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['install_protocol'])) 
         usk_flash(__('protocol_install_started'), 'info');
     } elseif (!empty($res['ok'])) {
         if (!empty($res['warn'])) {
-            usk_flash(__('protocol_reinstalled_warn'), 'warning');
+            $logFile = 'data/protocols/' . $proto . '-last.log';
+            $tail = isset($res['log']) ? trim(substr((string) $res['log'], -350)) : '';
+            $msg = sprintf(__('protocol_reinstalled_warn'), $logFile);
+            if ($tail !== '') {
+                $msg .= ' — ' . $tail;
+            }
+            usk_flash($msg, 'warning');
         } else {
             usk_flash($wasInstalled ? __('protocol_reinstalled') : __('protocol_installed'));
         }
@@ -95,6 +101,9 @@ unset($_pk, $s);
                     <?php endif; ?>
                     <?php if (!empty($meta['note_key'])) : ?>
                     <p class="small text-danger mb-2"><i class="fa-solid fa-circle-info"></i> <?= __($meta['note_key']) ?></p>
+                    <?php endif; ?>
+                    <?php if (!empty($st['last_install_warning'])) : ?>
+                    <p class="small text-warning mb-2" style="white-space:pre-wrap;direction:ltr;text-align:left;"><i class="fa-solid fa-triangle-exclamation"></i> <?= usk_esc($st['last_install_warning']) ?></p>
                     <?php endif; ?>
                     <?php if (!empty($st['firewall_note'])) : ?>
                     <p class="small text-warning mb-2"><i class="fa-solid fa-triangle-exclamation"></i> <?= usk_esc($st['firewall_note']) ?></p>

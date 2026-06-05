@@ -522,6 +522,7 @@ class USK_ProtocolManager
         }
         $cmd .= ' 2>&1';
 
+        @set_time_limit(600);
         $prev = self::read_status($proto);
         $out = shell_exec($cmd);
         if ($out === null) {
