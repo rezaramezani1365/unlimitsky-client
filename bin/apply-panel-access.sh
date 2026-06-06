@@ -128,12 +128,13 @@ else
   [ -z "$HOST" ] && HOST="127.0.0.1"
 fi
 
-if [ "$HTTPS_ENABLED" = "1" ] && [ -n "$PANEL_DOMAIN" ]; then
+# HTTPS without port only when nginx listens on 80/443 (Cloudflare). Port 8082 needs :8082 in URLs.
+if [ "$HTTPS_ENABLED" = "1" ] && [ -n "$PANEL_DOMAIN" ] && { [ "$NEW_PORT" = "443" ] || [ "$NEW_PORT" = "80" ]; }; then
   PUBLIC_URL="${SCHEME}://${HOST}"
 elif [ -n "$PANEL_DOMAIN" ]; then
-  PUBLIC_URL="${SCHEME}://${HOST}:${NEW_PORT}"
+  PUBLIC_URL="http://${HOST}:${NEW_PORT}"
 else
-  PUBLIC_URL="${SCHEME}://${HOST}:${NEW_PORT}"
+  PUBLIC_URL="http://${HOST}:${NEW_PORT}"
 fi
 
 CONFIG="${WEB_ROOT}/config.php"

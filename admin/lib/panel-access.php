@@ -219,16 +219,34 @@ class USK_PanelAccess
     public static function current_public_url()
     {
         global $config;
-        $domain = trim((string) ($config['domain'] ?? ''));
-        if ($domain !== '' && strpos($domain, '[*') !== 0) {
-            return rtrim($domain, '/');
-        }
         $cfg = self::get();
+        $port = (int) ($cfg['panel_port'] ?? self::detect_port());
+        $panelDomain = self::sanitize_domain($cfg['panel_domain'] ?? '');
+
+        if (!empty($cfg['domain_enabled']) && $panelDomain !== '') {
+            return self::build_public_url(
+                $panelDomain,
+                $port,
+                !empty($cfg['https_enabled']),
+                true
+            );
+        }
+
+        $stored = trim((string) ($config['domain'] ?? ''));
+        if ($stored !== '' && strpos($stored, '[*') !== 0) {
+            $parsed = parse_url($stored);
+            $host = is_array($parsed) ? (string) ($parsed['host'] ?? '') : '';
+            if ($host !== '' && !in_array($port, array(80, 443), true) && empty($parsed['port'])) {
+                return self::build_public_url($host, $port, !empty($cfg['https_enabled']), true);
+            }
+            return rtrim($stored, '/');
+        }
+
         return self::build_public_url(
-            !empty($cfg['domain_enabled']) ? ($cfg['panel_domain'] ?? '') : '',
-            (int) ($cfg['panel_port'] ?? self::detect_port()),
+            $panelDomain,
+            $port,
             !empty($cfg['https_enabled']),
-            !empty($cfg['domain_enabled'])
+            $panelDomain !== ''
         );
     }
 
@@ -240,22 +258,24 @@ class USK_PanelAccess
     public static function build_public_url($panelDomain, $port, $https = false, $domainMode = false)
     {
         $port = self::sanitize_port($port);
-        $scheme = $https ? 'https' : 'http';
         $host = self::sanitize_domain($panelDomain);
         if ($host === '') {
             if (!class_exists('USK_ConnectHost')) {
                 require_once __DIR__ . '/connect-host.php';
             }
             $host = USK_ConnectHost::detect_ip();
-            return $scheme . '://' . $host . ':' . $port;
+            return 'http://' . $host . ':' . $port;
         }
-        if ($https && $domainMode) {
-            return $scheme . '://' . $host;
+
+        // Public HTTPS without port: only when nginx listens on 80/443 (Cloudflare / reverse proxy).
+        // Origin on 8082 etc. must keep the port — there is no TLS on 443 by default.
+        if ($domainMode && $https && in_array($port, array(80, 443), true)) {
+            return 'https://' . $host;
         }
         if ($domainMode) {
-            return $scheme . '://' . $host . ':' . $port;
+            return 'http://' . $host . ':' . $port;
         }
-        return $scheme . '://' . $host . ':' . $port;
+        return 'http://' . $host . ':' . $port;
     }
 
     public static function can_apply_from_web()
