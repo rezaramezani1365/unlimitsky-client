@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/config-download.php';
 require_once __DIR__ . '/service-config-view.php';
+require_once __DIR__ . '/protocols/usage.php';
 
 function usk_customer_portal_url($code, $token)
 {
@@ -32,6 +33,8 @@ class USK_CustomerPortal
             return array('ok' => false, 'error' => 'unsupported');
         }
 
+        USK_ProtocolUsage::sync_all();
+
         $native = USK_ProtocolLimits::find_client_for_order($order);
         if (!$native) {
             return array('ok' => false, 'error' => 'removed');
@@ -55,7 +58,7 @@ class USK_CustomerPortal
         $expiresAt = (string) ($meta['expires_at'] ?? '');
         $maxConnections = max(1, (int) ($meta['max_connections'] ?? 1));
 
-        $usage = self::usage_stats($protocol, $meta, $volumeGb);
+        $usage = USK_ProtocolUsage::usage_stats($protocol, $meta, $volumeGb);
         $remaining = self::remaining_time($expiresAt, $durationDays, $meta['created'] ?? ($meta['created_at'] ?? ''));
 
         $primaryLink = usk_service_primary_config($order, $meta);
@@ -64,13 +67,20 @@ class USK_CustomerPortal
         }
         if ($protocol === 'xray') {
             $primaryLink = usk_client_meta_string($meta, 'vless') ?: $primaryLink;
-        } else        if ($protocol === 'amnezia') {
+        } elseif ($protocol === 'amnezia') {
             $primaryLink = usk_client_meta_string($meta, 'vpn_uri') ?: $primaryLink;
         } elseif ($protocol === 'wireguard') {
             $primaryLink = usk_client_meta_string($meta, 'config') ?: $primaryLink;
         }
 
         $qrB64 = (string) ($meta['qr_png'] ?? '');
+        if ($primaryLink !== '' && ($qrB64 === '' || $protocol === 'xray')) {
+            $generated = USK_ProtocolUsage::qr_png_b64($primaryLink);
+            if ($generated !== '') {
+                $qrB64 = $generated;
+            }
+        }
+
         $downloadUrl = usk_config_download_url($code, $token);
         $downloadFilename = self::download_filename($protocol, $native['username'] ?? '', $meta);
 
@@ -94,7 +104,8 @@ class USK_CustomerPortal
             'credentials' => self::credentials($protocol, $meta),
             'wg_conf' => usk_client_meta_string($meta, 'wg_conf'),
             'apps' => self::app_links($protocol),
-            'show_qr' => in_array($protocol, array('xray', 'wireguard', 'amnezia'), true),
+            'show_qr' => in_array($protocol, array('xray', 'wireguard', 'amnezia'), true)
+                && ($primaryLink !== '' || $qrB64 !== ''),
             'show_copy_link' => in_array($protocol, array('xray', 'amnezia', 'wireguard'), true) && $primaryLink !== '',
             'show_download' => in_array($protocol, array('openvpn', 'amnezia', 'xray', 'wireguard'), true),
         );
@@ -165,26 +176,7 @@ class USK_CustomerPortal
 
     private static function usage_stats($protocol, array $meta, $volumeGb)
     {
-        $usedBytes = null;
-        if ($protocol === 'wireguard') {
-            $usedBytes = USK_ProtocolLimits::wireguard_usage_bytes($meta);
-        }
-
-        $limitBytes = $volumeGb > 0 ? ($volumeGb * 1073741824) : 0;
-        $usedGb = $usedBytes !== null ? round($usedBytes / 1073741824, 2) : null;
-        $remainingGb = ($usedGb !== null && $volumeGb > 0) ? max(0, round($volumeGb - $usedGb, 2)) : null;
-        $percent = ($usedGb !== null && $volumeGb > 0) ? min(100, round(($usedGb / $volumeGb) * 100, 1)) : null;
-
-        return array(
-            'tracked' => $usedBytes !== null,
-            'used_bytes' => $usedBytes,
-            'used_gb' => $usedGb,
-            'remaining_gb' => $remainingGb,
-            'limit_gb' => $volumeGb,
-            'percent' => $percent,
-            'exceeded' => $usedBytes !== null && $limitBytes > 0 && $usedBytes >= $limitBytes,
-            'used_label' => $usedBytes !== null ? USK_ProtocolLimits::format_bytes($usedBytes) : '',
-        );
+        return USK_ProtocolUsage::usage_stats($protocol, $meta, $volumeGb);
     }
 
     private static function credentials($protocol, array $meta)

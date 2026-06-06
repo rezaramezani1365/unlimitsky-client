@@ -217,6 +217,17 @@ usk_xray_write_config() {
     --argjson shortIds "$short_ids_json" \
     '{
       log: { loglevel: "warning" },
+      stats: {},
+      api: {
+        tag: "api",
+        listen: "127.0.0.1",
+        port: 10085,
+        services: ["StatsService"]
+      },
+      policy: {
+        levels: { "0": { statsUserUplink: true, statsUserDownlink: true } },
+        system: { statsInboundUplink: true, statsInboundDownlink: true }
+      },
       inbounds: [
         {
           listen: "0.0.0.0",
@@ -392,7 +403,7 @@ usk_xray_add_client() {
       if .protocol == "vless" then
         .settings.clients = ((.settings.clients // [])
           | map(select(.id != $id))
-          | . + [{id: $id, email: $email, flow: "xtls-rprx-vision"}])
+          | . + [{id: $id, email: $email, flow: "xtls-rprx-vision", level: 0}])
       else . end
     )' "$cfg" > "$tmp"; then
     rm -f "$tmp"
@@ -411,6 +422,31 @@ usk_xray_remove_client() {
     .inbounds |= map(
       if .protocol == "vless" then
         .settings.clients = [.settings.clients[]? | select(.id != $id)]
+      else . end
+    )' "$cfg" > "$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  mv "$tmp" "$cfg"
+  usk_xray_fix_perms "$cfg"
+}
+
+usk_xray_ensure_stats_policy() {
+  local cfg="$1"
+  [ -f "$cfg" ] || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+  local tmp
+  tmp=$(mktemp)
+  if ! jq '
+    .stats = (.stats // {}) |
+    .api = (.api // {tag:"api",listen:"127.0.0.1",port:10085,services:["StatsService"]}) |
+    .policy = (.policy // {}) |
+    .policy.levels = (.policy.levels // {}) |
+    .policy.levels["0"] = (.policy.levels["0"] // {statsUserUplink:true,statsUserDownlink:true}) |
+    .policy.system = (.policy.system // {statsInboundUplink:true,statsInboundDownlink:true}) |
+    .inbounds |= map(
+      if .protocol == "vless" then
+        .settings.clients = [.settings.clients[]? | . + {level: (.level // 0)}]
       else . end
     )' "$cfg" > "$tmp"; then
     rm -f "$tmp"

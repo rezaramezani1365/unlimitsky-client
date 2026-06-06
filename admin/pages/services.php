@@ -1,6 +1,7 @@
 <?php
 global $sql;
 require_once dirname(__DIR__) . '/lib/protocols/limits.php';
+require_once dirname(__DIR__) . '/lib/service-config-view.php';
 
 $GLOBALS['page_title'] = __('nav_services');
 $GLOBALS['active_nav'] = 'services';
@@ -90,6 +91,17 @@ function usk_service_status_badge($status)
 <?php if (!empty($s)) :
     $badge = usk_service_status_badge($s['status']);
     $client = $native_info['client'] ?? null;
+    require_once dirname(__DIR__) . '/lib/protocols/usage.php';
+    if ($client) {
+        USK_ProtocolUsage::sync_all();
+    }
+    $usageStats = $client ? usk_service_usage_stats($s, $client) : null;
+    $protocol = (string) ($s['protocol'] ?? '');
+    $downloadUrl = usk_service_download_url($s, $client);
+    $portalUrl = usk_service_portal_url($s, $client);
+    $downloadFilename = usk_service_download_filename($s, $client, $native_info['username'] ?? '');
+    $primaryConfig = usk_service_primary_config($s, $client);
+    $secondaryConfig = usk_service_secondary_config($s, $client);
 ?>
 <div class="usk-card">
     <h3><?= __('service_detail') ?> #<?= usk_esc($s['code']) ?></h3>
@@ -107,13 +119,15 @@ function usk_service_status_badge($status)
         <?php if (!empty($client['expires_at'])) : ?>
             <p><strong><?= __('expires_at') ?>:</strong> <?= usk_esc($client['expires_at']) ?></p>
         <?php endif; ?>
-        <?php if (($s['protocol'] ?? '') === 'wireguard' && !empty($client['volume_gb'])) :
-            $used = USK_ProtocolLimits::wireguard_usage_bytes($client);
-        ?>
+        <?php if ($usageStats && (int) ($s['volume'] ?? 0) > 0) : ?>
             <p><strong><?= __('traffic_used') ?>:</strong>
-                <?= $used !== null ? usk_esc(USK_ProtocolLimits::format_bytes($used)) : '—' ?>
-                / <?= usk_esc($client['volume_gb']) ?> GB
+                <?= usk_esc((string) ($usageStats['used_gb'] ?? 0)) ?> GB
+                / <?= usk_esc($s['volume']) ?> GB
+                (<?= usk_esc(__('portal_left')) ?>: <?= usk_esc((string) ($usageStats['remaining_gb'] ?? 0)) ?> GB)
             </p>
+        <?php endif; ?>
+        <?php if (!empty($client['max_connections'])) : ?>
+            <p><strong><?= __('portal_max_connections') ?>:</strong> <?= (int) $client['max_connections'] ?> <?= __('plan_connections_unit') ?></p>
         <?php endif; ?>
         <?php if (($client['status'] ?? '') === 'expired' || ($client['status'] ?? '') === 'volume_exceeded') : ?>
             <div class="alert alert-warning mt-3"><?= __('service_disabled_notice') ?></div>
@@ -151,14 +165,15 @@ function usk_service_status_badge($status)
         <?php endif; ?>
     <?php endif; ?>
 
-    <?php
-    require_once dirname(__DIR__) . '/lib/service-config-view.php';
-    $protocol = (string) ($s['protocol'] ?? '');
-    $downloadUrl = usk_service_download_url($s, $client);
-    $downloadFilename = usk_service_download_filename($s, $client, $native_info['username'] ?? '');
-    $primaryConfig = usk_service_primary_config($s, $client);
-    $secondaryConfig = usk_service_secondary_config($s, $client);
-    ?>
+    <?php if ($portalUrl !== '') : ?>
+        <p class="mt-3">
+            <strong><?= __('portal_customer_link') ?>:</strong>
+            <a class="btn btn-usk-primary btn-sm ms-2" href="<?= usk_esc($portalUrl) ?>" target="_blank" rel="noopener">
+                <i class="fa-solid fa-external-link"></i> <?= __('portal_open_page') ?>
+            </a>
+        </p>
+        <code class="d-block p-3" style="white-space:pre-wrap;word-break:break-all;direction:ltr;text-align:left;"><?= usk_esc($portalUrl) ?></code>
+    <?php endif; ?>
 
     <?php if ($protocol === 'xray' && $primaryConfig !== '') : ?>
         <p class="mt-3"><strong><?= __('xray_vless_link') ?>:</strong></p>
@@ -233,21 +248,34 @@ function usk_service_status_badge($status)
                     <th><?= __('server') ?></th>
                     <th><?= __('volume') ?>/<?= __('duration') ?></th>
                     <th><?= __('status') ?></th>
+                    <th><?= __('portal_customer_link') ?></th>
                     <th></th>
                 </tr>
             </thead>
             <tbody>
             <?php if ($list_count === 0) : ?>
-                <tr><td colspan="5" class="text-muted text-center py-4"><?= __('services_empty') ?></td></tr>
+                <tr><td colspan="6" class="text-muted text-center py-4"><?= __('services_empty') ?></td></tr>
             <?php endif; ?>
             <?php while ($r = $list->fetch_assoc()) :
                 $badge = usk_service_status_badge($r['status']);
+                $rowNative = USK_ProtocolLimits::find_client_for_order($r);
+                $rowClient = $rowNative['client'] ?? null;
+                $rowPortal = usk_service_portal_url($r, $rowClient);
             ?>
                 <tr class="<?= in_array($r['status'], array('expired', 'volume_exceeded'), true) ? 'table-warning' : '' ?>">
                     <td><?= usk_esc($r['code']) ?></td>
                     <td><?= usk_esc($r['location']) ?></td>
                     <td><?= usk_esc($r['volume']) ?>GB / <?= usk_esc($r['date']) ?><?= __('days') ?></td>
                     <td><span class="badge badge-<?= $badge['class'] ?>"><?= usk_esc($badge['label']) ?></span></td>
+                    <td>
+                        <?php if ($rowPortal !== '') : ?>
+                            <a class="btn btn-sm btn-outline-primary" href="<?= usk_esc($rowPortal) ?>" target="_blank" rel="noopener" title="<?= usk_esc(__('portal_open_page')) ?>">
+                                <i class="fa-solid fa-user"></i>
+                            </a>
+                        <?php else : ?>
+                            <span class="text-muted">—</span>
+                        <?php endif; ?>
+                    </td>
                     <td>
                         <a class="btn btn-sm btn-outline" href="<?= usk_admin_url('services', ['view' => $r['row']]) ?>"><?= __('view') ?></a>
                     </td>

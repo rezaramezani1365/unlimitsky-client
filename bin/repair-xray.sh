@@ -33,6 +33,9 @@ systemctl enable xray 2>/dev/null || true
 usk_xray_open_firewall "$VLESS_PORT" "xray-vless-reality"
 usk_xray_verify_or_fail "$XRAY_CFG" || exit 1
 
+usk_xray_ensure_stats_policy "$XRAY_CFG" 2>/dev/null || true
+usk_xray_test_config "$XRAY_CFG" 2>/dev/null && systemctl restart xray 2>/dev/null || true
+
 # shellcheck disable=SC1090
 . "$USK_XRAY_REALITY_FILE"
 echo "USK_META:vless_port=${VLESS_PORT};reality=1;sni=${REALITY_SNI:-www.microsoft.com}"

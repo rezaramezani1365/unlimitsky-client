@@ -117,3 +117,32 @@ function usk_service_secondary_config($order, $client)
     }
     return usk_client_meta_string($client, 'wg_conf');
 }
+
+function usk_service_portal_url($order, $client)
+{
+    if (!$client || !is_array($order)) {
+        return '';
+    }
+    $link = trim((string) ($order['link'] ?? ''));
+    if ($link !== '' && strpos($link, 'service.php') !== false) {
+        return $link;
+    }
+    $token = usk_client_meta_string($client, 'download_token');
+    $code = (string) ($order['code'] ?? '');
+    if ($token === '' || $code === '') {
+        return '';
+    }
+    require_once __DIR__ . '/customer-portal.php';
+    return usk_customer_portal_url($code, $token);
+}
+
+function usk_service_usage_stats($order, $client)
+{
+    if (!$client || !is_array($order)) {
+        return null;
+    }
+    require_once __DIR__ . '/protocols/usage.php';
+    $protocol = (string) ($order['protocol'] ?? '');
+    $volumeGb = (int) ($order['volume'] ?? ($client['volume_gb'] ?? 0));
+    return USK_ProtocolUsage::usage_stats($protocol, $client, $volumeGb);
+}

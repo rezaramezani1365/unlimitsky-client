@@ -440,6 +440,9 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         <p class="mt-2"><strong><?= __('amnezia_qr') ?>:</strong></p>
         <p><img src="data:image/png;base64,<?= usk_esc($result['qr_png']) ?>" alt="Amnezia QR" style="max-width:220px;border:1px solid #333;padding:8px;background:#fff;" /></p>
         <p class="text-muted small"><?= __('amnezia_qr_hint') ?></p>
+        <?php elseif (($result['protocol'] ?? '') === 'xray') : ?>
+        <p class="mt-2"><strong><?= __('portal_qr_hint') ?>:</strong></p>
+        <p><img src="data:image/png;base64,<?= usk_esc($result['qr_png']) ?>" alt="VLESS QR" style="max-width:220px;border:1px solid #333;padding:8px;background:#fff;" /></p>
         <?php else : ?>
         <p class="mt-2"><strong><?= __('wireguard_qr') ?>:</strong></p>
         <p><img src="data:image/png;base64,<?= usk_esc($result['qr_png']) ?>" alt="QR" style="max-width:220px;border:1px solid #333;padding:8px;background:#fff;" /></p>

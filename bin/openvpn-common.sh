@@ -3,6 +3,40 @@
 OVPN_SUBNET="${OVPN_SUBNET:-10.9.0.0/24}"
 OVPN_NET="${OVPN_NET:-10.9.0.0}"
 OVPN_MASK="${OVPN_MASK:-255.255.255.0}"
+OVPN_STATUS_DIR="${OVPN_STATUS_DIR:-/var/log/openvpn}"
+
+usk_openvpn_prepare_status_dir() {
+  mkdir -p "$OVPN_STATUS_DIR"
+  chmod 755 "$OVPN_STATUS_DIR" 2>/dev/null || true
+}
+
+usk_openvpn_status_log_path() {
+  local name="$1"
+  case "$name" in
+    server-udp) echo "${OVPN_STATUS_DIR}/openvpn-udp-status.log" ;;
+    server-tcp) echo "${OVPN_STATUS_DIR}/openvpn-tcp-status.log" ;;
+    server)     echo "${OVPN_STATUS_DIR}/openvpn-status.log" ;;
+    *)          echo "${OVPN_STATUS_DIR}/openvpn-${name}-status.log" ;;
+  esac
+}
+
+usk_openvpn_ensure_status_policy() {
+  local cfg name status_log
+  usk_openvpn_prepare_status_dir
+  for cfg in /etc/openvpn/server-udp.conf /etc/openvpn/server-tcp.conf /etc/openvpn/server.conf; do
+    [ -f "$cfg" ] || continue
+    name=$(basename "$cfg" .conf)
+    status_log=$(usk_openvpn_status_log_path "$name")
+    if ! grep -qE '^status ' "$cfg" 2>/dev/null; then
+      {
+        echo "status ${status_log} 10"
+        echo "status-version 2"
+      } >> "$cfg"
+    elif ! grep -qE '^status-version ' "$cfg" 2>/dev/null; then
+      echo "status-version 2" >> "$cfg"
+    fi
+  done
+}
 
 usk_openvpn_main_iface() {
   ip route get 1.1.1.1 2>/dev/null | awk '{print $5; exit}'
@@ -41,6 +75,9 @@ usk_openvpn_write_server() {
   local proto="$3"
   local cfg="/etc/openvpn/${name}.conf"
   local easy="/etc/openvpn/easy-rsa"
+  local status_log
+  status_log=$(usk_openvpn_status_log_path "$name")
+  usk_openvpn_prepare_status_dir
 
   local extra_notify=""
   if [ "$proto" = "udp" ]; then
@@ -67,6 +104,8 @@ data-ciphers AES-256-GCM:AES-128-GCM
 data-ciphers-fallback AES-256-GCM
 persist-key
 persist-tun
+status ${status_log} 10
+status-version 2
 user nobody
 group nogroup
 verb 3${extra_notify}

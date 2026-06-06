@@ -477,5 +477,6 @@
   "portal_apps_hint": "Install the app for your platform:",
   "portal_status_active": "Active",
   "portal_status_expired": "Expired",
-  "portal_status_volume": "Volume exceeded"
+  "portal_status_volume": "Volume exceeded",
+  "portal_language": "Language"
 }

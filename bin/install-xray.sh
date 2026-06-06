@@ -21,7 +21,7 @@ for cmd in curl jq openssl; do
 done
 if [ "$NEED_APT" -eq 1 ]; then
   apt-get update -qq
-  apt-get install -y curl unzip jq openssl ca-certificates
+  apt-get install -y curl unzip jq openssl ca-certificates qrencode
 fi
 
 if ! usk_xray_bin >/dev/null 2>&1; then
@@ -49,6 +49,8 @@ usk_xray_ensure_reality_params || usk_fail "xray_reality_keygen_failed"
 if ! usk_xray_write_config "$XRAY_CFG" "$EXISTING_VLESS" "$VLESS_PORT"; then
   usk_fail "xray_config_json_failed"
 fi
+
+usk_xray_ensure_stats_policy "$XRAY_CFG" 2>/dev/null || true
 
 usk_xray_fix_perms "$XRAY_CFG"
 if ! usk_xray_test_config "$XRAY_CFG"; then

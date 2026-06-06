@@ -35,6 +35,9 @@ class USK_ProtocolLimits
      */
     public static function enforce_all()
     {
+        require_once __DIR__ . '/usage.php';
+        USK_ProtocolUsage::sync_all();
+
         $report = array(
             'checked' => 0,
             'disabled' => 0,
@@ -86,13 +89,12 @@ class USK_ProtocolLimits
             }
         }
 
-        if ($protocol === 'wireguard' && !empty($rec['volume_gb']) && (int) $rec['volume_gb'] > 0) {
-            $used = self::wireguard_usage_bytes($rec);
-            if ($used !== null) {
-                $limit = (int) $rec['volume_gb'] * 1024 * 1024 * 1024;
-                if ($used >= $limit) {
-                    return 'volume_exceeded';
-                }
+        if (!empty($rec['volume_gb']) && (int) $rec['volume_gb'] > 0) {
+            require_once __DIR__ . '/usage.php';
+            $used = USK_ProtocolUsage::client_usage_bytes($protocol, $rec);
+            $limit = (int) $rec['volume_gb'] * 1024 * 1024 * 1024;
+            if ($used >= $limit) {
+                return 'volume_exceeded';
             }
         }
 

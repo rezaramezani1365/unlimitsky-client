@@ -477,5 +477,6 @@
   "portal_apps_hint": "برنامه مناسب سیستم‌عامل خود را نصب کنید:",
   "portal_status_active": "فعال",
   "portal_status_expired": "منقضی",
-  "portal_status_volume": "حجم تمام شده"
+  "portal_status_volume": "حجم تمام شده",
+  "portal_language": "زبان"
 }

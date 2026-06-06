@@ -17,6 +17,8 @@ TCP_PORT=${TCP_PORT:-443}
 
 usk_openvpn_setup_nat
 
+usk_openvpn_ensure_status_policy
+
 if [ -f /etc/openvpn/server-udp.conf ]; then
   usk_openvpn_enable_service "server-udp" || true
   usk_openvpn_enable_service "server-tcp" || true

@@ -31,6 +31,7 @@ fi
 
 usk_xray_load_reality || usk_json_fail "xray_reality_not_configured"
 usk_xray_migrate_legacy_config "$XRAY_CFG" 2>/dev/null || true
+usk_xray_ensure_stats_policy "$XRAY_CFG" 2>/dev/null || true
 
 usk_xray_ports_from_config "$XRAY_CFG"
 VLESS_PORT="$USK_XRAY_VLESS_PORT"
@@ -68,6 +69,11 @@ SID=$(usk_xray_reality_short_id_for_client)
 FP="${REALITY_FINGERPRINT:-chrome}"
 VLESS=$(usk_xray_build_vless_uri "$UUID" "$SERVER_IP" "$VLESS_PORT" "${USERNAME}-vless" \
   "$REALITY_PUBLIC_KEY" "$REALITY_SNI" "$SID" "$FP")
+
+QR_B64=""
+if command -v qrencode >/dev/null 2>&1; then
+  QR_B64=$(qrencode -t PNG -o - "$VLESS" 2>/dev/null | base64 -w0 2>/dev/null || qrencode -t PNG -o - "$VLESS" 2>/dev/null | base64)
+fi
 
 CLIENT_JSON=$(usk_xray_build_client_json "$UUID" "$SERVER_IP" "$VLESS_PORT" "$USERNAME" "$CLIENT_DNS" 2>/dev/null || echo "")
 
@@ -107,9 +113,9 @@ mkdir -p "$(dirname "$REGISTRY")"
 [ -f "$REGISTRY" ] || echo "[]" > "$REGISTRY"
 tmp2=$(mktemp)
 if ! jq --arg u "$USERNAME" --arg id "$UUID" --arg ts "$(date -Iseconds)" --arg exp "$EXPIRES" \
-   --arg dns "$CLIENT_DNS" --arg token "$DOWNLOAD_TOKEN" \
+   --arg dns "$CLIENT_DNS" --arg token "$DOWNLOAD_TOKEN" --arg vless "$VLESS" \
    --argjson vol "$VOLUME_GB" --argjson days "$DURATION_DAYS" \
-  '. += [{"username":$u,"uuid":$id,"created":$ts,"volume_gb":$vol,"duration_days":$days,"expires_at":$exp,"status":"active","client_dns":$dns,"download_token":$token}]' \
+  '. += [{"username":$u,"uuid":$id,"created":$ts,"volume_gb":$vol,"duration_days":$days,"expires_at":$exp,"status":"active","client_dns":$dns,"download_token":$token,"vless":$vless}]' \
   "$REGISTRY" > "$tmp2"; then
   rm -f "$tmp2"
   usk_json_fail "xray_registry_failed"
@@ -131,9 +137,10 @@ jq -cn \
   --arg fname "$JSON_FILENAME" \
   --arg sni "$REALITY_SNI" \
   --arg fp "$FP" \
+  --arg qr "$QR_B64" \
   --argjson vol "$VOLUME_GB" \
   --argjson days "$DURATION_DAYS" \
   --argjson port "$VLESS_PORT" \
   --arg transport "reality" \
-  '{ok:true, username:$u, protocol:"xray", config:$cfg, links:$links, subscription_url:$vless, uuid:$id, vless:$vless, client_json:$json, vless_port:$port, transport:$transport, reality_sni:$sni, fingerprint:$fp, client_dns:$dns, download_token:$token, json_filename:$fname, profile_path:$file, expires_at:$exp, volume_gb:$vol, duration_days:$days}'
+  '{ok:true, username:$u, protocol:"xray", config:$cfg, links:$links, subscription_url:$vless, uuid:$id, vless:$vless, client_json:$json, vless_port:$port, transport:$transport, reality_sni:$sni, fingerprint:$fp, client_dns:$dns, download_token:$token, json_filename:$fname, profile_path:$file, expires_at:$exp, volume_gb:$vol, duration_days:$days, qr_png:$qr}'
 exit 0

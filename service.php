@@ -13,7 +13,12 @@ require_once __DIR__ . '/admin/lib/i18n.php';
 require_once __DIR__ . '/admin/lib/protocols/limits.php';
 require_once __DIR__ . '/admin/lib/customer-portal.php';
 
-USK_I18n::boot();
+$portalLang = strtolower((string) ($_GET['lang'] ?? ($_SESSION['usk_portal_lang'] ?? 'en')));
+if (!in_array($portalLang, array('fa', 'en'), true)) {
+    $portalLang = 'en';
+}
+$_SESSION['usk_portal_lang'] = $portalLang;
+USK_I18n::boot($portalLang);
 
 $code = (string) ($_GET['code'] ?? '');
 $token = (string) ($_GET['t'] ?? '');
@@ -24,6 +29,16 @@ $assetBase = ($scriptDir === '' || $scriptDir === '.') ? '/admin/assets' : ($scr
 $isRtl = USK_I18n::is_rtl();
 $bootstrapFile = $isRtl ? 'bootstrap.rtl.min.css' : 'bootstrap.min.css';
 $lang = USK_I18n::lang();
+
+$queryBase = array();
+if ($code !== '') {
+    $queryBase['code'] = $code;
+}
+if ($token !== '') {
+    $queryBase['t'] = $token;
+}
+$langUrlFa = '?' . http_build_query(array_merge($queryBase, array('lang' => 'fa')));
+$langUrlEn = '?' . http_build_query(array_merge($queryBase, array('lang' => 'en')));
 
 function portal_esc($s)
 {
@@ -46,9 +61,15 @@ function portal_esc($s)
 <div class="portal-wrap">
     <header class="portal-header">
         <div class="portal-brand"><i class="fa-solid fa-shield-halved text-primary"></i> <?= portal_esc(__('portal_page_title')) ?></div>
-        <button type="button" class="portal-theme-btn" id="portal-theme-toggle" aria-label="<?= portal_esc(__('theme')) ?>">
-            <i class="fa-solid fa-circle-half-stroke"></i> <?= portal_esc(__('theme')) ?>
-        </button>
+        <div class="portal-header-actions">
+            <select class="portal-lang-select" id="portal-lang-select" aria-label="<?= portal_esc(__('portal_language')) ?>">
+                <option value="en"<?= $lang === 'en' ? ' selected' : '' ?>>English</option>
+                <option value="fa"<?= $lang === 'fa' ? ' selected' : '' ?>>فارسی</option>
+            </select>
+            <button type="button" class="portal-icon-btn" id="portal-theme-toggle" aria-label="<?= portal_esc(__('theme')) ?>">
+                <i class="fa-solid fa-circle-half-stroke"></i>
+            </button>
+        </div>
     </header>
 
 <?php if (empty($view['ok'])) : ?>
@@ -96,11 +117,9 @@ function portal_esc($s)
             <div class="portal-stat">
                 <div class="label"><?= portal_esc(__('volume')) ?></div>
                 <div class="value"><?= (int) ($view['volume_gb'] ?? 0) ?> GB</div>
-                <?php if (!empty($usage['tracked']) && ($view['volume_gb'] ?? 0) > 0) : ?>
+                <?php if (($view['volume_gb'] ?? 0) > 0) : ?>
                 <div class="portal-progress"><div class="portal-progress-bar" style="width:<?= min(100, (float) ($usage['percent'] ?? 0)) ?>%"></div></div>
                 <div class="small text-muted mt-1"><?= portal_esc(__('portal_used')) ?>: <?= portal_esc((string) ($usage['used_gb'] ?? 0)) ?> GB · <?= portal_esc(__('portal_left')) ?>: <?= portal_esc((string) ($usage['remaining_gb'] ?? 0)) ?> GB</div>
-                <?php elseif (($view['volume_gb'] ?? 0) > 0) : ?>
-                <div class="small text-muted mt-1"><?= portal_esc(__('portal_usage_na')) ?></div>
                 <?php endif; ?>
             </div>
             <div class="portal-stat">
@@ -127,8 +146,8 @@ function portal_esc($s)
         <div class="text-center mt-3">
             <p class="small text-muted mb-2"><?= portal_esc(__('portal_qr_hint')) ?></p>
             <div class="portal-qr-wrap">
-                <?php if (!empty($view['qr_b64']) && $protocol !== 'xray') : ?>
-                    <img src="data:image/png;base64,<?= portal_esc($view['qr_b64']) ?>" alt="QR">
+                <?php if (!empty($view['qr_b64'])) : ?>
+                    <img id="portal-qr-img" src="data:image/png;base64,<?= portal_esc($view['qr_b64']) ?>" alt="QR">
                 <?php else : ?>
                     <canvas id="portal-qr-canvas"></canvas>
                 <?php endif; ?>
@@ -196,18 +215,22 @@ function portal_esc($s)
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 <script>
 (function () {
+    var langSelect = document.getElementById('portal-lang-select');
+    if (langSelect) {
+        langSelect.addEventListener('change', function () {
+            var url = new URL(window.location.href);
+            url.searchParams.set('lang', langSelect.value);
+            window.location.href = url.toString();
+        });
+    }
     function copyText(text, btn) {
         if (!text) return;
         var done = function () {
             if (!btn) return;
             btn.classList.add('copied');
-            var icon = btn.querySelector('i');
             var orig = btn.dataset.origLabel || btn.innerHTML;
             btn.dataset.origLabel = orig;
-            if (icon) {
-                icon.className = 'fa-solid fa-check';
-            }
-            btn.innerHTML = icon ? icon.outerHTML + ' <?= portal_esc(__('portal_copied')) ?>' : '<?= portal_esc(__('portal_copied')) ?>';
+            btn.innerHTML = '<i class="fa-solid fa-check"></i> <?= portal_esc(__('portal_copied')) ?>';
             setTimeout(function () {
                 btn.classList.remove('copied');
                 btn.innerHTML = orig;
