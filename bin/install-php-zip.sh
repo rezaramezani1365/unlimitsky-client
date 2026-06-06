@@ -52,6 +52,8 @@ echo "=== php-zip install $(date -Iseconds) pid=$$ ==="
 
 write_status running "apt_install"
 
+export USK_APT_LOG="$LOG_FILE"
+
 if usk_zip_cli_ok; then
     echo "USK_OK: ZipArchive already available"
     write_status ok "already_installed"
@@ -59,8 +61,9 @@ if usk_zip_cli_ok; then
 fi
 
 if ! usk_ensure_php_zip; then
+    err_tail="$(tail -3 "$LOG_FILE" 2>/dev/null | tr '\n' ' ')"
     echo "USK_ERR: usk_ensure_php_zip failed"
-    write_status failed "apt_install_failed"
+    write_status failed "apt_failed ${err_tail}"
     exit 1
 fi
 

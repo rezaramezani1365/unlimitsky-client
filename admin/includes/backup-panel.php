@@ -51,7 +51,14 @@ $dataPaths = USK_PanelBackup::data_paths();
         </p>
         <?php endif; ?>
         <?php elseif ($zipCanInstall) : ?>
-        <form method="post" action="<?= usk_esc(usk_admin_base()) ?>/backup-action.php" class="mt-3 mb-0">
+        <p class="small text-muted mb-2 mt-2"><?= __('backup_zip_install_ssh_recommended') ?></p>
+        <pre class="small mb-3 p-2 bg-dark text-light" style="white-space:pre-wrap;direction:ltr">sudo apt update
+sudo add-apt-repository universe -y
+sudo apt update
+sudo apt install -y <?= usk_esc($zipSuggested) ?>
+sudo systemctl restart php8.1-fpm
+php -r "var_dump(class_exists('ZipArchive'));"</pre>
+        <form method="post" action="<?= usk_esc(usk_admin_base()) ?>/backup-action.php" class="mt-1 mb-0">
             <input type="hidden" name="action" value="install_zip">
             <input type="hidden" name="return_page" value="<?= usk_esc($backupReturnPage) ?>">
             <button type="submit" class="btn btn-usk-primary btn-sm">

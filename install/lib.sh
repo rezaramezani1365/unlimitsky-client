@@ -274,34 +274,66 @@ usk_apt_zip_package_candidates() {
     case " $seen " in *" php-zip "*) ;; *) echo "php-zip" ;; esac
 }
 
+usk_apt_ensure_universe() {
+    local log="${1:-/tmp/usk-php-zip-apt.log}"
+    if apt-cache search --names-only '^php[0-9.]+-zip$' 2>/dev/null | grep -q .; then
+        return 0
+    fi
+    echo "[*] No php*-zip in apt index — enabling universe repository..."
+    if command -v add-apt-repository >/dev/null 2>&1; then
+        usk_apt_with_timeout 60 add-apt-repository -y universe >>"$log" 2>&1 || true
+        usk_apt_with_timeout 120 apt-get update -qq >>"$log" 2>&1 || true
+    fi
+}
+
+usk_apt_pkg_available() {
+    local pkg="$1"
+    apt-cache show "$pkg" >/dev/null 2>&1
+}
+
 usk_ensure_php_zip() {
     if usk_zip_cli_ok; then
         return 0
     fi
 
+    local log="${USK_APT_LOG:-/tmp/usk-php-zip-apt.log}"
     echo "[*] Installing PHP zip extension..."
-    local pkg v log="/tmp/usk-php-zip-apt.log"
     : > "$log"
 
-    echo "[*] apt-get update (timeout 90s)..."
-    usk_apt_with_timeout 90 apt-get update -qq >>"$log" 2>&1 || echo "[!] apt-get update warning" >&2
+    echo "[*] apt-get update (timeout 120s)..."
+    usk_apt_with_timeout 120 apt-get update >>"$log" 2>&1 || echo "[!] apt-get update warning (see log)" >&2
+
+    usk_apt_ensure_universe "$log"
 
     echo "[*] PHP versions: $(usk_php_discover_versions | tr '\n' ' ')"
     echo "[*] Candidate packages: $(usk_apt_zip_package_candidates | tr '\n' ' ')"
 
+    local pkg v rc apt_rc
     while IFS= read -r pkg; do
         [ -z "$pkg" ] && continue
-        echo "[*] apt-get install -y $pkg (timeout 120s)"
-        if usk_apt_with_timeout 120 apt-get install -y \
-            -o Dpkg::Options::=--force-confdef \
-            -o Dpkg::Options::=--force-confold \
-            "$pkg" >>"$log" 2>&1; then
-            echo "[*] installed $pkg"
-        else
-            echo "[!] apt failed or timed out for $pkg" >&2
-            tail -3 "$log" 2>/dev/null >&2 || true
+        if ! usk_apt_pkg_available "$pkg"; then
+            echo "[!] Package not in apt index: $pkg (apt-cache policy $pkg)" >&2
+            apt-cache policy "$pkg" 2>/dev/null | head -5 >&2 || true
             continue
         fi
+        echo "[*] apt-get install -y --no-install-recommends $pkg (timeout 300s)"
+        set +e
+        usk_apt_with_timeout 300 apt-get install -y --no-install-recommends \
+            -o Dpkg::Options::=--force-confdef \
+            -o Dpkg::Options::=--force-confold \
+            "$pkg" >>"$log" 2>&1
+        apt_rc=$?
+        set -e
+        if [ "$apt_rc" -eq 124 ]; then
+            echo "[!] TIMEOUT (300s) installing $pkg — VPS too slow or apt stuck" >&2
+            continue
+        fi
+        if [ "$apt_rc" -ne 0 ]; then
+            echo "[!] apt exit $apt_rc for $pkg" >&2
+            tail -5 "$log" 2>/dev/null >&2 || true
+            continue
+        fi
+        echo "[*] installed $pkg"
         v="$(echo "$pkg" | sed -n 's/^php\([0-9.]*\)-zip$/\1/p')"
         if [ -n "$v" ] && command -v phpenmod >/dev/null 2>&1; then
             phpenmod -v "$v" zip 2>/dev/null || phpenmod zip 2>/dev/null || true
@@ -312,8 +344,8 @@ usk_ensure_php_zip() {
     done < <(usk_apt_zip_package_candidates)
 
     echo "[!] ZipArchive still missing after apt." >&2
-    echo "[!] Try manually: apt update && apt-cache search php | grep zip" >&2
-    tail -8 "$log" 2>/dev/null >&2 || true
+    echo "[!] apt log tail:" >&2
+    tail -15 "$log" 2>/dev/null >&2 || true
     return 1
 }
 
