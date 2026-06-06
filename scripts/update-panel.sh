@@ -50,7 +50,7 @@ chmod -R 775 "$WEB_ROOT/admin/data" "$WEB_ROOT/data" 2>/dev/null || true
 if declare -F usk_verify_panel_deploy >/dev/null 2>&1; then
     usk_verify_panel_deploy "$WEB_ROOT"
     usk_write_deploy_stamp "$WEB_ROOT" "$SRC"
-    usk_ensure_php_zip
+    usk_ensure_php_zip || true
     usk_restart_php_fpm
 else
     if declare -F usk_ensure_php_zip >/dev/null 2>&1; then
