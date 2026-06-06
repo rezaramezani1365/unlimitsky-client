@@ -17,6 +17,7 @@ require_once __DIR__ . '/protocols/manager.php';
 require_once __DIR__ . '/protocols/limits.php';
 require_once __DIR__ . '/protocols/provisioner.php';
 require_once __DIR__ . '/client-dns.php';
+require_once __DIR__ . '/connect-host.php';
 require_once __DIR__ . '/backup.php';
 require_once __DIR__ . '/migration.php';
 

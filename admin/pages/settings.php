@@ -10,6 +10,8 @@ $auth = USK_Admin_Auth::get_data();
 $test = $sql->query("SELECT * FROM `test_account_setting` LIMIT 1")->fetch_assoc();
 $spam = $sql->query("SELECT * FROM `spam_setting` LIMIT 1")->fetch_assoc();
 $clientDns = USK_ClientDns::get();
+$connectHostCfg = USK_ConnectHost::get();
+$detectedServerIp = USK_ConnectHost::detect_ip();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $section = $_POST['section'] ?? '';
@@ -49,6 +51,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sql->query("UPDATE `spam_setting` SET `status`='$st',`type`='$type',`time`='$time',`count_message`='$count'");
         usk_flash(__('settings_saved'));
     }
+    if ($section === 'connect_host') {
+        USK_ConnectHost::save(array(
+            'enabled' => !empty($_POST['connect_host_enabled']),
+            'connect_host' => $_POST['connect_host'] ?? '',
+            'hint' => $_POST['connect_host_hint'] ?? '',
+        ));
+        usk_flash(__('settings_saved'));
+    }
     if ($section === 'client_dns') {
         USK_ClientDns::save(array(
             'enabled' => !empty($_POST['dns_enabled']),
@@ -61,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ));
         usk_flash(__('settings_saved'));
     }
-    header('Location: ' . usk_admin_url('settings'));
+    header('Location: ' . usk_admin_url('settings') . ($section === 'connect_host' ? '#connect-host' : ($section === 'client_dns' ? '#client-dns' : '')));
     exit;
 }
 
@@ -103,6 +113,36 @@ $panels = $sql->query("SELECT `code`,`name` FROM `panels`");
                     <label><?= __('settings_confirm_password') ?></label>
                     <input class="form-control" type="password" name="password2" autocomplete="new-password">
                 </div>
+            </div>
+            <button type="submit" class="btn btn-usk-primary"><?= __('save') ?></button>
+        </form>
+    </div>
+</div>
+
+<div class="usk-card mb-4" id="connect-host">
+    <div class="usk-card-header"><i class="fa-solid fa-server"></i> <?= __('settings_connect_host') ?></div>
+    <div class="p-3">
+        <p class="text-muted small mb-3"><?= __('settings_connect_host_desc') ?></p>
+        <p class="text-muted small mb-3"><?= __('settings_connect_host_detected_ip') ?>: <code dir="ltr"><?= usk_esc($detectedServerIp) ?></code></p>
+        <?php if (USK_ConnectHost::is_enabled()) : ?>
+            <p class="alert alert-usk-info small py-2"><?= __('settings_connect_host_active') ?>: <code dir="ltr"><?= usk_esc(USK_ConnectHost::display()) ?></code></p>
+        <?php endif; ?>
+        <form method="post">
+            <input type="hidden" name="section" value="connect_host">
+            <div class="form-group mb-3">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="connect_host_enabled" id="connect-host-enabled" value="1" <?= !empty($connectHostCfg['enabled']) ? 'checked' : '' ?>>
+                    <label class="form-check-label" for="connect-host-enabled"><?= __('settings_connect_host_enable') ?></label>
+                </div>
+            </div>
+            <div class="form-group mb-3">
+                <label><?= __('settings_connect_host_domain') ?></label>
+                <input class="form-control" name="connect_host" dir="ltr" style="text-align:left;" value="<?= usk_esc($connectHostCfg['connect_host'] ?? '') ?>" placeholder="<?= __('settings_connect_host_domain_ph') ?>">
+                <p class="text-muted small mt-1 mb-0"><?= __('settings_connect_host_domain_hint') ?></p>
+            </div>
+            <div class="form-group mb-3">
+                <label><?= __('settings_connect_host_hint_label') ?></label>
+                <input class="form-control" name="connect_host_hint" value="<?= usk_esc($connectHostCfg['hint'] ?? '') ?>" placeholder="<?= __('settings_connect_host_hint_ph') ?>">
             </div>
             <button type="submit" class="btn btn-usk-primary"><?= __('save') ?></button>
         </form>

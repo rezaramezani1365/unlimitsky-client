@@ -1,11 +1,15 @@
 <?php
 
+require_once dirname(__DIR__) . '/client-dns.php';
+require_once dirname(__DIR__) . '/connect-host.php';
+
 class USK_ProtocolProvisioner
 {
-    private static function sudo_script_cmd($script, array $args)
+    private static function sudo_script_cmd($script, array $args, $connectHost = '')
     {
         $argStr = implode(' ', array_map('escapeshellarg', $args));
-        return 'sudo -n bash ' . escapeshellarg($script) . ' ' . $argStr . ' 2>&1';
+        $env = ($connectHost !== '') ? ('env USK_SERVER_IP=' . escapeshellarg($connectHost) . ' ') : '';
+        return 'sudo -n ' . $env . 'bash ' . escapeshellarg($script) . ' ' . $argStr . ' 2>&1';
     }
 
     private static function interpret_output($out, $fallback = 'provision_error')
@@ -50,14 +54,15 @@ class USK_ProtocolProvisioner
         $clientDns = USK_ClientDns::resolve((string) ($meta['client_dns'] ?? ''), $protocol);
         $meta['client_dns'] = $clientDns;
 
+        $connectHost = USK_ConnectHost::resolve(
+            isset($meta['server_ip']) && (string) $meta['server_ip'] !== ''
+                ? (string) $meta['server_ip']
+                : null
+        );
+
         $script = USK_ROOT . '/bin/add-user-' . $protocol . '.sh';
         if (!file_exists($script)) {
             return array('ok' => false, 'error' => 'provision_script_missing');
-        }
-
-        $server_ip = '';
-        if (!empty($meta['server_ip'])) {
-            $server_ip = preg_replace('/[^0-9a-fA-F.:]/', '', $meta['server_ip']);
         }
 
         $st = USK_ProtocolManager::get_status($protocol);
@@ -70,7 +75,7 @@ class USK_ProtocolProvisioner
             $scriptArgs[] = $ovpnProto;
             $scriptArgs[] = (string) (int) ($st['udp_port'] ?? 1194);
             $scriptArgs[] = (string) (int) ($st['tcp_port'] ?? 443);
-            $scriptArgs[] = $server_ip;
+            $scriptArgs[] = $connectHost;
             $scriptArgs[] = $clientDns;
         } elseif ($protocol === 'wireguard') {
             $wgTransport = strtolower((string) ($meta['wireguard_transport'] ?? 'tcp'));
@@ -85,7 +90,7 @@ class USK_ProtocolProvisioner
             $scriptArgs[] = $clientDns;
         }
 
-        $cmd = self::sudo_script_cmd($script, $scriptArgs);
+        $cmd = self::sudo_script_cmd($script, $scriptArgs, $connectHost);
         $out = shell_exec($cmd);
         if ($out === null || trim($out) === '') {
             return array('ok' => false, 'error' => 'provision_failed', 'log' => '');

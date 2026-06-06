@@ -185,6 +185,12 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
 <div class="usk-card">
     <h3 class="mb-3"><?= __('create_title') ?></h3>
     <p class="text-muted small"><?= __('create_intro') ?></p>
+    <p class="alert alert-usk-info small py-2 px-3 mb-3">
+        <i class="fa-solid fa-server"></i>
+        <?= __('create_connect_host_hint') ?>
+        <code dir="ltr"><?= usk_esc(USK_ConnectHost::display()) ?></code>
+        — <a href="<?= usk_admin_url('settings') ?>#connect-host"><?= __('settings_connect_host_link') ?></a>
+    </p>
 
     <?php if (!$canUsePanels) : ?>
     <div class="alert alert-usk-info small py-2 px-3 mb-3">
