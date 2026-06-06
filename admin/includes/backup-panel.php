@@ -1,10 +1,16 @@
 <?php
 
 require_once dirname(__DIR__) . '/lib/backup.php';
+require_once dirname(__DIR__) . '/lib/php-zip.php';
 
 $backupFormSuffix = isset($backupFormSuffix) ? (string) $backupFormSuffix : '';
+$backupReturnPage = isset($backupReturnPage) ? preg_replace('/[^a-z-]/', '', (string) $backupReturnPage) : 'backup';
+if ($backupReturnPage === '') {
+    $backupReturnPage = 'backup';
+}
 $confirmId = 'backup-confirm' . $backupFormSuffix;
-$zipOk = USK_PanelBackup::zip_available();
+$zipOk = USK_PhpZip::available_cli();
+$zipCanInstall = !$zipOk && USK_PhpZip::can_install_from_web();
 $tables = USK_PanelBackup::tables();
 $dataPaths = USK_PanelBackup::data_paths();
 ?>
@@ -13,8 +19,20 @@ $dataPaths = USK_PanelBackup::data_paths();
 </div>
 
 <?php if (!$zipOk) : ?>
-    <div class="alert alert-danger mb-4">
+    <div class="alert alert-warning mb-4">
         <i class="fa-solid fa-triangle-exclamation"></i> <?= __('backup_zip_missing') ?>
+        <?php if ($zipCanInstall) : ?>
+        <form method="post" action="<?= usk_esc(usk_admin_base()) ?>/backup-action.php" class="mt-3 mb-0">
+            <input type="hidden" name="action" value="install_zip">
+            <input type="hidden" name="return_page" value="<?= usk_esc($backupReturnPage) ?>">
+            <button type="submit" class="btn btn-usk-primary btn-sm">
+                <i class="fa-solid fa-download"></i> <?= __('backup_zip_install_btn') ?>
+            </button>
+            <span class="text-muted small ms-2"><?= __('backup_zip_install_hint') ?></span>
+        </form>
+        <?php else : ?>
+        <p class="small mb-0 mt-2"><?= __('backup_zip_install_manual') ?></p>
+        <?php endif; ?>
     </div>
 <?php endif; ?>
 
@@ -35,6 +53,7 @@ $dataPaths = USK_PanelBackup::data_paths();
                 </details>
                 <form method="post" action="<?= usk_esc(usk_admin_base()) ?>/backup-action.php">
                     <input type="hidden" name="action" value="export">
+                    <input type="hidden" name="return_page" value="<?= usk_esc($backupReturnPage) ?>">
                     <div class="mb-3">
                         <label class="form-label"><?= __('backup_password_confirm') ?></label>
                         <input type="password" name="password" class="form-control" required autocomplete="current-password">
@@ -62,6 +81,7 @@ $dataPaths = USK_PanelBackup::data_paths();
                 </ul>
                 <form method="post" action="<?= usk_esc(usk_admin_base()) ?>/backup-action.php" enctype="multipart/form-data">
                     <input type="hidden" name="action" value="import">
+                    <input type="hidden" name="return_page" value="<?= usk_esc($backupReturnPage) ?>">
                     <div class="mb-3">
                         <label class="form-label"><?= __('backup_file_label') ?></label>
                         <input type="file" name="backup_file" class="form-control" accept=".uskbackup,application/zip" required>

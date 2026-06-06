@@ -222,6 +222,7 @@ $panels = $sql->query("SELECT `code`,`name` FROM `panels`");
     <div class="p-3">
         <?php
         $backupFormSuffix = '-settings';
+        $backupReturnPage = 'settings';
         require __DIR__ . '/../includes/backup-panel.php';
         ?>
     </div>

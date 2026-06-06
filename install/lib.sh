@@ -239,12 +239,16 @@ usk_deploy_panel_files() {
 usk_ensure_web_update_sudoers() {
     local web_root="$1"
     local sudoers="/etc/sudoers.d/unlimitsky"
-    local line="www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/scripts/panel-self-update.sh *"
-    if [ -f "$sudoers" ] && grep -qF 'panel-self-update.sh' "$sudoers" 2>/dev/null; then
+    if [ ! -f "$sudoers" ]; then
         return 0
     fi
-    echo "$line" >> "$sudoers"
-    chmod 440 "$sudoers"
+    if ! grep -qF 'panel-self-update.sh' "$sudoers" 2>/dev/null; then
+        echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/scripts/panel-self-update.sh *" >> "$sudoers"
+    fi
+    if ! grep -qF 'install-php-zip.sh' "$sudoers" 2>/dev/null; then
+        echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/install-php-zip.sh *" >> "$sudoers"
+    fi
+    chmod 440 "$sudoers" 2>/dev/null || true
 }
 
 usk_write_deploy_stamp() {
