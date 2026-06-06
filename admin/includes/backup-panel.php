@@ -10,7 +10,10 @@ if ($backupReturnPage === '') {
 }
 $confirmId = 'backup-confirm' . $backupFormSuffix;
 $zipOk = USK_PhpZip::available_cli();
-$zipCanInstall = !$zipOk && USK_PhpZip::can_install_from_web();
+$zipStatus = USK_PhpZip::get_status();
+$zipInstalling = USK_PhpZip::is_install_running();
+$zipCanInstall = !$zipOk && !$zipInstalling && USK_PhpZip::can_install_from_web();
+$zipFailed = ($zipStatus['state'] ?? '') === 'failed' && !$zipOk;
 $tables = USK_PanelBackup::tables();
 $dataPaths = USK_PanelBackup::data_paths();
 ?>
@@ -21,7 +24,9 @@ $dataPaths = USK_PanelBackup::data_paths();
 <?php if (!$zipOk) : ?>
     <div class="alert alert-warning mb-4">
         <i class="fa-solid fa-triangle-exclamation"></i> <?= __('backup_zip_missing') ?>
-        <?php if ($zipCanInstall) : ?>
+        <?php if ($zipInstalling) : ?>
+        <p class="small mb-0 mt-2"><i class="fa-solid fa-spinner fa-spin"></i> <?= __('backup_zip_install_running') ?></p>
+        <?php elseif ($zipCanInstall) : ?>
         <form method="post" action="<?= usk_esc(usk_admin_base()) ?>/backup-action.php" class="mt-3 mb-0">
             <input type="hidden" name="action" value="install_zip">
             <input type="hidden" name="return_page" value="<?= usk_esc($backupReturnPage) ?>">
@@ -32,6 +37,9 @@ $dataPaths = USK_PanelBackup::data_paths();
         </form>
         <?php else : ?>
         <p class="small mb-0 mt-2"><?= __('backup_zip_install_manual') ?></p>
+        <?php endif; ?>
+        <?php if ($zipFailed && !empty($zipStatus['message'])) : ?>
+        <pre class="small mt-2 mb-0 p-2 bg-dark text-light" style="white-space:pre-wrap;direction:ltr"><?= usk_esc($zipStatus['message']) ?></pre>
         <?php endif; ?>
     </div>
 <?php endif; ?>
@@ -114,3 +122,8 @@ $dataPaths = USK_PanelBackup::data_paths();
         </ul>
     </div>
 </div>
+<?php if ($zipInstalling) : ?>
+<script>
+(function () { setTimeout(function () { window.location.reload(); }, 12000); })();
+</script>
+<?php endif; ?>

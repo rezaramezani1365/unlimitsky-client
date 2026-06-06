@@ -29,13 +29,18 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' || $action === '') {
 if ($action === 'install_zip') {
     if (USK_PhpZip::available_cli()) {
         usk_flash(__('backup_zip_already'), 'info');
+    } elseif (USK_PhpZip::is_install_running()) {
+        usk_flash(__('backup_zip_install_running'), 'info');
     } else {
-        $result = USK_PhpZip::install();
+        $result = USK_PhpZip::start_install_async();
         if (!empty($result['ok'])) {
-            usk_flash(__('backup_zip_installed'));
+            if (($result['msg'] ?? '') === 'already_installed') {
+                usk_flash(__('backup_zip_already'), 'info');
+            } else {
+                usk_flash(__('backup_zip_install_started'), 'info');
+            }
         } else {
-            $tail = isset($result['output']) ? substr((string) $result['output'], -400) : '';
-            usk_flash(__('backup_zip_install_failed') . ($tail !== '' ? ': ' . $tail : ''), 'error');
+            usk_flash(__('backup_zip_install_failed') . ': ' . ($result['output'] ?? ''), 'error');
         }
     }
     header('Location: ' . usk_backup_redirect_url());
