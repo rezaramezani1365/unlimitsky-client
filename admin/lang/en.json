@@ -270,6 +270,7 @@
   "wireguard_qr": "WireGuard QR code",
   "wireguard_qr_hint": "Scan with the WireGuard app on your phone.",
   "config_label": "Config / subscription",
+  "service_config_missing": "Config link unavailable — update panel files or recreate the service.",
   "links": "Links",
   "limits_cron_title": "Volume & expiry monitoring (cron)",
   "limits_cron_intro": "Run every 15 minutes: expired/over-limit accounts are disabled on server (cannot connect). Records stay in Services list.",

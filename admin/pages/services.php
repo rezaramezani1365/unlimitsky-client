@@ -152,34 +152,42 @@ function usk_service_status_badge($status)
     <?php endif; ?>
 
     <?php
-    $ovpnDownload = '';
-    $ovpnFilename = ($native_info['username'] ?? 'client') . '.ovpn';
-    if (($s['protocol'] ?? '') === 'openvpn') {
-        if (!empty($s['link']) && strpos($s['link'], 'download-config.php') !== false) {
-            $ovpnDownload = $s['link'];
-        } elseif (!empty($client['download_token'])) {
-            require_once dirname(__DIR__) . '/lib/config-download.php';
-            $ovpnDownload = usk_config_download_url($s['code'], $client['download_token']);
-        }
-        if (!empty($client['ovpn_filename'])) {
-            $ovpnFilename = $client['ovpn_filename'];
-        }
-    }
+    require_once dirname(__DIR__) . '/lib/service-config-view.php';
+    $protocol = (string) ($s['protocol'] ?? '');
+    $downloadUrl = usk_service_download_url($s, $client);
+    $downloadFilename = usk_service_download_filename($s, $client, $native_info['username'] ?? '');
+    $primaryConfig = usk_service_primary_config($s, $client);
+    $secondaryConfig = usk_service_secondary_config($s, $client);
     ?>
 
-    <?php if ($ovpnDownload !== '') : ?>
+    <?php if ($protocol === 'xray' && $primaryConfig !== '') : ?>
+        <p class="mt-3"><strong><?= __('xray_vless_link') ?>:</strong></p>
+        <code class="d-block p-3" style="white-space:pre-wrap;word-break:break-all;direction:ltr;text-align:left;"><?= usk_esc($primaryConfig) ?></code>
+        <p class="text-muted small"><?= __('xray_vless_hint') ?></p>
+    <?php elseif ($protocol === 'amnezia' && $primaryConfig !== '') : ?>
         <p class="mt-3"><strong><?= __('config_label') ?>:</strong></p>
-        <p>
-            <a class="btn btn-usk-primary" href="<?= usk_esc($ovpnDownload) ?>" download="<?= usk_esc($ovpnFilename) ?>">
-                <i class="fa-solid fa-download"></i> <?= __('download_ovpn') ?>
+        <code class="d-block p-3" style="white-space:pre-wrap;word-break:break-all;direction:ltr;text-align:left;"><?= usk_esc($primaryConfig) ?></code>
+    <?php elseif ($primaryConfig !== '') : ?>
+        <p class="mt-3"><strong><?= __('config_label') ?>:</strong></p>
+        <code class="d-block p-3" style="white-space:pre-wrap;word-break:break-all;direction:ltr;text-align:left;"><?= usk_esc($primaryConfig) ?></code>
+    <?php endif; ?>
+
+    <?php if ($secondaryConfig !== '') : ?>
+        <p class="mt-2"><strong><?= __('amnezia_wg_conf') ?>:</strong></p>
+        <code class="d-block p-3" style="white-space:pre-wrap;direction:ltr;text-align:left;"><?= usk_esc($secondaryConfig) ?></code>
+    <?php endif; ?>
+
+    <?php if ($downloadUrl !== '') : ?>
+        <p class="mt-3">
+            <a class="btn btn-usk-primary" href="<?= usk_esc($downloadUrl) ?>" download="<?= usk_esc($downloadFilename) ?>">
+                <i class="fa-solid fa-download"></i> <?= usk_esc(usk_service_download_label($protocol)) ?>
             </a>
-            <?php if (!empty($client['proto'])) : ?>
+            <?php if ($protocol === 'openvpn' && !empty($client['proto'])) : ?>
                 <span class="text-muted small ms-2"><?= strtoupper(usk_esc($client['proto'])) ?></span>
             <?php endif; ?>
         </p>
-    <?php else : ?>
-    <p class="mt-3"><strong><?= __('config_label') ?>:</strong></p>
-    <code style="display:block;padding:12px;white-space:pre-wrap;direction:ltr;text-align:left;"><?= usk_esc($s['link']) ?></code>
+    <?php elseif ($primaryConfig === '' && $secondaryConfig === '') : ?>
+        <p class="mt-3 text-muted small"><?= __('service_config_missing') ?></p>
     <?php endif; ?>
 
     <div class="mt-4 d-flex gap-2 flex-wrap">

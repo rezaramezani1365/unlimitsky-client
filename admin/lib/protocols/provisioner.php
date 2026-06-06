@@ -148,6 +148,7 @@ class USK_ProtocolProvisioner
             'json_filename' => $data['json_filename'] ?? '',
             'client_dns' => $data['client_dns'] ?? '',
             'client_json' => $data['client_json'] ?? '',
+            'vless' => $data['vless'] ?? '',
             'expires_at' => $data['expires_at'] ?? null,
             'volume_gb' => (int) $volume_gb,
             'duration_days' => (int) $duration_days,

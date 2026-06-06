@@ -25,7 +25,7 @@ function usk_serve_openvpn_download($code, $token)
         return false;
     }
 
-    require_once __DIR__ . '/admin/lib/protocols/limits.php';
+    require_once __DIR__ . '/protocols/limits.php';
     $native = USK_ProtocolLimits::find_client_for_order($order);
     if (!$native || ($native['protocol'] ?? '') !== 'openvpn') {
         return false;
@@ -76,7 +76,7 @@ function usk_serve_amnezia_download($code, $token)
         return false;
     }
 
-    require_once __DIR__ . '/admin/lib/protocols/limits.php';
+    require_once __DIR__ . '/protocols/limits.php';
     $native = USK_ProtocolLimits::find_client_for_order($order);
     if (!$native || ($native['protocol'] ?? '') !== 'amnezia') {
         return false;
@@ -128,7 +128,7 @@ function usk_serve_xray_download($code, $token)
         return false;
     }
 
-    require_once __DIR__ . '/admin/lib/protocols/limits.php';
+    require_once __DIR__ . '/protocols/limits.php';
     $native = USK_ProtocolLimits::find_client_for_order($order);
     if (!$native || ($native['protocol'] ?? '') !== 'xray') {
         return false;
@@ -155,6 +155,11 @@ function usk_serve_xray_download($code, $token)
         $body = $client['client_json'] ?? ($client['meta']['client_json'] ?? '');
     }
 
+    if (is_array($body)) {
+        $body = json_encode($body, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    }
+
+    $body = trim((string) $body);
     if ($body === '') {
         return false;
     }
