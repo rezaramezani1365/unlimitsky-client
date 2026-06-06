@@ -47,6 +47,13 @@ if ($action === 'install_zip') {
     exit;
 }
 
+if ($action === 'cancel_install_zip') {
+    USK_PhpZip::cancel_install();
+    usk_flash(__('backup_zip_install_cancelled'), 'info');
+    header('Location: ' . usk_backup_redirect_url());
+    exit;
+}
+
 $password = (string) ($_POST['password'] ?? '');
 if ($password === '' || !USK_Admin_Auth::verify_password($password)) {
     usk_flash(__('backup_password_invalid'), 'error');

@@ -240,15 +240,24 @@ usk_zip_cli_ok() {
     return 1
 }
 
+usk_apt_with_timeout() {
+    local secs="$1"
+    shift
+    export DEBIAN_FRONTEND=noninteractive
+    export NEEDRESTART_MODE=a
+    if command -v timeout >/dev/null 2>&1; then
+        timeout "$secs" "$@"
+    else
+        "$@"
+    fi
+}
+
 usk_ensure_php_zip() {
     if usk_zip_cli_ok; then
         return 0
     fi
 
-    echo "[*] Installing PHP zip extension (backup export/import)..."
-    export DEBIAN_FRONTEND=noninteractive
-    apt-get update -qq 2>&1 || echo "[!] apt-get update had warnings" >&2
-
+    echo "[*] Installing PHP zip extension (panel safe mode, no apt update)..."
     local versions=()
     local v pkg log="/tmp/usk-php-zip-apt.log"
     : > "$log"
@@ -258,35 +267,27 @@ usk_ensure_php_zip() {
     done < <(usk_php_discover_versions | sort -u -V)
 
     if [ ${#versions[@]} -eq 0 ]; then
-        versions=(8.4 8.3 8.2 8.1 8.0)
+        versions=(8.1)
     fi
 
-    echo "[*] PHP versions on server: ${versions[*]}"
+    echo "[*] PHP target version(s): ${versions[*]}"
 
     for v in "${versions[@]}"; do
         pkg="php${v}-zip"
-        echo "[*] apt-get install -y $pkg php${v}-cli"
-        if apt-get install -y "$pkg" "php${v}-cli" >>"$log" 2>&1; then
-            echo "[*] installed $pkg (+ php${v}-cli if needed)"
-        elif apt-get install -y "$pkg" >>"$log" 2>&1; then
+        echo "[*] apt-get install -y $pkg (timeout 120s)"
+        if usk_apt_with_timeout 120 apt-get install -y \
+            -o Dpkg::Options::=--force-confdef \
+            -o Dpkg::Options::=--force-confold \
+            "$pkg" >>"$log" 2>&1; then
             echo "[*] installed $pkg"
         else
-            echo "[!] apt failed for $pkg (see $log)" >&2
+            echo "[!] apt failed or timed out for $pkg" >&2
+            tail -5 "$log" 2>/dev/null >&2 || true
+            continue
         fi
         if command -v phpenmod >/dev/null 2>&1; then
-            phpenmod -v "$v" zip 2>/dev/null || true
-            phpenmod zip 2>/dev/null || true
+            phpenmod -v "$v" zip 2>/dev/null || phpenmod zip 2>/dev/null || true
         fi
-        usk_restart_php_fpm
-        if usk_zip_cli_ok; then
-            return 0
-        fi
-    done
-
-    for pkg in php-zip; do
-        echo "[*] apt-get install -y $pkg"
-        apt-get install -y "$pkg" >>"$log" 2>&1 || true
-        usk_restart_php_fpm
         if usk_zip_cli_ok; then
             return 0
         fi
@@ -295,10 +296,6 @@ usk_ensure_php_zip() {
     echo "[!] ZipArchive still missing after apt." >&2
     echo "[!] Last apt lines:" >&2
     tail -8 "$log" 2>/dev/null >&2 || true
-    if command -v php >/dev/null 2>&1; then
-        echo "[!] php -v: $(php -v 2>&1 | head -1)" >&2
-        echo "[!] php -m (zip): $(php -m 2>/dev/null | grep -i zip || echo none)" >&2
-    fi
     return 1
 }
 

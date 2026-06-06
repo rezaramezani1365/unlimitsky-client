@@ -2,6 +2,8 @@
 
 class USK_PhpZip
 {
+    const RUNNING_TIMEOUT_SEC = 300;
+
     public static function available()
     {
         return class_exists('ZipArchive');
@@ -44,6 +46,11 @@ class USK_PhpZip
         return USK_ROOT . '/data/settings/php-zip-install.log';
     }
 
+    public static function lock_file()
+    {
+        return USK_ROOT . '/data/settings/php-zip-install.lock';
+    }
+
     public static function can_install_from_web()
     {
         return is_file(self::install_script());
@@ -52,25 +59,36 @@ class USK_PhpZip
     public static function get_status()
     {
         self::poll_install_status();
-        $f = self::status_file();
-        if (!is_file($f)) {
-            return array('state' => 'idle');
+        return self::get_status_raw();
+    }
+
+    public static function running_age_sec()
+    {
+        $s = self::get_status_raw();
+        if (($s['state'] ?? '') !== 'running') {
+            return 0;
         }
-        $d = json_decode((string) file_get_contents($f), true);
-        return is_array($d) ? $d : array('state' => 'idle');
+        $at = strtotime($s['at'] ?? '');
+        return $at ? max(0, time() - $at) : 0;
     }
 
     public static function is_install_running()
     {
-        $s = self::get_status();
+        self::poll_install_status();
+        $s = self::get_status_raw();
         if (($s['state'] ?? '') !== 'running') {
             return false;
         }
-        $at = strtotime($s['at'] ?? '');
-        if ($at && (time() - $at) > 600) {
+        return self::running_age_sec() < self::RUNNING_TIMEOUT_SEC;
+    }
+
+    public static function is_install_stale()
+    {
+        $s = self::get_status_raw();
+        if (($s['state'] ?? '') !== 'running') {
             return false;
         }
-        return true;
+        return self::running_age_sec() >= self::RUNNING_TIMEOUT_SEC;
     }
 
     public static function write_status($state, $message = '')
@@ -87,6 +105,12 @@ class USK_PhpZip
         @file_put_contents(self::status_file(), json_encode($payload, JSON_UNESCAPED_UNICODE));
     }
 
+    public static function cancel_install()
+    {
+        self::write_status('failed', 'cancelled_by_user');
+        @unlink(self::lock_file());
+    }
+
     public static function poll_install_status()
     {
         if (self::available_cli()) {
@@ -95,6 +119,11 @@ class USK_PhpZip
                 self::write_status('ok', 'installed');
             }
             return array('state' => 'ok');
+        }
+
+        if (self::is_install_stale()) {
+            self::write_status('failed', 'stale_timeout');
+            return array('state' => 'failed', 'message' => 'stale_timeout');
         }
 
         $log = self::log_file();
@@ -123,7 +152,6 @@ class USK_PhpZip
         return is_array($d) ? $d : array('state' => 'idle');
     }
 
-    /** Start install in background — avoids 502 when php-fpm restarts. */
     public static function start_install_async()
     {
         if (self::available_cli()) {
@@ -132,6 +160,10 @@ class USK_PhpZip
 
         if (self::is_install_running()) {
             return array('ok' => true, 'async' => true, 'msg' => 'already_running');
+        }
+
+        if (self::is_install_stale()) {
+            self::cancel_install();
         }
 
         $script = self::install_script();

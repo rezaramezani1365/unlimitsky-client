@@ -1,12 +1,13 @@
 #!/bin/bash
-# Install PHP ZipArchive extension (Ubuntu/Debian).
-# Runs in background from admin panel to avoid nginx 502 (php-fpm restart mid-request).
-set -euo pipefail
+# Install PHP ZipArchive — background job from admin panel.
+# Safe: flock lock, apt timeout, no apt-get update, single FPM restart at end.
+set -uo pipefail
 
 WEB_ROOT="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 LIB="$WEB_ROOT/install/lib.sh"
 STATUS_FILE="$WEB_ROOT/data/settings/php-zip-install.json"
 LOG_FILE="$WEB_ROOT/data/settings/php-zip-install.log"
+LOCK_FILE="$WEB_ROOT/data/settings/php-zip-install.lock"
 
 write_status() {
     local state="$1"
@@ -18,20 +19,36 @@ write_status() {
     chown www-data:www-data "$STATUS_FILE" 2>/dev/null || true
 }
 
+on_exit() {
+    local code=$?
+    if [ "$code" -ne 0 ] && [ -f "$STATUS_FILE" ]; then
+        if grep -q '"state":"running"' "$STATUS_FILE" 2>/dev/null; then
+            write_status failed "script_exit_$code"
+        fi
+    fi
+}
+trap on_exit EXIT
+
 if [ ! -f "$LIB" ]; then
     echo "USK_ERR: missing install/lib.sh"
     write_status failed "missing install/lib.sh"
     exit 1
 fi
 
+mkdir -p "$(dirname "$LOCK_FILE")" "$(dirname "$LOG_FILE")"
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+    echo "USK_ERR: install already running (lock busy)"
+    write_status failed "install_locked"
+    exit 1
+fi
+
 # shellcheck source=/dev/null
 source "$LIB"
 
-mkdir -p "$(dirname "$LOG_FILE")"
 : >> "$LOG_FILE"
-
 exec >> "$LOG_FILE" 2>&1
-echo "=== php-zip install $(date -Iseconds) ==="
+echo "=== php-zip install $(date -Iseconds) pid=$$ ==="
 
 write_status running "apt_install"
 
@@ -47,9 +64,8 @@ if ! usk_ensure_php_zip; then
     exit 1
 fi
 
-# Restart FPM after install — safe when this script runs in background (not inside a web request).
 usk_restart_php_fpm
-sleep 2
+sleep 1
 
 if usk_zip_cli_ok; then
     echo "USK_OK: ZipArchive installed"

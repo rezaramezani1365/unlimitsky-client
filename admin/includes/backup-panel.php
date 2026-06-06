@@ -11,8 +11,13 @@ if ($backupReturnPage === '') {
 $confirmId = 'backup-confirm' . $backupFormSuffix;
 $zipOk = USK_PhpZip::available_cli();
 $zipStatus = USK_PhpZip::get_status();
-$zipInstalling = USK_PhpZip::is_install_running();
-$zipCanInstall = !$zipOk && !$zipInstalling && USK_PhpZip::can_install_from_web();
+$zipInstalling = ($zipStatus['state'] ?? '') === 'running'
+    && USK_PhpZip::running_age_sec() < USK_PhpZip::RUNNING_TIMEOUT_SEC;
+$zipStale = !$zipOk && (
+    (($zipStatus['state'] ?? '') === 'failed' && ($zipStatus['message'] ?? '') === 'stale_timeout')
+    || USK_PhpZip::is_install_stale()
+);
+$zipCanInstall = !$zipOk && !$zipInstalling && !$zipStale && USK_PhpZip::can_install_from_web();
 $zipFailed = ($zipStatus['state'] ?? '') === 'failed' && !$zipOk;
 $tables = USK_PanelBackup::tables();
 $dataPaths = USK_PanelBackup::data_paths();
@@ -26,6 +31,14 @@ $dataPaths = USK_PanelBackup::data_paths();
         <i class="fa-solid fa-triangle-exclamation"></i> <?= __('backup_zip_missing') ?>
         <?php if ($zipInstalling) : ?>
         <p class="small mb-0 mt-2"><i class="fa-solid fa-spinner fa-spin"></i> <?= __('backup_zip_install_running') ?></p>
+        <form method="post" action="<?= usk_esc(usk_admin_base()) ?>/backup-action.php" class="mt-2 mb-0">
+            <input type="hidden" name="action" value="cancel_install_zip">
+            <input type="hidden" name="return_page" value="<?= usk_esc($backupReturnPage) ?>">
+            <button type="submit" class="btn btn-outline-secondary btn-sm"><?= __('backup_zip_install_cancel') ?></button>
+        </form>
+        <?php elseif ($zipStale) : ?>
+        <p class="small text-danger mb-0 mt-2"><?= __('backup_zip_install_stale') ?></p>
+        <pre class="small mt-2 mb-0 p-2 bg-dark text-light" style="white-space:pre-wrap;direction:ltr"><?= usk_esc(__('backup_zip_ssh_fix')) ?></pre>
         <?php elseif ($zipCanInstall) : ?>
         <form method="post" action="<?= usk_esc(usk_admin_base()) ?>/backup-action.php" class="mt-3 mb-0">
             <input type="hidden" name="action" value="install_zip">
@@ -124,6 +137,13 @@ $dataPaths = USK_PanelBackup::data_paths();
 </div>
 <?php if ($zipInstalling) : ?>
 <script>
-(function () { setTimeout(function () { window.location.reload(); }, 12000); })();
+(function () {
+    var n = parseInt(sessionStorage.getItem('uskZipRefresh') || '0', 10);
+    if (n >= 8) { return; }
+    sessionStorage.setItem('uskZipRefresh', String(n + 1));
+    setTimeout(function () { window.location.reload(); }, 15000);
+})();
 </script>
+<?php else : ?>
+<script>try { sessionStorage.removeItem('uskZipRefresh'); } catch (e) {}</script>
 <?php endif; ?>
