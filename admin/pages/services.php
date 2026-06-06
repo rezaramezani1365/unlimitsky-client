@@ -71,22 +71,7 @@ if ($filter === 'active') {
 
 $list = $sql->query("SELECT * FROM `orders` WHERE $where ORDER BY `row` DESC LIMIT 200");
 $list_count = $list ? $list->num_rows : 0;
-
-function usk_service_status_badge($status)
-{
-    $map = array(
-        'active' => 'success',
-        'expired' => 'warning',
-        'volume_exceeded' => 'warning',
-        'revoked' => 'danger',
-    );
-    $cls = $map[$status] ?? 'danger';
-    $label = __('status_' . $status);
-    if ($label === 'status_' . $status) {
-        $label = $status;
-    }
-    return array('class' => $cls, 'label' => $label);
-}
+$search_base = usk_admin_base() . '/services-search.php';
 ?>
 <?php if (!empty($s)) :
     $badge = usk_service_status_badge($s['status']);
@@ -236,6 +221,17 @@ function usk_service_status_badge($status)
             <?php endforeach; ?>
         </div>
     </div>
+
+    <div class="usk-service-search mb-4" id="uskServiceSearch" data-endpoint="<?= usk_esc($search_base) ?>">
+        <label class="form-label mb-1" for="uskServiceSearchInput"><i class="fa-solid fa-magnifying-glass"></i> <?= __('services_search_label') ?></label>
+        <div class="input-group">
+            <input type="search" class="form-control" id="uskServiceSearchInput" placeholder="<?= usk_esc(__('services_search_ph')) ?>" autocomplete="off" dir="ltr" style="text-align:left;">
+            <span class="input-group-text d-none" id="uskServiceSearchSpinner"><i class="fa-solid fa-spinner fa-spin"></i></span>
+        </div>
+        <small class="text-muted d-block mt-1"><?= __('services_search_hint') ?></small>
+        <div class="usk-service-search-results d-none" id="uskServiceSearchResults" aria-live="polite"></div>
+    </div>
+
     <div class="table-responsive">
         <table class="table table-sm">
             <thead>
@@ -243,6 +239,7 @@ function usk_service_status_badge($status)
                     <th><?= __('code') ?></th>
                     <th><?= __('server') ?></th>
                     <th><?= __('volume') ?>/<?= __('duration') ?></th>
+                    <th><?= __('traffic_used') ?></th>
                     <th><?= __('status') ?></th>
                     <th><?= __('portal_customer_link') ?></th>
                     <th></th>
@@ -250,22 +247,31 @@ function usk_service_status_badge($status)
             </thead>
             <tbody>
             <?php if ($list_count === 0) : ?>
-                <tr><td colspan="6" class="text-muted text-center py-4"><?= __('services_empty') ?></td></tr>
+                <tr><td colspan="7" class="text-muted text-center py-4"><?= __('services_empty') ?></td></tr>
             <?php endif; ?>
             <?php while ($r = $list->fetch_assoc()) :
-                $badge = usk_service_status_badge($r['status']);
-                $rowNative = USK_ProtocolLimits::find_client_for_order($r);
-                $rowClient = $rowNative['client'] ?? null;
-                $rowPortal = usk_service_portal_url($r, $rowClient);
+                $row = usk_service_list_row($r);
             ?>
-                <tr class="<?= in_array($r['status'], array('expired', 'volume_exceeded'), true) ? 'table-warning' : '' ?>">
-                    <td><?= usk_esc($r['code']) ?></td>
-                    <td><?= usk_esc($r['location']) ?></td>
-                    <td><?= usk_esc($r['volume']) ?>GB / <?= usk_esc($r['date']) ?><?= __('days') ?></td>
-                    <td><span class="badge badge-<?= $badge['class'] ?>"><?= usk_esc($badge['label']) ?></span></td>
+                <tr class="<?= usk_esc($row['row_class']) ?>">
+                    <td><code class="usk-code"><?= usk_esc($row['code']) ?></code></td>
+                    <td><?= usk_esc($row['location']) ?></td>
+                    <td><?= usk_esc($row['volume']) ?>GB / <?= usk_esc($row['date']) ?><?= __('days') ?></td>
                     <td>
-                        <?php if ($rowPortal !== '') : ?>
-                            <a class="btn btn-sm btn-outline-primary" href="<?= usk_esc($rowPortal) ?>" target="_blank" rel="noopener" title="<?= usk_esc(__('portal_open_page')) ?>">
+                        <?php if ($row['usage_percent'] !== null) : ?>
+                            <div class="usk-usage-cell">
+                                <span class="small"><?= usk_esc($row['usage_display']) ?></span>
+                                <div class="progress usk-usage-progress mt-1" role="progressbar" aria-valuenow="<?= (float) $row['usage_percent'] ?>" aria-valuemin="0" aria-valuemax="100">
+                                    <div class="progress-bar<?= (float) $row['usage_percent'] >= 90 ? ' bg-danger' : ((float) $row['usage_percent'] >= 70 ? ' bg-warning' : '') ?>" style="width:<?= min(100, (float) $row['usage_percent']) ?>%"></div>
+                                </div>
+                            </div>
+                        <?php else : ?>
+                            <span class="text-muted">—</span>
+                        <?php endif; ?>
+                    </td>
+                    <td><span class="badge badge-<?= usk_esc($row['badge_class']) ?>"><?= usk_esc($row['badge_label']) ?></span></td>
+                    <td>
+                        <?php if ($row['portal_url'] !== '') : ?>
+                            <a class="btn btn-sm btn-outline-primary" href="<?= usk_esc($row['portal_url']) ?>" target="_blank" rel="noopener" title="<?= usk_esc(__('portal_open_page')) ?>">
                                 <i class="fa-solid fa-user"></i>
                             </a>
                         <?php else : ?>
@@ -273,7 +279,7 @@ function usk_service_status_badge($status)
                         <?php endif; ?>
                     </td>
                     <td>
-                        <a class="btn btn-sm btn-outline" href="<?= usk_admin_url('services', ['view' => $r['row']]) ?>"><?= __('view') ?></a>
+                        <a class="btn btn-sm btn-outline-usk" href="<?= usk_esc($row['view_url']) ?>"><?= __('view') ?></a>
                     </td>
                 </tr>
             <?php endwhile; ?>
@@ -281,4 +287,124 @@ function usk_service_status_badge($status)
         </table>
     </div>
 </div>
+<style>
+.usk-service-search-results {
+    margin-top: 0.75rem;
+    border: 1px solid var(--usk-border-strong, #334);
+    border-radius: var(--usk-radius, 8px);
+    background: var(--usk-surface-2, #1a1f2e);
+    max-height: 420px;
+    overflow-y: auto;
+}
+.usk-service-search-item {
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--usk-border, #2a3142);
+}
+.usk-service-search-item:last-child { border-bottom: 0; }
+.usk-service-search-item:hover { background: rgba(255,255,255,0.03); }
+.usk-usage-progress { height: 6px; background: var(--usk-surface-3, #252b3a); }
+.usk-usage-cell { min-width: 120px; }
+</style>
+<script>
+(function () {
+    var root = document.getElementById('uskServiceSearch');
+    if (!root) return;
+    var input = document.getElementById('uskServiceSearchInput');
+    var results = document.getElementById('uskServiceSearchResults');
+    var spinner = document.getElementById('uskServiceSearchSpinner');
+    var endpoint = root.getAttribute('data-endpoint') || '';
+    var timer = null;
+    var seq = 0;
+    var i18n = {
+        empty: <?= json_encode(__('services_search_empty'), JSON_UNESCAPED_UNICODE) ?>,
+        min: <?= json_encode(__('services_search_min_chars'), JSON_UNESCAPED_UNICODE) ?>,
+        view: <?= json_encode(__('services_search_view'), JSON_UNESCAPED_UNICODE) ?>,
+        usage: <?= json_encode(__('traffic_used'), JSON_UNESCAPED_UNICODE) ?>,
+        days: <?= json_encode(__('days'), JSON_UNESCAPED_UNICODE) ?>
+    };
+
+    function esc(s) {
+        var d = document.createElement('div');
+        d.textContent = s == null ? '' : String(s);
+        return d.innerHTML;
+    }
+
+    function renderProgress(percent) {
+        if (percent == null) return '';
+        var p = Math.min(100, Math.max(0, Number(percent) || 0));
+        var barCls = p >= 90 ? ' bg-danger' : (p >= 70 ? ' bg-warning' : '');
+        return '<div class="progress usk-usage-progress mt-1" role="progressbar">'
+            + '<div class="progress-bar' + barCls + '" style="width:' + p + '%"></div></div>';
+    }
+
+    function renderItem(item) {
+        var proto = item.protocol && item.protocol !== 'null' ? ' · ' + esc(item.protocol) : '';
+        var vol = esc(item.volume) + 'GB / ' + esc(item.date) + i18n.days;
+        var portal = item.portal_url
+            ? ' <a class="btn btn-sm btn-outline-primary ms-1" href="' + esc(item.portal_url) + '" target="_blank" rel="noopener"><i class="fa-solid fa-user"></i></a>'
+            : '';
+        return '<div class="usk-service-search-item">'
+            + '<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-1">'
+            + '<strong dir="ltr"><code class="usk-code">' + esc(item.code) + '</code></strong>'
+            + '<span class="badge badge-' + esc(item.badge_class) + '">' + esc(item.badge_label) + '</span>'
+            + '</div>'
+            + '<div class="small text-muted mb-1">' + esc(item.location) + proto + ' · ' + vol + '</div>'
+            + '<div class="small mb-2"><strong>' + esc(i18n.usage) + ':</strong> ' + esc(item.usage_display) + renderProgress(item.usage_percent) + '</div>'
+            + '<a class="btn btn-sm btn-usk-primary" href="' + esc(item.view_url) + '"><i class="fa-solid fa-eye"></i> ' + esc(i18n.view) + '</a>'
+            + portal
+            + '</div>';
+    }
+
+    function setLoading(on) {
+        if (spinner) spinner.classList.toggle('d-none', !on);
+    }
+
+    function runSearch() {
+        var q = (input.value || '').trim();
+        if (q.length < 2) {
+            results.classList.add('d-none');
+            results.innerHTML = q.length ? '<div class="usk-service-search-item text-muted small">' + esc(i18n.min) + '</div>' : '';
+            if (q.length) results.classList.remove('d-none');
+            return;
+        }
+        var mySeq = ++seq;
+        setLoading(true);
+        fetch(endpoint + '?q=' + encodeURIComponent(q), { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (mySeq !== seq) return;
+                setLoading(false);
+                if (!data || !data.ok) {
+                    results.innerHTML = '<div class="usk-service-search-item text-danger small">' + esc(i18n.empty) + '</div>';
+                    results.classList.remove('d-none');
+                    return;
+                }
+                if (!data.results || !data.results.length) {
+                    results.innerHTML = '<div class="usk-service-search-item text-muted small">' + esc(i18n.empty) + '</div>';
+                } else {
+                    results.innerHTML = data.results.map(renderItem).join('');
+                }
+                results.classList.remove('d-none');
+            })
+            .catch(function () {
+                if (mySeq !== seq) return;
+                setLoading(false);
+                results.innerHTML = '<div class="usk-service-search-item text-danger small">' + esc(i18n.empty) + '</div>';
+                results.classList.remove('d-none');
+            });
+    }
+
+    input.addEventListener('input', function () {
+        clearTimeout(timer);
+        timer = setTimeout(runSearch, 280);
+    });
+    input.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            input.value = '';
+            results.classList.add('d-none');
+            results.innerHTML = '';
+        }
+    });
+})();
+</script>
 <?php endif; ?>

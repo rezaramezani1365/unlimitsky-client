@@ -149,3 +149,59 @@ function usk_service_usage_stats($order, $client)
     $volumeGb = (int) ($order['volume'] ?? ($client['volume_gb'] ?? 0));
     return USK_ProtocolUsage::usage_stats($protocol, $client, $volumeGb);
 }
+
+function usk_service_status_badge($status)
+{
+    $map = array(
+        'active' => 'success',
+        'expired' => 'warning',
+        'volume_exceeded' => 'warning',
+        'revoked' => 'danger',
+    );
+    $cls = $map[$status] ?? 'danger';
+    $label = __('status_' . $status);
+    if ($label === 'status_' . $status) {
+        $label = $status;
+    }
+    return array('class' => $cls, 'label' => $label);
+}
+
+/** Row payload for services list + AJAX search. */
+function usk_service_list_row(array $order)
+{
+    require_once __DIR__ . '/protocols/limits.php';
+    $native = USK_ProtocolLimits::find_client_for_order($order);
+    $client = $native['client'] ?? null;
+    $status = (string) ($order['status'] ?? '');
+    $badge = usk_service_status_badge($status);
+    $usage = $client ? usk_service_usage_stats($order, $client) : null;
+    $volumeGb = (int) ($order['volume'] ?? 0);
+
+    $usageDisplay = '—';
+    $usagePercent = null;
+    if ($usage && $volumeGb > 0) {
+        $usageDisplay = (string) ($usage['used_gb'] ?? 0) . ' / ' . $volumeGb . ' GB';
+        $usagePercent = $usage['percent'];
+    } elseif ($volumeGb > 0) {
+        $usageDisplay = '0 / ' . $volumeGb . ' GB';
+        $usagePercent = 0;
+    }
+
+    return array(
+        'id' => (int) ($order['row'] ?? 0),
+        'code' => (string) ($order['code'] ?? ''),
+        'location' => (string) ($order['location'] ?? ''),
+        'volume' => $volumeGb,
+        'date' => (int) ($order['date'] ?? 0),
+        'protocol' => (string) ($order['protocol'] ?? ''),
+        'status' => $status,
+        'badge_class' => $badge['class'],
+        'badge_label' => $badge['label'],
+        'portal_url' => usk_service_portal_url($order, $client),
+        'view_url' => usk_admin_url('services', array('view' => (int) ($order['row'] ?? 0))),
+        'usage' => $usage,
+        'usage_display' => $usageDisplay,
+        'usage_percent' => $usagePercent,
+        'row_class' => in_array($status, array('expired', 'volume_exceeded'), true) ? 'table-warning' : '',
+    );
+}
