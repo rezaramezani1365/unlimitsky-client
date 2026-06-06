@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 # Shared Xray helpers — VLESS + Reality (Iran-optimized, IPv4-only clients)
 XRAY_CFG="${XRAY_CFG:-/usr/local/etc/xray/config.json}"
 USK_XRAY_VLESS_PORT="${USK_XRAY_VLESS_PORT:-443}"

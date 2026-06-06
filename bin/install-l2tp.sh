@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 # Install L2TP/IPsec (xl2tpd + strongSwan) on Ubuntu — Windows/iOS compatible
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$DIR/usk-common.sh"

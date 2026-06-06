@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 # unlimitsky Client (reseller panel) — Ubuntu one-command installer
 #
 # Full auto (default admin/admin — change on first login):

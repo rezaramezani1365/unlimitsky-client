@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 # AmneziaWG (Amnezia VPN) — shared helpers for unlimitsky
 
 AMNEZIA_CONF_DIR="/etc/amnezia/amneziawg"

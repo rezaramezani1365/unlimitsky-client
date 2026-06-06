@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 # Shared helpers for unlimitsky user provisioning
 # Note: no "set -e" — scripts must call usk_json_fail explicitly
 

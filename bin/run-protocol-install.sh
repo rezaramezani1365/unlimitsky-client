@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 # Background protocol install worker (called from panel — avoids nginx 504)
 set +e
 

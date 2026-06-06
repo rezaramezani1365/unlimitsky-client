@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 # Shared helpers for unlimitsky Ubuntu installers (fresh Ubuntu VPS)
 # shellcheck disable=SC2034
 

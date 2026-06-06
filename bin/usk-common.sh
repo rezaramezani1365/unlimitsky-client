@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 # unlimitsky shared helpers
 set -e
 echo "[USK] Running as $(whoami)"
