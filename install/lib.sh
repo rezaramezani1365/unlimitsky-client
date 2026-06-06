@@ -189,24 +189,117 @@ usk_restart_php_fpm() {
     done
 }
 
-usk_ensure_php_zip() {
-    if php -r 'exit(class_exists("ZipArchive") ? 0 : 1);' 2>/dev/null; then
-        return 0
+usk_php_discover_versions() {
+    local v bin seen=""
+    add_ver() {
+        v="$1"
+        [ -z "$v" ] && return
+        case " $seen " in
+            *" $v "*) return ;;
+        esac
+        seen="$seen $v"
+        echo "$v"
+    }
+
+    if command -v php >/dev/null 2>&1; then
+        add_ver "$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null || true)"
     fi
-    echo "[*] Installing PHP zip extension (backup export/import)..."
-    apt-get update -qq
-    local ver pkg
-    ver="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null || echo "")"
-    for pkg in "php${ver}-zip" php-zip php8.3-zip php8.2-zip php8.1-zip php8.0-zip; do
-        [ -n "$pkg" ] || continue
-        if apt-cache show "$pkg" >/dev/null 2>&1; then
-            apt-get install -y "$pkg"
-            usk_restart_php_fpm
-            php -r 'exit(class_exists("ZipArchive") ? 0 : 1);' 2>/dev/null && return 0
+
+    for bin in /usr/bin/php[0-9]*.[0-9]* /usr/bin/php[0-9]*; do
+        [ -x "$bin" ] || continue
+        add_ver "$("$bin" -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null || true)"
+    done
+
+    local svc
+    for svc in /lib/systemd/system/php*-fpm.service; do
+        [ -f "$svc" ] || continue
+        v="$(basename "$svc" .service | sed -n 's/^php\([0-9.]*\)-fpm$/\1/p')"
+        add_ver "$v"
+    done
+}
+
+usk_php_cli_bins() {
+    local bin
+    if command -v php >/dev/null 2>&1; then
+        echo php
+    fi
+    for bin in /usr/bin/php[0-9]*.[0-9]* /usr/bin/php[0-9]*; do
+        [ -x "$bin" ] || continue
+        echo "$bin"
+    done
+}
+
+usk_zip_cli_ok() {
+    local bin
+    for bin in $(usk_php_cli_bins); do
+        [ -x "$bin" ] 2>/dev/null || [ "$bin" = php ] || continue
+        if "$bin" -r 'exit(class_exists("ZipArchive") ? 0 : 1);' 2>/dev/null; then
+            return 0
         fi
     done
-    echo "[!] Warning: ZipArchive not available — backup export may fail until php zip is installed." >&2
-    return 0
+    return 1
+}
+
+usk_ensure_php_zip() {
+    if usk_zip_cli_ok; then
+        return 0
+    fi
+
+    echo "[*] Installing PHP zip extension (backup export/import)..."
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -qq 2>&1 || echo "[!] apt-get update had warnings" >&2
+
+    local versions=()
+    local v pkg log="/tmp/usk-php-zip-apt.log"
+    : > "$log"
+
+    while IFS= read -r v; do
+        [ -n "$v" ] && versions+=("$v")
+    done < <(usk_php_discover_versions | sort -u -V)
+
+    if [ ${#versions[@]} -eq 0 ]; then
+        versions=(8.4 8.3 8.2 8.1 8.0)
+    fi
+
+    echo "[*] PHP versions on server: ${versions[*]}"
+
+    for v in "${versions[@]}"; do
+        pkg="php${v}-zip"
+        echo "[*] apt-get install -y $pkg php${v}-cli"
+        if apt-get install -y "$pkg" "php${v}-cli" >>"$log" 2>&1; then
+            echo "[*] installed $pkg (+ php${v}-cli if needed)"
+        elif apt-get install -y "$pkg" >>"$log" 2>&1; then
+            echo "[*] installed $pkg"
+        else
+            echo "[!] apt failed for $pkg (see $log)" >&2
+        fi
+        if command -v phpenmod >/dev/null 2>&1; then
+            phpenmod -v "$v" zip 2>/dev/null || true
+            phpenmod zip 2>/dev/null || true
+        fi
+        usk_restart_php_fpm
+        if usk_zip_cli_ok; then
+            return 0
+        fi
+    done
+
+    for pkg in php-zip; do
+        echo "[*] apt-get install -y $pkg"
+        apt-get install -y "$pkg" >>"$log" 2>&1 || true
+        usk_restart_php_fpm
+        if usk_zip_cli_ok; then
+            return 0
+        fi
+    done
+
+    echo "[!] ZipArchive still missing after apt." >&2
+    echo "[!] Last apt lines:" >&2
+    tail -8 "$log" 2>/dev/null >&2 || true
+    if command -v php >/dev/null 2>&1; then
+        echo "[!] php -v: $(php -v 2>&1 | head -1)" >&2
+        echo "[!] php -m (zip): $(php -m 2>/dev/null | grep -i zip || echo none)" >&2
+    fi
+    return 1
 }
 
 usk_panel_is_installed() {

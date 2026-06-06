@@ -14,14 +14,17 @@ fi
 # shellcheck source=/dev/null
 source "$LIB"
 
-if php -r 'exit(class_exists("ZipArchive") ? 0 : 1);' 2>/dev/null; then
+if usk_zip_cli_ok; then
     echo "USK_OK: ZipArchive already available"
     exit 0
 fi
 
-usk_ensure_php_zip
+if ! usk_ensure_php_zip; then
+    echo "USK_ERR: ZipArchive still missing after apt install"
+    exit 1
+fi
 
-if php -r 'exit(class_exists("ZipArchive") ? 0 : 1);' 2>/dev/null; then
+if usk_zip_cli_ok; then
     echo "USK_OK: ZipArchive installed"
     exit 0
 fi

@@ -9,9 +9,24 @@ class USK_PhpZip
 
     public static function available_cli()
     {
-        $cmd = 'php -r ' . escapeshellarg('exit(class_exists("ZipArchive") ? 0 : 1);') . ' 2>/dev/null';
-        exec($cmd, $out, $code);
-        return $code === 0;
+        if (self::available()) {
+            return true;
+        }
+        $bins = array('php');
+        foreach (glob('/usr/bin/php[0-9]*') ?: array() as $bin) {
+            if (is_executable($bin)) {
+                $bins[] = $bin;
+            }
+        }
+        $bins = array_unique($bins);
+        foreach ($bins as $bin) {
+            $cmd = escapeshellarg($bin) . ' -r ' . escapeshellarg('exit(class_exists("ZipArchive") ? 0 : 1);') . ' 2>/dev/null';
+            exec($cmd, $out, $code);
+            if ($code === 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static function install_script()
