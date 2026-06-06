@@ -37,7 +37,12 @@ class USK_I18n
         }
         $file = dirname(__DIR__) . '/lang/' . self::$lang . '.json';
         if (file_exists($file)) {
-            self::$strings = json_decode(file_get_contents($file), true) ?: array();
+            $raw = file_get_contents($file);
+            if ($raw !== false && strncmp($raw, "\xEF\xBB\xBF", 3) === 0) {
+                $raw = substr($raw, 3);
+            }
+            $decoded = json_decode($raw, true);
+            self::$strings = is_array($decoded) ? $decoded : array();
         }
         self::$loaded = true;
     }
