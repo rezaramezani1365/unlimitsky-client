@@ -420,6 +420,59 @@ class USK_PanelAccess
         );
     }
 
+    /**
+     * Update config.php domain (same logic as apply-panel-access.sh).
+     *
+     * @return array{ok:bool,error?:string,public_url?:string}
+     */
+    public static function update_config_domain($publicUrl)
+    {
+        $publicUrl = rtrim(trim((string) $publicUrl), '/');
+        if ($publicUrl === '' || strpos($publicUrl, '[*') === 0) {
+            return array('ok' => false, 'error' => 'invalid_url');
+        }
+
+        $configFile = USK_ROOT . '/config.php';
+        if (!is_file($configFile)) {
+            return array('ok' => false, 'error' => 'config_missing');
+        }
+
+        $content = file_get_contents($configFile);
+        if ($content === false || !preg_match("/(['\"]domain['\"]\s*=>\s*['\"])([^'\"]*)(['\"])/", $content)) {
+            return array('ok' => false, 'error' => 'config_domain_key_missing');
+        }
+
+        $escaped = addslashes($publicUrl);
+        $updated = preg_replace(
+            "/(['\"]domain['\"]\s*=>\s*['\"])([^'\"]*)(['\"])/",
+            '$1' . $escaped . '$3',
+            $content,
+            1
+        );
+        if ($updated === null || file_put_contents($configFile, $updated) === false) {
+            return array('ok' => false, 'error' => 'config_write_failed');
+        }
+        @chmod($configFile, 0640);
+
+        global $config;
+        if (is_array($config)) {
+            $config['domain'] = $publicUrl;
+        }
+
+        return array('ok' => true, 'public_url' => $publicUrl);
+    }
+
+    /** Public URL derived from saved panel-access settings (no nginx apply). */
+    public static function public_url_from_settings(array $cfg = null)
+    {
+        if ($cfg === null) {
+            $cfg = self::get();
+        }
+        $port = self::sanitize_port($cfg['panel_port'] ?? self::detect_port());
+        $domain = !empty($cfg['domain_enabled']) ? self::sanitize_domain($cfg['panel_domain'] ?? '') : '';
+        return self::build_public_url($domain, $port, !empty($cfg['https_enabled']), $domain !== '');
+    }
+
     public static function error_label($code)
     {
         $map = array(

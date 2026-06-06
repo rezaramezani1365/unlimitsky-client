@@ -3,7 +3,7 @@
 class USK_PanelBackup
 {
     const FORMAT = 'unlimitsky-backup';
-    const VERSION = 1;
+    const VERSION = 2;
 
     /** @return string[] */
     public static function tables()
@@ -41,6 +41,15 @@ class USK_PanelBackup
         return array('api-keys.json', 'license.json');
     }
 
+    /** Runtime files under data/settings — not included in backup. */
+    private static function settings_skip_files()
+    {
+        return array(
+            'php-zip-install.lock',
+            'panel-update.lock',
+        );
+    }
+
     public static function zip_available()
     {
         return class_exists('ZipArchive');
@@ -70,6 +79,7 @@ class USK_PanelBackup
             return array('ok' => false, 'error' => 'temp_unavailable');
         }
 
+        $snapshot = self::build_panel_snapshot();
         $manifest = array(
             'format' => self::FORMAT,
             'version' => self::VERSION,
@@ -77,8 +87,12 @@ class USK_PanelBackup
             'created_at' => gmdate('c'),
             'hostname' => php_uname('n'),
             'tables' => self::tables(),
+            'data_paths' => self::data_paths(),
             'includes_vpn_runtime' => false,
-            'notes' => 'v1 panel backup — reinstall protocols on new VPS; replay VPN users in v2',
+            'includes_panel_urls' => true,
+            'public_url' => (string) ($snapshot['public_url'] ?? ''),
+            'settings_files' => self::list_settings_files(),
+            'notes' => 'v2 panel backup — plans, services, client registry, panel/WC URLs, DNS. Reinstall protocols on new VPS; re-apply panel access in Settings.',
         );
 
         $sqlPath = $work . '/database.sql';
@@ -91,6 +105,10 @@ class USK_PanelBackup
         file_put_contents(
             $work . '/manifest.json',
             json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+        );
+        file_put_contents(
+            $work . '/panel-snapshot.json',
+            json_encode($snapshot, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
         );
 
         self::copy_export_data($work . '/data');
@@ -113,7 +131,7 @@ class USK_PanelBackup
     }
 
     /**
-     * @return array{ok:bool, error?:string, manifest?:array, stats?:array}
+     * @return array{ok:bool, error?:string, manifest?:array, stats?:array, had_pro_license?:bool, needs_panel_access_reapply?:bool, restored_public_url?:string}
      */
     public static function import($uploadPath)
     {
@@ -187,11 +205,23 @@ class USK_PanelBackup
         $adminCopied = self::import_admin_data($work . '/admin-data', false);
         $licenseKey = self::read_backup_license_key($work . '/admin-data/license.json');
 
+        $urlRestore = self::restore_panel_urls($work, $manifest);
+
         USK_Migration::clear_license_cache();
         if ($licenseKey !== '') {
-            USK_Migration::mark_after_import($manifest, $licenseKey);
+            USK_Migration::mark_after_import($manifest, $licenseKey, array(
+                'needs_panel_access_reapply' => true,
+                'restored_public_url' => (string) ($urlRestore['public_url'] ?? ''),
+            ));
         } else {
             USK_Migration::clear();
+            if (!empty($urlRestore['public_url'])) {
+                USK_Migration::mark_after_import($manifest, '', array(
+                    'needs_license_reactivation' => false,
+                    'needs_panel_access_reapply' => true,
+                    'restored_public_url' => (string) $urlRestore['public_url'],
+                ));
+            }
         }
 
         self::remove_tree($work);
@@ -204,6 +234,9 @@ class USK_PanelBackup
                 'files_copied' => $filesCopied + $adminCopied,
             ),
             'had_pro_license' => $licenseKey !== '',
+            'needs_panel_access_reapply' => !empty($urlRestore['needs_reapply']),
+            'restored_public_url' => (string) ($urlRestore['public_url'] ?? ''),
+            'config_domain_updated' => !empty($urlRestore['config_updated']),
         );
     }
 
@@ -222,6 +255,7 @@ class USK_PanelBackup
         }
 
         $manifestRaw = $zip->getFromName('manifest.json');
+        $snapshotRaw = $zip->getFromName('panel-snapshot.json');
         $zip->close();
         if ($manifestRaw === false) {
             return array('ok' => false, 'error' => 'manifest_missing');
@@ -232,6 +266,8 @@ class USK_PanelBackup
             return array('ok' => false, 'error' => 'manifest_invalid');
         }
 
+        $snapshot = is_string($snapshotRaw) ? json_decode($snapshotRaw, true) : null;
+
         return array(
             'ok' => true,
             'summary' => array(
@@ -240,8 +276,122 @@ class USK_PanelBackup
                 'hostname' => $manifest['hostname'] ?? '',
                 'tables' => $manifest['tables'] ?? array(),
                 'includes_vpn_runtime' => !empty($manifest['includes_vpn_runtime']),
+                'includes_panel_urls' => !empty($manifest['includes_panel_urls']),
+                'public_url' => (string) ($manifest['public_url'] ?? ($snapshot['public_url'] ?? '')),
+                'settings_files' => $manifest['settings_files'] ?? array(),
             ),
         );
+    }
+
+    /** @return array<string,mixed> */
+    public static function build_panel_snapshot()
+    {
+        global $config;
+
+        $snapshot = array(
+            'config_domain' => rtrim(trim((string) ($config['domain'] ?? '')), '/'),
+            'public_url' => '',
+            'panel_access' => array(),
+            'connect_host' => array(),
+            'woocommerce_shop' => array(),
+            'client_dns' => array(),
+            'panel_access_applied' => null,
+        );
+
+        if (class_exists('USK_PanelAccess')) {
+            $snapshot['panel_access'] = USK_PanelAccess::get();
+            $snapshot['public_url'] = USK_PanelAccess::current_public_url();
+        }
+        if (class_exists('USK_ConnectHost')) {
+            $snapshot['connect_host'] = USK_ConnectHost::get();
+        }
+        if (class_exists('USK_WooCommerce_Shop')) {
+            $snapshot['woocommerce_shop'] = USK_WooCommerce_Shop::get();
+        }
+        if (class_exists('USK_ClientDns')) {
+            $snapshot['client_dns'] = USK_ClientDns::get();
+        }
+
+        $appliedFile = USK_ROOT . '/data/settings/panel-access-applied.json';
+        if (is_file($appliedFile)) {
+            $applied = json_decode((string) file_get_contents($appliedFile), true);
+            if (is_array($applied)) {
+                $snapshot['panel_access_applied'] = $applied;
+            }
+        }
+
+        if ($snapshot['public_url'] === '' && $snapshot['config_domain'] !== '') {
+            $snapshot['public_url'] = $snapshot['config_domain'];
+        }
+
+        return $snapshot;
+    }
+
+    /** @return string[] */
+    private static function list_settings_files()
+    {
+        $dir = USK_ROOT . '/data/settings';
+        if (!is_dir($dir)) {
+            return array();
+        }
+        $skip = array_flip(self::settings_skip_files());
+        $files = array();
+        foreach (scandir($dir) as $item) {
+            if ($item === '.' || $item === '..' || isset($skip[$item])) {
+                continue;
+            }
+            if (is_file($dir . '/' . $item)) {
+                $files[] = $item;
+            }
+        }
+        sort($files);
+        return $files;
+    }
+
+    /**
+     * Restore config.php domain from backup snapshot or imported settings.
+     *
+     * @return array{public_url?:string,config_updated?:bool,needs_reapply?:bool,error?:string}
+     */
+    private static function restore_panel_urls($workDir, array $manifest)
+    {
+        $snapshot = null;
+        $snapshotFile = $workDir . '/panel-snapshot.json';
+        if (is_file($snapshotFile)) {
+            $snapshot = json_decode((string) file_get_contents($snapshotFile), true);
+        }
+
+        $publicUrl = '';
+        if (is_array($snapshot)) {
+            $publicUrl = rtrim(trim((string) ($snapshot['public_url'] ?? '')), '/');
+            if ($publicUrl === '') {
+                $publicUrl = rtrim(trim((string) ($snapshot['config_domain'] ?? '')), '/');
+            }
+        }
+        if ($publicUrl === '') {
+            $publicUrl = rtrim(trim((string) ($manifest['public_url'] ?? '')), '/');
+        }
+        if ($publicUrl === '' && class_exists('USK_PanelAccess')) {
+            $publicUrl = USK_PanelAccess::public_url_from_settings();
+        }
+
+        $result = array(
+            'public_url' => $publicUrl,
+            'config_updated' => false,
+            'needs_reapply' => true,
+        );
+
+        if ($publicUrl === '' || !class_exists('USK_PanelAccess')) {
+            return $result;
+        }
+
+        $updated = USK_PanelAccess::update_config_domain($publicUrl);
+        $result['config_updated'] = !empty($updated['ok']);
+        if (empty($updated['ok'])) {
+            $result['error'] = (string) ($updated['error'] ?? 'config_update_failed');
+        }
+
+        return $result;
     }
 
     private static function temp_dir()
@@ -358,7 +508,8 @@ class USK_PanelBackup
             }
             $sub = preg_replace('#^data/#', '', $rel);
             $dest = $destDataRoot . '/' . $sub;
-            self::copy_tree($src, $dest);
+            $skipFiles = ($sub === 'settings') ? self::settings_skip_files() : array();
+            self::copy_tree($src, $dest, false, $skipFiles);
         }
     }
 
@@ -381,7 +532,29 @@ class USK_PanelBackup
         if (!is_dir($srcRoot)) {
             return 0;
         }
-        return self::copy_tree($srcRoot, $destRoot, true);
+
+        $count = 0;
+        $items = scandir($srcRoot);
+        if (!is_array($items)) {
+            return 0;
+        }
+
+        foreach ($items as $item) {
+            if ($item === '.' || $item === '..') {
+                continue;
+            }
+            $from = $srcRoot . '/' . $item;
+            $to = $destRoot . '/' . $item;
+            if (!is_dir($from)) {
+                continue;
+            }
+            if (is_dir($to)) {
+                self::remove_tree($to);
+            }
+            $count += self::copy_tree($from, $to, false);
+        }
+
+        return $count;
     }
 
     private static function read_backup_license_key($path)
@@ -423,7 +596,7 @@ class USK_PanelBackup
         return $count;
     }
 
-    private static function copy_tree($src, $dest, $merge = false)
+    private static function copy_tree($src, $dest, $merge = false, array $skipFiles = array())
     {
         $count = 0;
         if (!is_dir($src)) {
@@ -436,6 +609,7 @@ class USK_PanelBackup
             @mkdir($dest, 0755, true);
         }
 
+        $skip = array_flip($skipFiles);
         $items = scandir($src);
         if (!is_array($items)) {
             return 0;
@@ -445,10 +619,13 @@ class USK_PanelBackup
             if ($item === '.' || $item === '..') {
                 continue;
             }
+            if (isset($skip[$item])) {
+                continue;
+            }
             $from = $src . '/' . $item;
             $to = $dest . '/' . $item;
             if (is_dir($from)) {
-                $count += self::copy_tree($from, $to, true);
+                $count += self::copy_tree($from, $to, true, $skipFiles);
             } elseif (is_file($from)) {
                 @mkdir(dirname($to), 0755, true);
                 if (copy($from, $to)) {

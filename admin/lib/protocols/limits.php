@@ -30,15 +30,18 @@ class USK_ProtocolLimits
     }
 
     /**
-     * Cron: disable expired / over-limit clients on server (no connection).
-     * Records stay in panel for reseller to see and renew.
+     * Sync live usage from VPN daemons, then disable expired / over-volume clients.
+     * Called from admin button (no cron required) or cron/native-limits.php.
+     *
+     * @return array{usage_updated:int,checked:int,disabled:int,details:array}
      */
     public static function enforce_all()
     {
         require_once __DIR__ . '/usage.php';
-        USK_ProtocolUsage::sync_all();
+        $usageUpdated = USK_ProtocolUsage::sync_all();
 
         $report = array(
+            'usage_updated' => (int) $usageUpdated,
             'checked' => 0,
             'disabled' => 0,
             'details' => array(),
@@ -67,6 +70,27 @@ class USK_ProtocolLimits
 
         self::sync_orders_status();
         return $report;
+    }
+
+    /** Admin button — same as enforce_all + persist last-run report. */
+    public static function sync_usage_and_enforce()
+    {
+        $report = self::enforce_all();
+        self::save_last_run($report);
+        return $report;
+    }
+
+    public static function format_last_run_at($iso)
+    {
+        $iso = trim((string) $iso);
+        if ($iso === '') {
+            return '';
+        }
+        $ts = strtotime($iso);
+        if (!$ts) {
+            return $iso;
+        }
+        return date('Y-m-d H:i', $ts);
     }
 
     public static function client_meta(array $rec)

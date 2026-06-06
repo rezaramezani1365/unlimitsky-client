@@ -84,6 +84,7 @@ php -r "var_dump(class_exists('ZipArchive'));"</pre>
                 <ul class="small text-muted mb-3">
                     <li><?= __('backup_includes_db') ?></li>
                     <li><?= __('backup_includes_data') ?></li>
+                    <li><?= __('backup_includes_urls') ?></li>
                     <li><?= __('backup_includes_admin') ?></li>
                 </ul>
                 <details class="mb-3">
@@ -149,6 +150,7 @@ php -r "var_dump(class_exists('ZipArchive'));"</pre>
             <?php foreach ($dataPaths as $path) : ?>
                 <li><code><?= usk_esc($path) ?></code></li>
             <?php endforeach; ?>
+            <li><code>panel-snapshot.json</code> (panel/WC URLs, config domain)</li>
             <li><code>admin/data/api-keys.json</code>, <code>admin/data/license.json</code> (export only)</li>
         </ul>
     </div>

@@ -118,22 +118,41 @@ if ($action === 'import') {
 
     $stats = $result['stats'] ?? array();
     $hadPro = !empty($result['had_pro_license']);
+    $needsReapply = !empty($result['needs_panel_access_reapply']);
+    $restoredUrl = (string) ($result['restored_public_url'] ?? '');
 
     if ($hadPro) {
-        usk_flash(sprintf(
+        $msg = sprintf(
             __('backup_import_ok_relicense'),
             (int) ($stats['sql_statements'] ?? 0),
             (int) ($stats['files_copied'] ?? 0)
-        ));
+        );
+        if ($needsReapply && $restoredUrl !== '') {
+            $msg .= ' ' . sprintf(__('backup_import_note_reapply'), $restoredUrl);
+        }
+        usk_flash($msg);
         header('Location: ' . usk_admin_url('license'));
         exit;
     }
 
-    usk_flash(sprintf(
+    $msg = sprintf(
         __('backup_import_ok'),
         (int) ($stats['sql_statements'] ?? 0),
         (int) ($stats['files_copied'] ?? 0)
-    ));
+    );
+    if ($needsReapply) {
+        if ($restoredUrl !== '') {
+            $msg .= ' ' . sprintf(__('backup_import_note_reapply'), $restoredUrl);
+        } else {
+            $msg .= ' ' . __('backup_import_note_reapply_generic');
+        }
+    }
+    usk_flash($msg);
+
+    if ($needsReapply) {
+        header('Location: ' . usk_admin_url('settings'));
+        exit;
+    }
 
     header('Location: ' . usk_backup_redirect_url());
     exit;

@@ -10,7 +10,7 @@ class USK_Migration
     /**
      * Called after panel backup import — Pro cache is not restored; user must re-activate.
      */
-    public static function mark_after_import(array $manifest, $licenseKey = '')
+    public static function mark_after_import(array $manifest, $licenseKey = '', array $extra = array())
     {
         $licenseKey = strtoupper(trim((string) $licenseKey));
         $data = array(
@@ -18,7 +18,11 @@ class USK_Migration
             'from_hostname' => (string) ($manifest['hostname'] ?? ''),
             'from_panel_version' => (string) ($manifest['panel_version'] ?? ''),
             'license_key_hint' => $licenseKey,
-            'needs_license_reactivation' => true,
+            'needs_license_reactivation' => array_key_exists('needs_license_reactivation', $extra)
+                ? !empty($extra['needs_license_reactivation'])
+                : ($licenseKey !== ''),
+            'needs_panel_access_reapply' => !empty($extra['needs_panel_access_reapply']),
+            'restored_public_url' => (string) ($extra['restored_public_url'] ?? ''),
         );
 
         $dir = dirname(self::file_path());
@@ -55,6 +59,21 @@ class USK_Migration
             return '';
         }
         return (string) ($pending['license_key_hint'] ?? '');
+    }
+
+    public static function needs_panel_access_reapply()
+    {
+        $pending = self::get_pending();
+        return is_array($pending) && !empty($pending['needs_panel_access_reapply']);
+    }
+
+    public static function restored_public_url()
+    {
+        $pending = self::get_pending();
+        if (!is_array($pending)) {
+            return '';
+        }
+        return (string) ($pending['restored_public_url'] ?? '');
     }
 
     public static function clear()
