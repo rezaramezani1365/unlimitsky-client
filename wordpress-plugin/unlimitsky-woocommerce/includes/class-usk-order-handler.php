@@ -44,6 +44,11 @@ class USK_Order_Handler
                 continue;
             }
 
+            $renewServiceCode = wc_get_order_item_meta($item_id, '_usk_renew_service_code', true);
+            $renewPlanCode = wc_get_order_item_meta($item_id, '_usk_renew_plan_code', true);
+            $renewProtocol = sanitize_key((string) wc_get_order_item_meta($item_id, '_usk_renew_protocol', true));
+            $renewSig = (string) wc_get_order_item_meta($item_id, '_usk_renew_sig', true);
+
             $panel_id      = (int) $product->get_meta('_usk_panel_id');
             $volume_gb     = (int) $product->get_meta('_usk_volume_gb');
             $duration_days = (int) $product->get_meta('_usk_duration_days');
@@ -57,6 +62,39 @@ class USK_Order_Handler
             $panel = USK_Panel_Manager::get_panel($panel_id);
             if (!$panel) {
                 $errors[] = sprintf(usk_wc__('Panel for product "%s" not found.'), $item->get_name());
+                continue;
+            }
+
+            if ($renewServiceCode !== '' && $panel['type'] === 'unlimitsky') {
+                $productProtocol = sanitize_key((string) $product->get_meta('_usk_protocol'));
+                if ($renewProtocol === '' || $productProtocol === '' || $renewProtocol !== $productProtocol) {
+                    $errors[] = sprintf('%s: %s', $item->get_name(), usk_wc__('Renewal protocol does not match the service.'));
+                    continue;
+                }
+
+                $result = USK_Service_Creator::extend_existing(
+                    $panel,
+                    $renewServiceCode,
+                    $renewPlanCode,
+                    $renewProtocol,
+                    $renewSig,
+                    $order_id
+                );
+
+                if (empty($result['success'])) {
+                    $errors[] = sprintf('%s: %s', $item->get_name(), $result['error'] ?? usk_wc__('Unknown error'));
+                    $order->add_order_note(sprintf('[unlimitsky] Renewal failed for #%s: %s', $renewServiceCode, $result['error'] ?? ''));
+                    continue;
+                }
+
+                wc_update_order_item_meta($item_id, '_usk_provisioned', 'yes');
+                wc_update_order_item_meta($item_id, '_usk_service_code', $renewServiceCode);
+                if (!empty($result['portal_url'])) {
+                    wc_update_order_item_meta($item_id, '_usk_portal_url', esc_url_raw($result['portal_url']));
+                    wc_update_order_item_meta($item_id, '_usk_subscription_url', esc_url_raw($result['portal_url']));
+                }
+
+                $order->add_order_note(sprintf('[unlimitsky] Service #%s renewed.', $renewServiceCode));
                 continue;
             }
 

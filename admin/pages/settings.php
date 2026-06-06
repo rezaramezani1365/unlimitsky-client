@@ -1,5 +1,4 @@
 <?php
-require_once __DIR__ . '/../lib/auth.php';
 require_once __DIR__ . '/../lib/init.php';
 
 $GLOBALS['page_title'] = __('nav_settings');
@@ -11,6 +10,7 @@ $test = $sql->query("SELECT * FROM `test_account_setting` LIMIT 1")->fetch_assoc
 $spam = $sql->query("SELECT * FROM `spam_setting` LIMIT 1")->fetch_assoc();
 $clientDns = USK_ClientDns::get();
 $connectHostCfg = USK_ConnectHost::get();
+$wooShopCfg = USK_WooCommerce_Shop::get();
 $detectedServerIp = USK_ConnectHost::detect_ip();
 $panelAccessCfg = USK_PanelAccess::get();
 $panelAccessCfg['panel_port'] = (int) ($panelAccessCfg['panel_port'] ?? USK_PanelAccess::detect_port());
@@ -94,7 +94,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ));
         usk_flash(__('settings_saved'));
     }
-    header('Location: ' . usk_admin_url('settings') . ($section === 'connect_host' ? '#connect-host' : ($section === 'client_dns' ? '#client-dns' : ($section === 'panel_access' ? '#panel-access' : ''))));
+    if ($section === 'woocommerce_shop') {
+        USK_WooCommerce_Shop::save(array(
+            'enabled' => !empty($_POST['woo_shop_enabled']),
+            'shop_url' => $_POST['woo_shop_url'] ?? '',
+            'hint' => $_POST['woo_shop_hint'] ?? '',
+        ));
+        usk_flash(__('settings_saved'));
+    }
+    header('Location: ' . usk_admin_url('settings') . ($section === 'connect_host' ? '#connect-host' : ($section === 'client_dns' ? '#client-dns' : ($section === 'panel_access' ? '#panel-access' : ($section === 'woocommerce_shop' ? '#woocommerce-shop' : '')))));
     exit;
 }
 
@@ -253,6 +261,36 @@ $panels = $sql->query("SELECT `code`,`name` FROM `panels`");
                 <div class="form-group"><label><?= __('volume') ?> (GB)</label><input class="form-control" name="volume" value="<?= usk_esc($test['volume'] ?? '1') ?>"></div>
                 <div class="form-group"><label>Time (h)</label><input class="form-control" name="time" value="<?= usk_esc($test['time'] ?? '24') ?>"></div>
             </div>
+            <button type="submit" class="btn btn-usk-primary"><?= __('save') ?></button>
+        </form>
+    </div>
+</div>
+
+<div class="usk-card mb-4" id="woocommerce-shop">
+    <div class="usk-card-header"><i class="fa-brands fa-wordpress"></i> <?= __('settings_woo_shop') ?></div>
+    <div class="p-3">
+        <p class="text-muted small mb-3"><?= __('settings_woo_shop_desc') ?></p>
+        <?php if (USK_WooCommerce_Shop::is_enabled()) : ?>
+            <p class="alert alert-usk-info small py-2"><?= __('settings_woo_shop_active') ?>: <code dir="ltr"><?= usk_esc(USK_WooCommerce_Shop::shop_url()) ?></code></p>
+        <?php endif; ?>
+        <form method="post">
+            <input type="hidden" name="section" value="woocommerce_shop">
+            <div class="form-group mb-3">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="woo_shop_enabled" id="woo-shop-enabled" value="1" <?= !empty($wooShopCfg['enabled']) ? 'checked' : '' ?>>
+                    <label class="form-check-label" for="woo-shop-enabled"><?= __('settings_woo_shop_enable') ?></label>
+                </div>
+            </div>
+            <div class="form-group mb-3">
+                <label><?= __('settings_woo_shop_url') ?></label>
+                <input class="form-control" name="woo_shop_url" dir="ltr" style="text-align:left;" value="<?= usk_esc($wooShopCfg['shop_url'] ?? '') ?>" placeholder="https://shop.example.com">
+                <p class="text-muted small mt-1 mb-0"><?= __('settings_woo_shop_url_hint') ?></p>
+            </div>
+            <div class="form-group mb-3">
+                <label><?= __('settings_woo_shop_hint_label') ?></label>
+                <input class="form-control" name="woo_shop_hint" value="<?= usk_esc($wooShopCfg['hint'] ?? '') ?>" placeholder="<?= __('settings_woo_shop_hint_ph') ?>">
+            </div>
+            <p class="text-muted small mb-3"><?= __('settings_woo_shop_renew_note') ?></p>
             <button type="submit" class="btn btn-usk-primary"><?= __('save') ?></button>
         </form>
     </div>

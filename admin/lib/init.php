@@ -19,6 +19,7 @@ require_once __DIR__ . '/protocols/provisioner.php';
 require_once __DIR__ . '/client-dns.php';
 require_once __DIR__ . '/connect-host.php';
 require_once __DIR__ . '/panel-access.php';
+require_once __DIR__ . '/woocommerce-shop.php';
 require_once __DIR__ . '/backup.php';
 require_once __DIR__ . '/migration.php';
 require_once __DIR__ . '/schema-upgrade.php';

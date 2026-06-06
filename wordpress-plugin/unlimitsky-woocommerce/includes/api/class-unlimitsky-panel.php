@@ -223,4 +223,57 @@ class USK_UnlimitSky_Panel
             'expires_at'       => $data['expires_at'] ?? null,
         ];
     }
+
+    /**
+     * @return array{ok:bool,error?:string,service_code?:string,protocol?:string}
+     */
+    public static function verify_renew(array $panel, string $serviceCode, string $planCode, string $protocol, string $signature): array
+    {
+        $result = self::request($panel['login_link'], $panel['token'] ?? '', 'verify-renew', [
+            'service_code' => preg_replace('/[^0-9]/', '', $serviceCode),
+            'plan_code'    => preg_replace('/[^0-9]/', '', $planCode),
+            'protocol'     => sanitize_key($protocol),
+            'renew_sig'    => $signature,
+        ], 'POST');
+
+        if (empty($result['ok'])) {
+            return ['ok' => false, 'error' => $result['error'] ?? 'verify_failed'];
+        }
+
+        return ['ok' => true, 'data' => $result['data'] ?? []];
+    }
+
+    /**
+     * @return array{success:bool,error?:string,subscription_url?:string,portal_url?:string,service_code?:string,protocol?:string,expires_at?:string,volume_gb?:int,duration_days?:int}
+     */
+    public static function extend_service(array $panel, string $serviceCode, string $planCode, string $protocol, string $signature, int $wcOrderId = 0): array
+    {
+        $result = self::request($panel['login_link'], $panel['token'] ?? '', 'extend-service', [
+            'service_code' => preg_replace('/[^0-9]/', '', $serviceCode),
+            'plan_code'    => preg_replace('/[^0-9]/', '', $planCode),
+            'protocol'     => sanitize_key($protocol),
+            'renew_sig'    => $signature,
+            'wc_order_id'  => $wcOrderId,
+        ], 'POST');
+
+        if (empty($result['ok'])) {
+            return ['success' => false, 'error' => $result['error'] ?? __('Renewal failed on panel.', 'unlimitsky-wc')];
+        }
+
+        $data = $result['data'] ?? [];
+        $portalUrl = trim((string) ($data['portal_url'] ?? ''));
+
+        return [
+            'success'          => true,
+            'service_code'     => (string) ($data['service_code'] ?? $serviceCode),
+            'protocol'         => (string) ($data['protocol'] ?? $protocol),
+            'subscription_url' => $portalUrl !== '' ? $portalUrl : '',
+            'portal_url'       => $portalUrl,
+            'expires_at'       => $data['expires_at'] ?? null,
+            'volume_gb'        => isset($data['volume_gb']) ? (int) $data['volume_gb'] : null,
+            'duration_days'    => isset($data['duration_days']) ? (int) $data['duration_days'] : null,
+            'extra_days'       => isset($data['extra_days']) ? (int) $data['extra_days'] : 0,
+            'extra_gb'         => isset($data['extra_gb']) ? (int) $data['extra_gb'] : 0,
+        ];
+    }
 }

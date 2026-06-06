@@ -38,6 +38,7 @@ class USK_Plugin
         require_once USK_WC_PLUGIN_DIR . 'includes/class-usk-admin.php';
         require_once USK_WC_PLUGIN_DIR . 'includes/class-usk-woocommerce.php';
         require_once USK_WC_PLUGIN_DIR . 'includes/class-usk-order-handler.php';
+        require_once USK_WC_PLUGIN_DIR . 'includes/class-usk-renewal.php';
     }
 
     private function init_hooks(): void
@@ -50,5 +51,6 @@ class USK_Plugin
         new USK_Admin();
         new USK_WooCommerce();
         new USK_Order_Handler();
+        new USK_Renewal();
     }
 }

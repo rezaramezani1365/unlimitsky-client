@@ -133,6 +133,28 @@ function portal_esc($s)
         </div>
     </div>
 
+<?php if (!empty($view['renew_enabled']) && !empty($view['renew_plans'])) : ?>
+    <div class="portal-card portal-renew-card">
+        <h2><i class="fa-solid fa-rotate"></i> <?= portal_esc(__('portal_renew_title')) ?></h2>
+        <p class="small text-muted mb-3"><?= portal_esc(__('portal_renew_hint')) ?></p>
+        <p class="small text-muted mb-3"><?= portal_esc(sprintf(__('portal_renew_protocol_note'), USK_CustomerPortal::protocol_label($protocol))) ?></p>
+        <div class="portal-renew-grid">
+            <?php foreach ($view['renew_plans'] as $plan) : ?>
+            <a class="portal-renew-plan" href="<?= portal_esc($plan['url']) ?>" rel="noopener">
+                <div class="portal-renew-plan-name"><?= portal_esc($plan['name']) ?></div>
+                <div class="portal-renew-plan-meta">
+                    <?= (int) ($plan['volume_gb'] ?? 0) ?> GB · <?= (int) ($plan['duration_days'] ?? 0) ?> <?= portal_esc(__('days')) ?>
+                </div>
+                <?php if (!empty($plan['price']) && (int) $plan['price'] > 0) : ?>
+                <div class="portal-renew-plan-price"><?= portal_esc(number_format((int) $plan['price'])) ?></div>
+                <?php endif; ?>
+                <span class="portal-renew-plan-btn"><?= portal_esc(__('portal_renew_btn')) ?></span>
+            </a>
+            <?php endforeach; ?>
+        </div>
+    </div>
+<?php endif; ?>
+
 <?php if (!empty($view['show_copy_link']) && !empty($view['primary_link'])) : ?>
     <div class="portal-card">
         <h2><i class="fa-solid fa-link"></i> <?= portal_esc(__('portal_connection_link')) ?></h2>

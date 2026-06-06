@@ -3,7 +3,7 @@
  * Plugin Name: unlimitsky - WooCommerce
  * Plugin URI:  https://iranip.online
  * Description: فروش خودکار کانفیگ VPN — پروتکل native (WireGuard/OpenVPN/Xray/L2TP) + Marzban/Sanaei
- * Version:     1.3.1
+ * Version:     1.4.0
  * Author:      unlimitsky
  * Text Domain: unlimitsky-wc
  * Requires at least: 5.8
@@ -14,7 +14,7 @@
 
 defined('ABSPATH') || exit;
 
-define('USK_WC_VERSION', '1.3.1');
+define('USK_WC_VERSION', '1.4.0');
 define('USK_WC_PLUGIN_FILE', __FILE__);
 define('USK_WC_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('USK_WC_PLUGIN_URL', plugin_dir_url(__FILE__));

@@ -302,6 +302,50 @@ body.portal-body {
     font-size: 1.05rem;
 }
 
+.portal-renew-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.75rem;
+}
+
+.portal-renew-plan {
+    display: block;
+    border: 1px solid var(--portal-border);
+    border-radius: 12px;
+    padding: 1rem;
+    text-decoration: none;
+    color: inherit;
+    background: rgba(13, 110, 253, 0.06);
+    transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.portal-renew-plan:hover {
+    border-color: #0d6efd;
+    transform: translateY(-1px);
+    color: inherit;
+}
+
+.portal-renew-plan-name {
+    font-weight: 600;
+    margin-bottom: 0.35rem;
+}
+
+.portal-renew-plan-meta,
+.portal-renew-plan-price {
+    font-size: 0.85rem;
+    color: var(--portal-muted, #6c757d);
+}
+
+.portal-renew-plan-btn {
+    display: inline-block;
+    margin-top: 0.75rem;
+    padding: 0.45rem 0.85rem;
+    border-radius: 8px;
+    background: #0d6efd;
+    color: #fff;
+    font-size: 0.85rem;
+}
+
 .portal-theme-btn {
     border: 1px solid var(--portal-border);
     background: var(--portal-card);

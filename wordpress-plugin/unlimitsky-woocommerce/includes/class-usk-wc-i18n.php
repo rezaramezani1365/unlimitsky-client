@@ -69,6 +69,16 @@ class USK_WC_I18n
             'Open service page' => 'باز کردن صفحه سرویس',
             'Open this page to view your config, QR code, usage stats, and app download links.' => 'از این صفحه کانفیگ، QR، آمار مصرف و لینک اپ‌ها را ببینید.',
             'Use your service page for config, QR code, usage stats, and app download links.' => 'برای کانفیگ، QR، آمار مصرف و دانلود اپ از صفحه سرویس استفاده کنید.',
+            'Renewal link is incomplete.' => 'لینک تمدید ناقص است.',
+            'No unlimitsky panel is configured for renewal.' => 'پنل unlimitsky برای تمدید تنظیم نشده است.',
+            'Renewal link is invalid or expired.' => 'لینk تمدید نامعتبر یا منقضی شده است.',
+            'No WooCommerce product found for plan %1$s and protocol %2$s.' => 'محصول ووکامرس برای پلن %1$s و پروتکل %2$s یافت نشد.',
+            'Could not add renewal product to cart.' => 'افزودن محصول تمدید به سبد ممکن نشد.',
+            'Renewal plan added to cart. Complete checkout to extend your service.' => 'پلن تمدید به سبد اضافه شد. پرداخت را تکمیل کنید تا سرویس تمدید شود.',
+            'Renewal' => 'تمدید',
+            'Renewal protocol does not match the service.' => 'پروتکل تمدید با سرویس یکی نیست.',
+            'Renewal is only supported for native unlimitsky services.' => 'تمدید فقط برای سرویس native unlimitsky پشتیبانی می‌شود.',
+            'Renewal failed on panel.' => 'تمدید در پنل ناموفق بود.',
         ];
     }
 }

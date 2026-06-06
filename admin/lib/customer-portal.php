@@ -3,6 +3,7 @@
 require_once __DIR__ . '/config-download.php';
 require_once __DIR__ . '/service-config-view.php';
 require_once __DIR__ . '/protocols/usage.php';
+require_once __DIR__ . '/customer-renewal.php';
 
 function usk_customer_portal_url($code, $token)
 {
@@ -81,6 +82,7 @@ class USK_CustomerPortal
 
         $downloadUrl = usk_config_download_url($code, $token);
         $downloadFilename = self::download_filename($protocol, $native['username'] ?? '', $meta);
+        $renewPlans = USK_CustomerRenewal::plans_for_service($protocol, $code, $stored);
 
         return array(
             'ok' => true,
@@ -106,6 +108,8 @@ class USK_CustomerPortal
                 && ($primaryLink !== '' || $qrB64 !== ''),
             'show_copy_link' => in_array($protocol, array('xray', 'amnezia', 'wireguard'), true) && $primaryLink !== '',
             'show_download' => in_array($protocol, array('openvpn', 'amnezia', 'xray', 'wireguard'), true),
+            'renew_plans' => $renewPlans,
+            'renew_enabled' => !empty($renewPlans),
         );
     }
 

@@ -200,4 +200,62 @@ class USK_Service_Creator
             ARRAY_A
         ) ?: [];
     }
+
+    /**
+     * @return array{success:bool,error?:string,portal_url?:string,service_code?:string,expires_at?:string,volume_gb?:int,duration_days?:int}
+     */
+    public static function extend_existing(array $panel, string $serviceCode, string $planCode, string $protocol, string $renewSig, int $wcOrderId): array
+    {
+        if (($panel['type'] ?? '') !== 'unlimitsky') {
+            return ['success' => false, 'error' => usk_wc__('Renewal is only supported for native unlimitsky services.')];
+        }
+
+        $result = USK_UnlimitSky_Panel::extend_service($panel, $serviceCode, $planCode, $protocol, $renewSig, $wcOrderId);
+        if (empty($result['success'])) {
+            return $result;
+        }
+
+        self::update_renewed_record($serviceCode, $result, $wcOrderId);
+        return $result;
+    }
+
+    public static function update_renewed_record(string $serviceCode, array $result, int $wcOrderId): void
+    {
+        global $wpdb;
+
+        $serviceCode = preg_replace('/[^0-9]/', '', $serviceCode);
+        if ($serviceCode === '') {
+            return;
+        }
+
+        $row = $wpdb->get_row(
+            $wpdb->prepare('SELECT * FROM ' . USK_table('orders') . ' WHERE service_code = %s ORDER BY id DESC LIMIT 1', $serviceCode),
+            ARRAY_A
+        );
+        if (!$row) {
+            return;
+        }
+
+        $updates = [];
+        if (!empty($result['portal_url'])) {
+            $updates['subscription_url'] = esc_url_raw($result['portal_url']);
+            $updates['portal_url'] = esc_url_raw($result['portal_url']);
+        }
+        if (isset($result['volume_gb']) && $result['volume_gb'] !== null) {
+            $updates['volume_gb'] = (int) $result['volume_gb'];
+        }
+        if (isset($result['duration_days']) && $result['duration_days'] !== null) {
+            $updates['duration_days'] = (int) $result['duration_days'];
+        }
+        if (!empty($result['expires_at'])) {
+            $updates['expires_at'] = gmdate('Y-m-d H:i:s', strtotime($result['expires_at']));
+        }
+        $updates['status'] = 'active';
+
+        if ($updates === []) {
+            return;
+        }
+
+        $wpdb->update(USK_table('orders'), $updates, ['id' => (int) $row['id']]);
+    }
 }

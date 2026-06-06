@@ -340,4 +340,79 @@ if ($action === 'create-service') {
     ));
 }
 
+if ($action === 'verify-renew') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        usk_api_response(405, array('ok' => false, 'error' => 'method_not_allowed'));
+    }
+
+    require_once dirname(__DIR__) . '/admin/lib/customer-renewal.php';
+
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) {
+        usk_api_response(400, array('ok' => false, 'error' => 'invalid_json'));
+    }
+
+    $serviceCode = preg_replace('/[^0-9]/', '', (string) ($body['service_code'] ?? ''));
+    $planCode = preg_replace('/[^0-9]/', '', (string) ($body['plan_code'] ?? ''));
+    $protocol = USK_ProtocolManager::sanitize_key($body['protocol'] ?? '');
+    $signature = (string) ($body['renew_sig'] ?? '');
+
+    $target = USK_CustomerRenewal::resolve_renew_target($serviceCode);
+    if (empty($target['ok'])) {
+        usk_api_response(404, array('ok' => false, 'error' => $target['error'] ?? 'not_found'));
+    }
+
+    $client = $target['client'] ?? array();
+    $token = (string) ($client['download_token'] ?? ($client['meta']['download_token'] ?? ''));
+    $serviceProtocol = USK_ProtocolManager::sanitize_key((string) ($target['protocol'] ?? ''));
+
+    if ($protocol === '' || $serviceProtocol === '' || $protocol !== $serviceProtocol) {
+        usk_api_response(403, array('ok' => false, 'error' => 'protocol_mismatch'));
+    }
+
+    if (!USK_CustomerRenewal::verify_signature($serviceCode, $planCode, $protocol, $token, $signature)) {
+        usk_api_response(403, array('ok' => false, 'error' => 'invalid_signature'));
+    }
+
+    if (USK_License::get_plan_by_code($planCode) === null) {
+        usk_api_response(403, array('ok' => false, 'error' => 'plan_inactive_or_missing'));
+    }
+
+    usk_api_response(200, array(
+        'ok' => true,
+        'service_code' => $serviceCode,
+        'protocol' => $protocol,
+        'plan_code' => $planCode,
+    ));
+}
+
+if ($action === 'extend-service') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        usk_api_response(405, array('ok' => false, 'error' => 'method_not_allowed'));
+    }
+
+    require_once dirname(__DIR__) . '/admin/lib/customer-renewal.php';
+
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) {
+        usk_api_response(400, array('ok' => false, 'error' => 'invalid_json'));
+    }
+
+    $serviceCode = preg_replace('/[^0-9]/', '', (string) ($body['service_code'] ?? ''));
+    $planCode = preg_replace('/[^0-9]/', '', (string) ($body['plan_code'] ?? ''));
+    $protocol = USK_ProtocolManager::sanitize_key($body['protocol'] ?? '');
+    $signature = (string) ($body['renew_sig'] ?? '');
+    $wcOrderId = isset($body['wc_order_id']) ? (int) $body['wc_order_id'] : null;
+
+    $result = USK_CustomerRenewal::extend_service($serviceCode, $planCode, $protocol, $signature, $wcOrderId);
+    if (empty($result['ok'])) {
+        usk_api_response(400, array(
+            'ok' => false,
+            'error' => $result['error'] ?? 'extend_failed',
+        ));
+    }
+
+    usk_api_response(200, $result);
+}
+
 usk_api_response(404, array('ok' => false, 'error' => 'unknown_action'));

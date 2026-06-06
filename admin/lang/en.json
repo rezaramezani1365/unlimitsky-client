@@ -478,5 +478,18 @@
   "portal_status_active": "Active",
   "portal_status_expired": "Expired",
   "portal_status_volume": "Volume exceeded",
-  "portal_language": "Language"
+  "portal_language": "Language",
+  "portal_renew_title": "Renew service",
+  "portal_renew_hint": "Choose a plan to add time and volume to this config. After payment, the same connection details stay active.",
+  "portal_renew_protocol_note": "Only %s renewal products from the shop can be used for this config.",
+  "portal_renew_btn": "Renew now",
+  "settings_woo_shop": "WooCommerce shop",
+  "settings_woo_shop_desc": "Your WordPress/WooCommerce store URL. Buyers use it from the service page to renew the same config.",
+  "settings_woo_shop_enable": "Enable renewal links on customer portal",
+  "settings_woo_shop_url": "Shop URL",
+  "settings_woo_shop_url_hint": "Example: https://shop.example.com — no trailing slash required.",
+  "settings_woo_shop_active": "Shop URL",
+  "settings_woo_shop_hint_label": "Note (optional)",
+  "settings_woo_shop_hint_ph": "Internal note for yourself",
+  "settings_woo_shop_renew_note": "Create WooCommerce products with the same plan code and protocol as each service. Renewal always keeps the same protocol (Xray cannot renew as OpenVPN)."
 }

@@ -478,5 +478,18 @@
   "portal_status_active": "فعال",
   "portal_status_expired": "منقضی",
   "portal_status_volume": "حجم تمام شده",
-  "portal_language": "زبان"
+  "portal_language": "زبان",
+  "portal_renew_title": "تمدید سرویس",
+  "portal_renew_hint": "یک پلن انتخاب کنید تا زمان و حجم به همین کانفیگ اضافه شود. بعد از پرداخت همان مشخصات اتصال فعال می‌ماند.",
+  "portal_renew_protocol_note": "فقط محصولات تمدید %s در فروشگاه برای این کانفیگ قابل استفاده‌اند.",
+  "portal_renew_btn": "تمدید",
+  "settings_woo_shop": "فروشگاه WooCommerce",
+  "settings_woo_shop_desc": "آدرس فروشگاه وردپress/ووکامرس. خریدار از صفحه سرویس برای تمدید همین کانفیگ استفاده می‌کند.",
+  "settings_woo_shop_enable": "فعال‌سازی لینk تمدید در صفحه خریدار",
+  "settings_woo_shop_url": "آدرس فروشگاه",
+  "settings_woo_shop_url_hint": "مثال: https://shop.example.com",
+  "settings_woo_shop_active": "آدرس فروشگاه",
+  "settings_woo_shop_hint_label": "یادداشت (اختیاری)",
+  "settings_woo_shop_hint_ph": "یادداشت داخلی",
+  "settings_woo_shop_renew_note": "در ووکامرس برای هر پلن محصول با همان کد پلن و همان پروتکل بسازید. تمدید همیشه همان پروتکل را حفظ می‌کند (Xray با OpenVPN قابل تمدید نیست)."
 }
