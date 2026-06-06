@@ -5,11 +5,10 @@ require_once dirname(__DIR__) . '/connect-host.php';
 
 class USK_ProtocolProvisioner
 {
-    private static function sudo_script_cmd($script, array $args, $connectHost = '')
+    private static function sudo_script_cmd($script, array $args)
     {
         $argStr = implode(' ', array_map('escapeshellarg', $args));
-        $env = ($connectHost !== '') ? ('env USK_SERVER_IP=' . escapeshellarg($connectHost) . ' ') : '';
-        return 'sudo -n ' . $env . 'bash ' . escapeshellarg($script) . ' ' . $argStr . ' 2>&1';
+        return 'sudo -n /bin/bash ' . escapeshellarg($script) . ' ' . $argStr . ' 2>&1';
     }
 
     private static function interpret_output($out, $fallback = 'provision_error')
@@ -84,13 +83,18 @@ class USK_ProtocolProvisioner
             }
             $scriptArgs[] = $wgTransport;
             $scriptArgs[] = $clientDns;
+            $scriptArgs[] = $connectHost;
         } elseif ($protocol === 'xray') {
             $scriptArgs[] = $clientDns;
+            $scriptArgs[] = $connectHost;
         } elseif ($protocol === 'amnezia') {
             $scriptArgs[] = $clientDns;
+            $scriptArgs[] = $connectHost;
+        } elseif ($protocol !== 'openvpn') {
+            $scriptArgs[] = $connectHost;
         }
 
-        $cmd = self::sudo_script_cmd($script, $scriptArgs, $connectHost);
+        $cmd = self::sudo_script_cmd($script, $scriptArgs);
         $out = shell_exec($cmd);
         if ($out === null || trim($out) === '') {
             return array('ok' => false, 'error' => 'provision_failed', 'log' => '');

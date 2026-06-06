@@ -12,6 +12,7 @@ TRANSPORT="${4:-udp}"
 TRANSPORT=$(echo "$TRANSPORT" | tr '[:upper:]' '[:lower:]')
 [ "$TRANSPORT" = "tcp" ] || TRANSPORT="udp"
 CLIENT_DNS="${5:-}"
+USK_CONNECT_HOST_ARG="${6:-}"
 
 if [ -z "$USERNAME" ]; then usk_json_fail "username_required"; fi
 

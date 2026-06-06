@@ -17,6 +17,10 @@ usk_json_fail() {
 }
 
 usk_server_ip() {
+  if [ -n "${USK_CONNECT_HOST_ARG:-}" ]; then
+    echo "$USK_CONNECT_HOST_ARG"
+    return
+  fi
   if [ -n "$USK_SERVER_IP" ]; then
     echo "$USK_SERVER_IP"
     return

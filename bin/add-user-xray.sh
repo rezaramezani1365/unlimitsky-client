@@ -9,6 +9,7 @@ USERNAME="${1:-}"
 VOLUME_GB="${2:-0}"
 DURATION_DAYS="${3:-0}"
 CLIENT_DNS="${4:-}"
+USK_CONNECT_HOST_ARG="${5:-}"
 if [ -z "$USERNAME" ]; then usk_json_fail "username_required"; fi
 
 EXPIRES=""

@@ -7,6 +7,7 @@ if [ "$EUID" -ne 0 ]; then usk_json_fail "run_as_root"; fi
 USERNAME="${1:-}"
 VOLUME_GB="${2:-0}"
 DURATION_DAYS="${3:-0}"
+USK_CONNECT_HOST_ARG="${4:-}"
 if [ -z "$USERNAME" ]; then usk_json_fail "username_required"; fi
 
 EXPIRES=""
