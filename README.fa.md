@@ -89,15 +89,21 @@ unlimitsky **پروتکل‌های VPN را مستقیم روی VPS اوبونت
 **به‌روزرسانی فایل‌های پنل** (بدون دست زدن به دیتابیس):
 
 ```bash
-# اگر مخزن monorepo را clone کرده‌ای (پوشه client داخل repo):
-sudo bash /opt/unlimitsky/client/scripts/update-panel.sh /var/www/unlimitsky /opt/unlimitsky/client
+# نصب با curl (repo unlimitsky-client — ریشه در /opt/unlimitsky):
+curl -fsSL https://raw.githubusercontent.com/rezaramezani1365/unlimitsky-client/main/scripts/install.sh | sudo bash -s -- \
+  --port 8082 --admin-pass 'YOUR_PASS' --open-firewall
 
-# یا دوباره install (فقط فایل‌ها):
-cd /opt/unlimitsky/client && sudo bash install-ubuntu.sh --auto --port 8082
+# یا فقط rsync (همان منبع):
+sudo bash /opt/unlimitsky/scripts/update-panel.sh /var/www/unlimitsky /opt/unlimitsky
+
+# monorepo (پوشه client داخل repo):
+sudo bash /opt/unlimitsky/client/scripts/update-panel.sh /var/www/unlimitsky /opt/unlimitsky/client
 ```
 
 بعد از به‌روزرسانی: **تنظیمات** (پایین صفحه) یا منوی **بکاپ و مهاجرت**.  
-تست: `http://IP:8082/admin/check.php` — باید همه فایل‌های backup «OK» باشند.
+تست: `http://IP:8082/admin/check.php` — باید `nav backup item: YES` و همه فایل‌های backup «OK» باشند.
+
+اگر منو نیست ولی GitHub به‌روز است، معمولاً nginx از مسیر دیگری سرو می‌دهد یا `/opt/unlimitsky` قدیمی مانده — `grep root /etc/nginx/sites-enabled/*` و `grep backup /var/www/unlimitsky/admin/lib/init.php` را روی VPS چک کن.
 
 ### اشتراک Pro بعد از مهاجرت
 

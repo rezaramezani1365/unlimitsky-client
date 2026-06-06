@@ -26,14 +26,17 @@ fi
 
 if [ -d "$INSTALL_DIR/.git" ]; then
     echo "[*] Updating $INSTALL_DIR ..."
-    git -C "$INSTALL_DIR" fetch origin "$BRANCH"
+    git -C "$INSTALL_DIR" fetch --depth 1 origin "$BRANCH"
     git -C "$INSTALL_DIR" checkout "$BRANCH"
-    git -C "$INSTALL_DIR" pull origin "$BRANCH" || true
+    git -C "$INSTALL_DIR" reset --hard "origin/$BRANCH"
 else
     echo "[*] Cloning $REPO_URL -> $INSTALL_DIR ..."
     mkdir -p "$(dirname "$INSTALL_DIR")"
     git clone --branch "$BRANCH" --depth 1 "$REPO_URL" "$INSTALL_DIR"
 fi
+
+COMMIT="$(git -C "$INSTALL_DIR" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+echo "[*] Git source commit: $COMMIT"
 
 echo "[*] Running client installer ..."
 cd "$INSTALL_DIR"

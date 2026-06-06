@@ -12,7 +12,12 @@ $root = dirname($adminDir);
 echo '<pre style="direction:ltr;font-family:monospace;padding:20px;">';
 echo "PHP: " . PHP_VERSION . "\n";
 echo "Panel root: $root\n";
-echo "config.php: " . (file_exists("$root/config.php") ? 'YES' : 'NO') . "\n\n";
+echo "config.php: " . (file_exists("$root/config.php") ? 'YES' : 'NO') . "\n";
+$revFile = "$adminDir/data/.deploy-rev";
+if (is_file($revFile)) {
+    echo "deploy rev: " . trim((string) file_get_contents($revFile)) . "\n";
+}
+echo "\n";
 
 $files = array(
     'backup module' => "$adminDir/lib/backup.php",

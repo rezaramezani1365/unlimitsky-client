@@ -9,6 +9,11 @@
 #
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LIB="${SCRIPT_DIR}/../install/lib.sh"
+# shellcheck source=/dev/null
+[ -f "$LIB" ] && source "$LIB"
+
 WEB_ROOT="${1:-/var/www/unlimitsky}"
 SRC="${2:-}"
 
@@ -34,6 +39,7 @@ echo "    to:   $WEB_ROOT"
 
 rsync -a --exclude '.git' --exclude 'config.php' --exclude 'install/unlimitsky.install' \
     --exclude 'install/.db-provision.json' \
+    --exclude 'admin/data/api-keys.json' --exclude 'admin/data/license.json' \
     "$SRC/" "$WEB_ROOT/"
 
 chmod +x "$WEB_ROOT"/bin/*.sh "$WEB_ROOT"/bin/*.py 2>/dev/null || true
@@ -41,14 +47,19 @@ mkdir -p "$WEB_ROOT/data/backups/tmp" "$WEB_ROOT/data/settings"
 chown -R www-data:www-data "$WEB_ROOT"
 chmod -R 775 "$WEB_ROOT/admin/data" "$WEB_ROOT/data" 2>/dev/null || true
 
-if ! php -r 'exit(class_exists("ZipArchive")?0:1);' 2>/dev/null; then
-    echo "[!] Installing php-zip for backup export/import..."
-    apt-get update -qq
-    apt-get install -y php-zip
-    for _fpm in /lib/systemd/system/php*-fpm.service; do
-        [ -f "$_fpm" ] && systemctl restart "$(basename "$_fpm" .service)" 2>/dev/null || true
-    done
+if declare -F usk_verify_panel_deploy >/dev/null 2>&1; then
+    usk_verify_panel_deploy "$WEB_ROOT"
+    usk_write_deploy_stamp "$WEB_ROOT" "$SRC"
+    usk_ensure_php_zip
+    usk_restart_php_fpm
+else
+    if ! php -r 'exit(class_exists("ZipArchive")?0:1);' 2>/dev/null; then
+        echo "[!] Installing php-zip for backup export/import..."
+        apt-get update -qq
+        apt-get install -y php-zip
+    fi
 fi
 
 echo "[*] Done. Open: ${WEB_ROOT%/}/admin/index.php?page=settings#usk-backup-section"
-echo "    Or sidebar: Backup & migration"
+echo "    Backup page: ${WEB_ROOT%/}/admin/index.php?page=backup"
+echo "    Health:      ${WEB_ROOT%/}/admin/check.php"

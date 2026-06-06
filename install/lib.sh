@@ -181,3 +181,56 @@ usk_print_box() {
     done
     echo "============================================"
 }
+
+usk_restart_php_fpm() {
+    local _fpm
+    for _fpm in /lib/systemd/system/php*-fpm.service; do
+        [ -f "$_fpm" ] && systemctl restart "$(basename "$_fpm" .service)" 2>/dev/null || true
+    done
+}
+
+usk_ensure_php_zip() {
+    if php -r 'exit(class_exists("ZipArchive") ? 0 : 1);' 2>/dev/null; then
+        return 0
+    fi
+    echo "[*] Installing php-zip (required for backup export/import)..."
+    apt-get update -qq
+    apt-get install -y php-zip
+    usk_restart_php_fpm
+}
+
+usk_write_deploy_stamp() {
+    local web_root="$1"
+    local src_dir="$2"
+    local stamp="${web_root}/admin/data/.deploy-rev"
+    mkdir -p "${web_root}/admin/data"
+    if [ -d "${src_dir}/.git" ]; then
+        git -C "$src_dir" rev-parse HEAD > "$stamp" 2>/dev/null || true
+    elif [ -f "${src_dir}/admin/lib/backup.php" ]; then
+        date -u +'%Y-%m-%dT%H:%M:%SZ' > "$stamp"
+    fi
+    chmod 640 "$stamp" 2>/dev/null || true
+    chown www-data:www-data "$stamp" 2>/dev/null || true
+}
+
+usk_verify_panel_deploy() {
+    local web_root="$1"
+    local missing=0
+    local f
+    for f in \
+        admin/lib/backup.php \
+        admin/backup-action.php \
+        admin/pages/backup.php \
+        admin/includes/backup-panel.php \
+        admin/lib/migration.php; do
+        if [ ! -f "${web_root}/${f}" ]; then
+            echo "ERROR: missing ${web_root}/${f}" >&2
+            missing=1
+        fi
+    done
+    if ! grep -q "'backup'" "${web_root}/admin/lib/init.php" 2>/dev/null; then
+        echo "ERROR: admin/lib/init.php has no backup nav item — stale panel files?" >&2
+        missing=1
+    fi
+    return "$missing"
+}

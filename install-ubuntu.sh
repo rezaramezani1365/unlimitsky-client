@@ -95,8 +95,19 @@ PUBLIC_URL="http://${SERVER_IP}:${PORT}"
 
 echo "[*] Deploying files to ${WEB_ROOT}..."
 mkdir -p "$WEB_ROOT"
-rsync -a --exclude '.git' --exclude 'install-ubuntu.sh' --exclude 'REPOSITORY.md' "$SCRIPT_DIR/" "$WEB_ROOT/" 2>/dev/null \
+rsync -a --exclude '.git' --exclude 'install-ubuntu.sh' --exclude 'REPOSITORY.md' \
+    --exclude 'config.php' --exclude 'install/unlimitsky.install' --exclude 'install/.db-provision.json' \
+    --exclude 'admin/data/api-keys.json' --exclude 'admin/data/license.json' \
+    "$SCRIPT_DIR/" "$WEB_ROOT/" 2>/dev/null \
     || cp -r "$SCRIPT_DIR"/* "$WEB_ROOT/"
+
+if ! usk_verify_panel_deploy "$WEB_ROOT"; then
+    echo "ERROR: Panel files in ${WEB_ROOT} are incomplete after deploy." >&2
+    echo "       Check git clone at ${SCRIPT_DIR} or run: bash ${SCRIPT_DIR}/scripts/update-panel.sh ${WEB_ROOT} ${SCRIPT_DIR}" >&2
+    exit 1
+fi
+usk_write_deploy_stamp "$WEB_ROOT" "$SCRIPT_DIR"
+usk_ensure_php_zip
 
 usk_reset_incomplete_install "$WEB_ROOT"
 
@@ -175,11 +186,17 @@ done
 # Already installed and healthy — update files only
 if [ "$AUTO" -eq 1 ] && [ -f "$WEB_ROOT/install/unlimitsky.install" ] && ! usk_config_incomplete "$WEB_ROOT"; then
     usk_secure_app_files "$WEB_ROOT"
+    usk_restart_php_fpm
+    DEPLOY_REV=""
+    [ -f "$WEB_ROOT/admin/data/.deploy-rev" ] && DEPLOY_REV="$(head -1 "$WEB_ROOT/admin/data/.deploy-rev" | cut -c1-12)"
     usk_print_box \
         "unlimitsky Client updated" \
         "" \
         "URL:        ${PUBLIC_URL}" \
         "Admin:      ${PUBLIC_URL}/admin/login.php" \
+        "Backup:     ${PUBLIC_URL}/admin/index.php?page=backup" \
+        "Check:      ${PUBLIC_URL}/admin/check.php" \
+        "${DEPLOY_REV:+Deploy rev:  ${DEPLOY_REV}}" \
         "" \
         "Install marker present — database left unchanged."
     exit 0
