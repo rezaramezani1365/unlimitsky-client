@@ -236,6 +236,9 @@ class USK_PanelAccess
         if ($stored !== '' && strpos($stored, '[*') !== 0) {
             $parsed = parse_url($stored);
             $host = is_array($parsed) ? (string) ($parsed['host'] ?? '') : '';
+            if ($host !== '' && self::uses_public_http_mirror()) {
+                return self::build_public_url($host, $port, !empty($cfg['https_enabled']), true);
+            }
             if ($host !== '' && !in_array($port, array(80, 443), true) && empty($parsed['port'])) {
                 return self::build_public_url($host, $port, !empty($cfg['https_enabled']), true);
             }
@@ -255,6 +258,22 @@ class USK_PanelAccess
         return self::current_public_url() . '/admin/login.php';
     }
 
+    public static function uses_public_http_mirror()
+    {
+        $applied = USK_ROOT . '/data/settings/panel-access-applied.json';
+        if (is_file($applied)) {
+            $data = json_decode(file_get_contents($applied), true);
+            if (is_array($data) && array_key_exists('public_http_mirror', $data)) {
+                return !empty($data['public_http_mirror']);
+            }
+        }
+        $cfg = self::get();
+        $port = (int) ($cfg['panel_port'] ?? self::detect_port());
+        return !empty($cfg['domain_enabled'])
+            && self::sanitize_domain($cfg['panel_domain'] ?? '') !== ''
+            && !in_array($port, array(80, 443), true);
+    }
+
     public static function build_public_url($panelDomain, $port, $https = false, $domainMode = false)
     {
         $port = self::sanitize_port($port);
@@ -267,10 +286,13 @@ class USK_PanelAccess
             return 'http://' . $host . ':' . $port;
         }
 
-        // Public HTTPS without port: only when nginx listens on 80/443 (Cloudflare / reverse proxy).
-        // Origin on 8082 etc. must keep the port — there is no TLS on 443 by default.
-        if ($domainMode && $https && in_array($port, array(80, 443), true)) {
+        $mirror80 = $domainMode && !in_array($port, array(80, 443), true);
+
+        if ($domainMode && $https && ($port === 443 || $port === 80 || $mirror80)) {
             return 'https://' . $host;
+        }
+        if ($domainMode && ($port === 80 || $mirror80)) {
+            return 'http://' . $host;
         }
         if ($domainMode) {
             return 'http://' . $host . ':' . $port;

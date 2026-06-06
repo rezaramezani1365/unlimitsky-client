@@ -47,19 +47,29 @@ fi
 
 SERVER_NAMES="_"
 DEFAULT_BLOCK=""
+PUBLIC_HTTP_MIRROR="0"
 if [ -n "$PANEL_DOMAIN" ]; then
   SERVER_NAMES="$PANEL_DOMAIN"
   if [ "$LOCK_DOMAIN" = "1" ]; then
     DEFAULT_BLOCK="1"
   fi
+  if [ "$NEW_PORT" != "80" ] && [ "$NEW_PORT" != "443" ]; then
+    PUBLIC_HTTP_MIRROR="1"
+  fi
 fi
 
 write_panel_server() {
   local listen_extra="${1:-}"
+  local http_mirror_listen=""
+  if [ "$PUBLIC_HTTP_MIRROR" = "1" ]; then
+    http_mirror_listen="
+    listen 80${listen_extra};
+    listen [::]:80${listen_extra};"
+  fi
   cat <<NGX
 server {
     listen ${NEW_PORT}${listen_extra};
-    listen [::]:${NEW_PORT}${listen_extra};
+    listen [::]:${NEW_PORT}${listen_extra};${http_mirror_listen}
     server_name ${SERVER_NAMES};
     root ${WEB_ROOT};
     index home.php install/index.php;
@@ -102,6 +112,17 @@ server {
 }
 
 NGX
+    if [ "$PUBLIC_HTTP_MIRROR" = "1" ]; then
+      cat <<NGX
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+    return 444;
+}
+
+NGX
+    fi
     write_panel_server ""
   } > "$SITE_FILE"
 else
@@ -116,6 +137,9 @@ systemctl reload nginx
 
 if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "Status: active"; then
   ufw allow "${NEW_PORT}/tcp" >/dev/null 2>&1 || true
+  if [ "$PUBLIC_HTTP_MIRROR" = "1" ]; then
+    ufw allow 80/tcp >/dev/null 2>&1 || true
+  fi
 fi
 
 SCHEME="http"
@@ -128,11 +152,15 @@ else
   [ -z "$HOST" ] && HOST="127.0.0.1"
 fi
 
-# HTTPS without port only when nginx listens on 80/443 (Cloudflare). Port 8082 needs :8082 in URLs.
-if [ "$HTTPS_ENABLED" = "1" ] && [ -n "$PANEL_DOMAIN" ] && { [ "$NEW_PORT" = "443" ] || [ "$NEW_PORT" = "80" ]; }; then
-  PUBLIC_URL="${SCHEME}://${HOST}"
-elif [ -n "$PANEL_DOMAIN" ]; then
-  PUBLIC_URL="http://${HOST}:${NEW_PORT}"
+# Public URL without port when nginx also listens on 80 (Cloudflare Flexible) or on 443.
+if [ -n "$PANEL_DOMAIN" ]; then
+  if [ "$HTTPS_ENABLED" = "1" ] && { [ "$PUBLIC_HTTP_MIRROR" = "1" ] || [ "$NEW_PORT" = "443" ] || [ "$NEW_PORT" = "80" ]; }; then
+    PUBLIC_URL="${SCHEME}://${HOST}"
+  elif [ "$PUBLIC_HTTP_MIRROR" = "1" ] || [ "$NEW_PORT" = "80" ]; then
+    PUBLIC_URL="http://${HOST}"
+  else
+    PUBLIC_URL="http://${HOST}:${NEW_PORT}"
+  fi
 else
   PUBLIC_URL="http://${HOST}:${NEW_PORT}"
 fi
@@ -168,15 +196,16 @@ print(json.dumps({
   'panel_domain': '$PANEL_DOMAIN',
   'https_enabled': '$HTTPS_ENABLED' == '1',
   'lock_domain': '$LOCK_DOMAIN' == '1',
+  'public_http_mirror': '$PUBLIC_HTTP_MIRROR' == '1',
   'public_url': '$PUBLIC_URL',
   'nginx_site': '$SITE_FILE',
   'applied_at': datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()
 }, ensure_ascii=False))
 " > "$STATE_FILE" 2>/dev/null || cat > "$STATE_FILE" <<JSON
-{"port":${NEW_PORT},"panel_domain":"${PANEL_DOMAIN}","https_enabled":$([ "$HTTPS_ENABLED" = "1" ] && echo true || echo false),"lock_domain":$([ "$LOCK_DOMAIN" = "1" ] && echo true || echo false),"public_url":"${PUBLIC_URL}","nginx_site":"${SITE_FILE}","applied_at":"$(date -Iseconds)"}
+{"port":${NEW_PORT},"panel_domain":"${PANEL_DOMAIN}","https_enabled":$([ "$HTTPS_ENABLED" = "1" ] && echo true || echo false),"lock_domain":$([ "$LOCK_DOMAIN" = "1" ] && echo true || echo false),"public_http_mirror":$([ "$PUBLIC_HTTP_MIRROR" = "1" ] && echo true || echo false),"public_url":"${PUBLIC_URL}","nginx_site":"${SITE_FILE}","applied_at":"$(date -Iseconds)"}
 JSON
 chown www-data:www-data "$STATE_FILE" 2>/dev/null || true
 chmod 664 "$STATE_FILE" 2>/dev/null || true
 
-python3 -c "import json; print('USK_JSON:'+json.dumps({'ok':True,'public_url':'$PUBLIC_URL','admin_url':'${PUBLIC_URL}/admin/login.php','port':int('$NEW_PORT'),'panel_domain':'$PANEL_DOMAIN','https_enabled':('$HTTPS_ENABLED'=='1'),'lock_domain':('$LOCK_DOMAIN'=='1'),'nginx_site':'$SITE_FILE'}, ensure_ascii=False))" 2>/dev/null \
-  || echo "USK_JSON:{\"ok\":true,\"public_url\":\"$PUBLIC_URL\",\"admin_url\":\"${PUBLIC_URL}/admin/login.php\",\"port\":${NEW_PORT},\"panel_domain\":\"$PANEL_DOMAIN\"}"
+python3 -c "import json; print('USK_JSON:'+json.dumps({'ok':True,'public_url':'$PUBLIC_URL','admin_url':'${PUBLIC_URL}/admin/login.php','port':int('$NEW_PORT'),'panel_domain':'$PANEL_DOMAIN','https_enabled':('$HTTPS_ENABLED'=='1'),'lock_domain':('$LOCK_DOMAIN'=='1'),'public_http_mirror':('$PUBLIC_HTTP_MIRROR'=='1'),'nginx_site':'$SITE_FILE'}, ensure_ascii=False))" 2>/dev/null \
+  || echo "USK_JSON:{\"ok\":true,\"public_url\":\"$PUBLIC_URL\",\"admin_url\":\"${PUBLIC_URL}/admin/login.php\",\"port\":${NEW_PORT},\"panel_domain\":\"$PANEL_DOMAIN\",\"public_http_mirror\":$([ "$PUBLIC_HTTP_MIRROR" = "1" ] && echo true || echo false)}"
