@@ -91,10 +91,6 @@ function usk_service_status_badge($status)
 <?php if (!empty($s)) :
     $badge = usk_service_status_badge($s['status']);
     $client = $native_info['client'] ?? null;
-    require_once dirname(__DIR__) . '/lib/protocols/usage.php';
-    if ($client) {
-        USK_ProtocolUsage::sync_all();
-    }
     $usageStats = $client ? usk_service_usage_stats($s, $client) : null;
     $protocol = (string) ($s['protocol'] ?? '');
     $downloadUrl = usk_service_download_url($s, $client);

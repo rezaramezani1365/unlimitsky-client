@@ -90,8 +90,7 @@ class USK_ProtocolLimits
         }
 
         if (!empty($rec['volume_gb']) && (int) $rec['volume_gb'] > 0) {
-            require_once __DIR__ . '/usage.php';
-            $used = USK_ProtocolUsage::client_usage_bytes($protocol, $rec);
+            $used = (int) ($rec['usage_bytes'] ?? 0);
             $limit = (int) $rec['volume_gb'] * 1024 * 1024 * 1024;
             if ($used >= $limit) {
                 return 'volume_exceeded';

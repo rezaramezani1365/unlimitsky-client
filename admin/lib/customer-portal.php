@@ -33,8 +33,6 @@ class USK_CustomerPortal
             return array('ok' => false, 'error' => 'unsupported');
         }
 
-        USK_ProtocolUsage::sync_all();
-
         $native = USK_ProtocolLimits::find_client_for_order($order);
         if (!$native) {
             return array('ok' => false, 'error' => 'removed');

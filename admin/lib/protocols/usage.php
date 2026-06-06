@@ -2,8 +2,24 @@
 
 class USK_ProtocolUsage
 {
-    public static function client_usage_bytes($protocol, array $rec)
+    /** @var array<string, array<string, int>>|null */
+    private static $batchCache = null;
+
+    /**
+     * @param bool $preferLive When false (web UI), use last cron-synced usage_bytes only.
+     */
+    public static function client_usage_bytes($protocol, array $rec, $preferLive = false)
     {
+        if (!$preferLive) {
+            if (isset($rec['usage_bytes'])) {
+                return (int) $rec['usage_bytes'];
+            }
+            if (isset($rec['meta']['usage_bytes'])) {
+                return (int) $rec['meta']['usage_bytes'];
+            }
+            return 0;
+        }
+
         $protocol = (string) $protocol;
         $live = null;
 
@@ -34,7 +50,7 @@ class USK_ProtocolUsage
     public static function usage_stats($protocol, array $rec, $volumeGb)
     {
         $volumeGb = (int) $volumeGb;
-        $usedBytes = self::client_usage_bytes($protocol, $rec);
+        $usedBytes = self::client_usage_bytes($protocol, $rec, false);
         $limitBytes = $volumeGb > 0 ? ($volumeGb * 1073741824) : 0;
         $usedGb = round($usedBytes / 1073741824, 2);
         $remainingGb = $volumeGb > 0 ? max(0, round($volumeGb - $usedGb, 2)) : null;
@@ -52,8 +68,12 @@ class USK_ProtocolUsage
         );
     }
 
+    /** Cron-only: batch-read live stats and persist to client JSON files. */
     public static function sync_all()
     {
+        self::$batchCache = null;
+        $maps = self::batch_usage_maps();
+
         $updated = 0;
         foreach (array('wireguard', 'openvpn', 'xray', 'l2tp', 'cisco', 'amnezia') as $protocol) {
             $clients = USK_ProtocolLimits::load_protocol_clients($protocol);
@@ -62,7 +82,7 @@ class USK_ProtocolUsage
                 if (!is_array($rec)) {
                     continue;
                 }
-                $bytes = self::live_usage_bytes($protocol, $rec);
+                $bytes = self::bytes_from_maps($protocol, $username, $rec, $maps);
                 if ($bytes === null) {
                     continue;
                 }
@@ -77,24 +97,160 @@ class USK_ProtocolUsage
                 USK_ProtocolLimits::save_protocol_clients($protocol, $clients);
             }
         }
+
+        self::$batchCache = null;
         return $updated;
     }
 
-    private static function live_usage_bytes($protocol, array $rec)
+    /** @return array<string, mixed> */
+    private static function batch_usage_maps()
+    {
+        if (self::$batchCache !== null) {
+            return self::$batchCache;
+        }
+
+        self::$batchCache = array(
+            'wireguard' => self::batch_wg_dump('wg0', 'wg'),
+            'amnezia' => self::batch_wg_dump('awg0', 'awg'),
+            'xray' => self::batch_xray_user_bytes(),
+            'openvpn' => self::batch_openvpn_user_bytes(),
+        );
+
+        return self::$batchCache;
+    }
+
+    private static function bytes_from_maps($protocol, $username, array $rec, array $maps)
     {
         if ($protocol === 'wireguard') {
-            return USK_ProtocolLimits::wireguard_usage_bytes($rec);
+            $pub = $rec['public_key'] ?? ($rec['meta']['public_key'] ?? '');
+            return ($pub !== '' && isset($maps['wireguard'][$pub])) ? (int) $maps['wireguard'][$pub] : null;
         }
         if ($protocol === 'amnezia') {
-            return self::amnezia_usage_bytes($rec);
+            $pub = $rec['public_key'] ?? ($rec['meta']['public_key'] ?? '');
+            return ($pub !== '' && isset($maps['amnezia'][$pub])) ? (int) $maps['amnezia'][$pub] : null;
         }
         if ($protocol === 'xray') {
-            return self::xray_usage_bytes($rec);
+            $name = trim((string) $username);
+            return ($name !== '' && isset($maps['xray'][$name])) ? (int) $maps['xray'][$name] : null;
         }
         if ($protocol === 'openvpn') {
-            return self::openvpn_usage_bytes($rec);
+            $name = trim((string) $username);
+            return ($name !== '' && isset($maps['openvpn'][$name])) ? (int) $maps['openvpn'][$name] : null;
         }
+
         return null;
+    }
+
+    /** @return array<string, int> public_key => bytes */
+    private static function batch_wg_dump($interface, $cmd = 'wg')
+    {
+        $map = array();
+        $raw = self::shell_with_timeout($cmd . ' show ' . escapeshellarg($interface) . ' dump 2>/dev/null', 5);
+        if ($raw === '') {
+            return $map;
+        }
+        foreach (explode("\n", trim($raw)) as $line) {
+            $parts = explode("\t", $line);
+            if (count($parts) >= 7 && $parts[0] !== '') {
+                $map[$parts[0]] = (int) $parts[5] + (int) $parts[6];
+            }
+        }
+        return $map;
+    }
+
+    /** @return array<string, int> username => bytes */
+    private static function batch_xray_user_bytes()
+    {
+        $map = array();
+        $xray = self::xray_bin();
+        if ($xray === '') {
+            return $map;
+        }
+
+        $cmd = escapeshellarg($xray) . ' api statsquery --server=127.0.0.1:10085 --pattern '
+            . escapeshellarg('user>>>') . ' 2>/dev/null';
+        $raw = self::shell_with_timeout($cmd, 5);
+        if ($raw === '') {
+            return $map;
+        }
+
+        $data = json_decode(trim($raw), true);
+        if (!is_array($data)) {
+            return $map;
+        }
+
+        $stats = $data['stat'] ?? ($data['stats'] ?? array());
+        if (!is_array($stats)) {
+            return $map;
+        }
+
+        foreach ($stats as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $name = (string) ($row['name'] ?? '');
+            if ($name === '' || strpos($name, 'user>>>') !== 0) {
+                continue;
+            }
+            $parts = explode('>>>', $name);
+            if (count($parts) < 4) {
+                continue;
+            }
+            $user = $parts[1];
+            if ($user === '') {
+                continue;
+            }
+            if (!isset($map[$user])) {
+                $map[$user] = 0;
+            }
+            $map[$user] += (int) ($row['value'] ?? 0);
+        }
+
+        return $map;
+    }
+
+    /** @return array<string, int> username => bytes */
+    private static function batch_openvpn_user_bytes()
+    {
+        $map = array();
+        $files = array(
+            '/var/log/openvpn/openvpn-udp-status.log',
+            '/var/log/openvpn/openvpn-tcp-status.log',
+            '/var/log/openvpn/openvpn-status.log',
+            '/var/log/openvpn/status.log',
+            '/run/openvpn-server/status.log',
+            USK_ROOT . '/data/openvpn/status.log',
+        );
+
+        foreach ($files as $file) {
+            if (!is_readable($file)) {
+                continue;
+            }
+            $lines = @file($file, FILE_IGNORE_NEW_LINES);
+            if (!$lines) {
+                continue;
+            }
+            foreach ($lines as $line) {
+                if (strpos($line, 'CLIENT_LIST') !== 0) {
+                    continue;
+                }
+                $parts = explode(',', $line);
+                if (count($parts) < 7) {
+                    continue;
+                }
+                $user = trim($parts[1]);
+                if ($user === '') {
+                    continue;
+                }
+                $bytes = (int) $parts[5] + (int) $parts[6];
+                if (!isset($map[$user])) {
+                    $map[$user] = 0;
+                }
+                $map[$user] += $bytes;
+            }
+        }
+
+        return $map;
     }
 
     public static function amnezia_usage_bytes(array $rec)
@@ -113,6 +269,11 @@ class USK_ProtocolUsage
             return null;
         }
 
+        $maps = self::batch_usage_maps();
+        if (isset($maps['xray'][$email])) {
+            return (int) $maps['xray'][$email];
+        }
+
         $xray = self::xray_bin();
         if ($xray === '') {
             return null;
@@ -121,8 +282,8 @@ class USK_ProtocolUsage
         $pattern = 'user>>>' . $email . '>>>traffic>>>.*';
         $cmd = escapeshellarg($xray) . ' api statsquery --server=127.0.0.1:10085 --pattern '
             . escapeshellarg($pattern) . ' 2>/dev/null';
-        $raw = @shell_exec($cmd);
-        if ($raw === null || trim($raw) === '') {
+        $raw = self::shell_with_timeout($cmd, 3);
+        if ($raw === '') {
             return null;
         }
 
@@ -150,6 +311,11 @@ class USK_ProtocolUsage
         $username = trim((string) ($rec['username'] ?? ''));
         if ($username === '') {
             return null;
+        }
+
+        $maps = self::batch_usage_maps();
+        if (isset($maps['openvpn'][$username])) {
+            return (int) $maps['openvpn'][$username];
         }
 
         $files = array(
@@ -203,8 +369,14 @@ class USK_ProtocolUsage
 
     private static function interface_peer_bytes($interface, $publicKey, $cmd = 'wg')
     {
-        $raw = @shell_exec($cmd . ' show ' . escapeshellarg($interface) . ' dump 2>/dev/null');
-        if (!$raw) {
+        $maps = self::batch_usage_maps();
+        $key = ($cmd === 'awg') ? 'amnezia' : 'wireguard';
+        if (isset($maps[$key][$publicKey])) {
+            return (int) $maps[$key][$publicKey];
+        }
+
+        $raw = self::shell_with_timeout($cmd . ' show ' . escapeshellarg($interface) . ' dump 2>/dev/null', 5);
+        if ($raw === '') {
             return null;
         }
         foreach (explode("\n", trim($raw)) as $line) {
@@ -224,8 +396,20 @@ class USK_ProtocolUsage
                 return $path;
             }
         }
-        $which = trim((string) @shell_exec('command -v xray 2>/dev/null'));
+        $which = trim((string) self::shell_with_timeout('command -v xray 2>/dev/null', 2));
         return $which !== '' ? $which : '';
+    }
+
+    private static function shell_with_timeout($cmd, $seconds = 5)
+    {
+        $seconds = max(1, (int) $seconds);
+        $wrapped = 'timeout ' . $seconds . ' ' . $cmd;
+        $out = @shell_exec($wrapped);
+        if ($out !== null && trim($out) !== '') {
+            return (string) $out;
+        }
+        $out = @shell_exec($cmd);
+        return $out !== null ? (string) $out : '';
     }
 
     public static function qr_png_b64($text)
@@ -244,7 +428,7 @@ class USK_ProtocolUsage
         $png = $tmp . '.png';
         @unlink($tmp);
         $cmd = 'qrencode -t PNG -o ' . escapeshellarg($png) . ' ' . escapeshellarg($text) . ' 2>/dev/null';
-        @shell_exec($cmd);
+        self::shell_with_timeout($cmd, 10);
         if (!is_file($png)) {
             return '';
         }
@@ -255,7 +439,7 @@ class USK_ProtocolUsage
 
     private static function command_exists($cmd)
     {
-        $out = trim((string) @shell_exec('command -v ' . escapeshellarg($cmd) . ' 2>/dev/null'));
+        $out = trim(self::shell_with_timeout('command -v ' . escapeshellarg($cmd) . ' 2>/dev/null', 2));
         return $out !== '';
     }
 }
