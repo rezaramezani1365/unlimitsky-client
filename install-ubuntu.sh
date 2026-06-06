@@ -148,6 +148,7 @@ www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/enable-user-*.sh *
 www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/remove-user-*.sh *
 www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/install-php-zip.sh *
 www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/apply-panel-access.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/run-panel-update.sh *
 www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/scripts/panel-self-update.sh *
 SUDO
 chmod 440 "$SUDOERS"

@@ -22,9 +22,13 @@ if (!USK_Admin_Auth::verify_password($password)) {
     exit;
 }
 
-$result = USK_Panel_Update::runUpdate();
-if ($result['ok']) {
-    usk_flash(__('update_ok'));
+$result = USK_Panel_Update::start_update_async();
+if (!empty($result['ok'])) {
+    if (!empty($result['async'])) {
+        usk_flash(__('update_started_async'));
+    } else {
+        usk_flash(__('update_ok'));
+    }
 } else {
     usk_flash(__('update_fail') . "\n" . ($result['output'] ?? ''), 'error');
 }
