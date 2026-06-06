@@ -394,6 +394,9 @@ usk_ensure_web_update_sudoers() {
     if ! grep -qF 'run-panel-update.sh' "$sudoers" 2>/dev/null; then
         echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/run-panel-update.sh *" >> "$sudoers"
     fi
+    if ! grep -qF 'collect-usage-stats.sh' "$sudoers" 2>/dev/null; then
+        echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/collect-usage-stats.sh" >> "$sudoers"
+    fi
     if ! grep -qF 'panel-self-update.sh' "$sudoers" 2>/dev/null; then
         echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/scripts/panel-self-update.sh *" >> "$sudoers"
     fi

@@ -179,12 +179,18 @@ function usk_service_list_row(array $order)
 
     $usageDisplay = '—';
     $usagePercent = null;
+    $usageNeedsSync = false;
     if ($usage && $volumeGb > 0) {
-        $usageDisplay = (string) ($usage['used_gb'] ?? 0) . ' / ' . $volumeGb . ' GB';
-        $usagePercent = $usage['percent'];
-    } elseif ($volumeGb > 0) {
-        $usageDisplay = '0 / ' . $volumeGb . ' GB';
-        $usagePercent = 0;
+        if (!empty($usage['needs_sync'])) {
+            $usageDisplay = __('services_usage_pending');
+            $usageNeedsSync = true;
+        } else {
+            $usageDisplay = (string) ($usage['used_gb'] ?? 0) . ' / ' . $volumeGb . ' GB';
+            $usagePercent = $usage['percent'];
+        }
+    } elseif ($volumeGb > 0 && in_array((string) ($order['protocol'] ?? ''), array('wireguard', 'openvpn', 'xray', 'amnezia'), true)) {
+        $usageDisplay = __('services_usage_pending');
+        $usageNeedsSync = true;
     }
 
     return array(
@@ -202,6 +208,7 @@ function usk_service_list_row(array $order)
         'usage' => $usage,
         'usage_display' => $usageDisplay,
         'usage_percent' => $usagePercent,
+        'usage_needs_sync' => $usageNeedsSync,
         'row_class' => in_array($status, array('expired', 'volume_exceeded'), true) ? 'table-warning' : '',
     );
 }

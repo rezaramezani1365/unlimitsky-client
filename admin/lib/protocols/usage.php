@@ -50,14 +50,19 @@ class USK_ProtocolUsage
     public static function usage_stats($protocol, array $rec, $volumeGb)
     {
         $volumeGb = (int) $volumeGb;
+        $protocol = (string) $protocol;
         $usedBytes = self::client_usage_bytes($protocol, $rec, false);
         $limitBytes = $volumeGb > 0 ? ($volumeGb * 1073741824) : 0;
         $usedGb = round($usedBytes / 1073741824, 2);
         $remainingGb = $volumeGb > 0 ? max(0, round($volumeGb - $usedGb, 2)) : null;
         $percent = ($volumeGb > 0) ? min(100, round(($usedGb / $volumeGb) * 100, 1)) : null;
+        $metered = in_array($protocol, array('wireguard', 'openvpn', 'xray', 'amnezia'), true);
+        $syncedAt = trim((string) ($rec['usage_synced_at'] ?? ($rec['meta']['usage_synced_at'] ?? '')));
 
         return array(
-            'tracked' => true,
+            'tracked' => $metered,
+            'needs_sync' => $metered && $syncedAt === '' && $volumeGb > 0,
+            'synced_at' => $syncedAt,
             'used_bytes' => $usedBytes,
             'used_gb' => $usedGb,
             'remaining_gb' => $remainingGb,
@@ -86,11 +91,16 @@ class USK_ProtocolUsage
                 if ($bytes === null) {
                     continue;
                 }
-                if ((int) ($rec['usage_bytes'] ?? 0) !== (int) $bytes) {
-                    $clients[$username]['usage_bytes'] = (int) $bytes;
+                $prev = (int) ($rec['usage_bytes'] ?? 0);
+                $newBytes = max($prev, (int) $bytes);
+                if ($newBytes !== $prev) {
+                    $clients[$username]['usage_bytes'] = $newBytes;
                     $clients[$username]['usage_synced_at'] = date('c');
                     $changed = true;
                     $updated++;
+                } elseif (empty($rec['usage_synced_at']) && (int) $bytes >= 0) {
+                    $clients[$username]['usage_synced_at'] = date('c');
+                    $changed = true;
                 }
             }
             if ($changed) {
@@ -109,6 +119,12 @@ class USK_ProtocolUsage
             return self::$batchCache;
         }
 
+        $fromSudo = self::batch_usage_maps_via_sudo();
+        if (is_array($fromSudo)) {
+            self::$batchCache = $fromSudo;
+            return self::$batchCache;
+        }
+
         self::$batchCache = array(
             'wireguard' => self::batch_wg_dump('wg0', 'wg'),
             'amnezia' => self::batch_wg_dump('awg0', 'awg'),
@@ -117,6 +133,50 @@ class USK_ProtocolUsage
         );
 
         return self::$batchCache;
+    }
+
+    /** @return array<string,array<string,int>>|null */
+    private static function batch_usage_maps_via_sudo()
+    {
+        $script = USK_ROOT . '/bin/collect-usage-stats.sh';
+        if (!is_file($script)) {
+            return null;
+        }
+
+        $cmd = 'sudo -n /bin/bash ' . escapeshellarg($script) . ' 2>/dev/null';
+        $raw = self::shell_with_timeout($cmd, 30);
+        if ($raw === '') {
+            return null;
+        }
+
+        $data = json_decode(trim($raw), true);
+        if (!is_array($data) || empty($data['ok'])) {
+            return null;
+        }
+
+        return array(
+            'wireguard' => self::normalize_int_map($data['wireguard'] ?? array()),
+            'amnezia' => self::normalize_int_map($data['amnezia'] ?? array()),
+            'xray' => self::normalize_int_map($data['xray'] ?? array()),
+            'openvpn' => self::normalize_int_map($data['openvpn'] ?? array()),
+        );
+    }
+
+    /** @return array<string,int> */
+    private static function normalize_int_map($raw)
+    {
+        if (!is_array($raw)) {
+            return array();
+        }
+        $out = array();
+        foreach ($raw as $key => $val) {
+            $key = trim((string) $key);
+            if ($key === '') {
+                continue;
+            }
+            $out[$key] = (int) $val;
+        }
+        return $out;
     }
 
     private static function bytes_from_maps($protocol, $username, array $rec, array $maps)
@@ -130,15 +190,39 @@ class USK_ProtocolUsage
             return ($pub !== '' && isset($maps['amnezia'][$pub])) ? (int) $maps['amnezia'][$pub] : null;
         }
         if ($protocol === 'xray') {
-            $name = trim((string) $username);
-            return ($name !== '' && isset($maps['xray'][$name])) ? (int) $maps['xray'][$name] : null;
+            foreach (self::usage_name_candidates($username, $rec) as $name) {
+                if (isset($maps['xray'][$name])) {
+                    return (int) $maps['xray'][$name];
+                }
+            }
+            return null;
         }
         if ($protocol === 'openvpn') {
-            $name = trim((string) $username);
-            return ($name !== '' && isset($maps['openvpn'][$name])) ? (int) $maps['openvpn'][$name] : null;
+            foreach (self::usage_name_candidates($username, $rec) as $name) {
+                if (isset($maps['openvpn'][$name])) {
+                    return (int) $maps['openvpn'][$name];
+                }
+            }
+            return null;
         }
 
         return null;
+    }
+
+    /** @return string[] */
+    private static function usage_name_candidates($username, array $rec)
+    {
+        $names = array(
+            trim((string) $username),
+            trim((string) ($rec['username'] ?? '')),
+        );
+        $out = array();
+        foreach ($names as $name) {
+            if ($name !== '' && !in_array($name, $out, true)) {
+                $out[] = $name;
+            }
+        }
+        return $out;
     }
 
     /** @return array<string, int> public_key => bytes */

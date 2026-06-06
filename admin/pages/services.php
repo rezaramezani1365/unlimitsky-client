@@ -296,7 +296,9 @@ $lastSync = USK_ProtocolLimits::get_last_run();
                     <td><?= usk_esc($row['location']) ?></td>
                     <td><?= usk_esc($row['volume']) ?>GB / <?= usk_esc($row['date']) ?><?= __('days') ?></td>
                     <td>
-                        <?php if ($row['usage_percent'] !== null) : ?>
+                        <?php if (!empty($row['usage_needs_sync'])) : ?>
+                            <span class="small text-warning"><?= usk_esc($row['usage_display']) ?></span>
+                        <?php elseif ($row['usage_percent'] !== null) : ?>
                             <div class="usk-usage-cell">
                                 <span class="small"><?= usk_esc($row['usage_display']) ?></span>
                                 <div class="progress usk-usage-progress mt-1" role="progressbar" aria-valuenow="<?= (float) $row['usage_percent'] ?>" aria-valuemin="0" aria-valuemax="100">
