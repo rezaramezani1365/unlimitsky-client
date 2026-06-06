@@ -34,7 +34,9 @@ usk_xray_open_firewall "$VLESS_PORT" "xray-vless-reality"
 usk_xray_verify_or_fail "$XRAY_CFG" || exit 1
 
 usk_xray_ensure_stats_policy "$XRAY_CFG" 2>/dev/null || true
-usk_xray_test_config "$XRAY_CFG" 2>/dev/null && systemctl restart xray 2>/dev/null || true
+usk_xray_test_config "$XRAY_CFG" 2>/dev/null || usk_fail "xray_config_test_failed"
+usk_xray_service_restart || usk_fail "xray_restart_failed"
+usk_xray_verify_stats_api 2>/dev/null || echo "USK_WARN: stats_api_check_failed run: sudo bash bin/xray-fix-stats-api.sh" >&2
 
 # shellcheck disable=SC1090
 . "$USK_XRAY_REALITY_FILE"

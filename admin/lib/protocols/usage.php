@@ -5,6 +5,17 @@ class USK_ProtocolUsage
     /** @var array<string, array<string, int>>|null */
     private static $batchCache = null;
 
+    /** @var array<string, mixed> */
+    private static $lastCollectMeta = array();
+
+    /** @var array<string, string>|null uuid => email */
+    private static $xrayUuidEmailCache = null;
+
+    public static function last_collect_meta()
+    {
+        return self::$lastCollectMeta;
+    }
+
     /**
      * @param bool $preferLive When false (web UI), use last cron-synced usage_bytes only.
      */
@@ -77,9 +88,17 @@ class USK_ProtocolUsage
     public static function sync_all()
     {
         self::$batchCache = null;
+        self::$lastCollectMeta = array();
         $maps = self::batch_usage_maps();
+        self::$lastCollectMeta['map_counts'] = array(
+            'wireguard' => count($maps['wireguard'] ?? array()),
+            'amnezia' => count($maps['amnezia'] ?? array()),
+            'xray' => count($maps['xray'] ?? array()),
+            'openvpn' => count($maps['openvpn'] ?? array()),
+        );
 
         $updated = 0;
+        $synced = 0;
         foreach (array('wireguard', 'openvpn', 'xray', 'l2tp', 'cisco', 'amnezia') as $protocol) {
             $clients = USK_ProtocolLimits::load_protocol_clients($protocol);
             $changed = false;
@@ -93,14 +112,17 @@ class USK_ProtocolUsage
                 }
                 $prev = (int) ($rec['usage_bytes'] ?? 0);
                 $newBytes = max($prev, (int) $bytes);
+                $hadSync = !empty($rec['usage_synced_at']);
                 if ($newBytes !== $prev) {
                     $clients[$username]['usage_bytes'] = $newBytes;
                     $clients[$username]['usage_synced_at'] = date('c');
                     $changed = true;
                     $updated++;
-                } elseif (empty($rec['usage_synced_at']) && (int) $bytes >= 0) {
+                    $synced++;
+                } elseif (!$hadSync) {
                     $clients[$username]['usage_synced_at'] = date('c');
                     $changed = true;
+                    $synced++;
                 }
             }
             if ($changed) {
@@ -108,6 +130,7 @@ class USK_ProtocolUsage
             }
         }
 
+        self::$lastCollectMeta['usage_synced'] = $synced;
         self::$batchCache = null;
         return $updated;
     }
@@ -131,6 +154,15 @@ class USK_ProtocolUsage
             'xray' => self::batch_xray_user_bytes(),
             'openvpn' => self::batch_openvpn_user_bytes(),
         );
+        if (self::$lastCollectMeta === array()) {
+            self::$lastCollectMeta = array(
+                'sudo_ok' => false,
+                'source' => 'php_fallback',
+                'wg_peers' => count(self::$batchCache['wireguard']),
+                'xray_users' => count(self::$batchCache['xray']),
+                'ovpn_users' => count(self::$batchCache['openvpn']),
+            );
+        }
 
         return self::$batchCache;
     }
@@ -146,12 +178,20 @@ class USK_ProtocolUsage
         $cmd = 'sudo -n /bin/bash ' . escapeshellarg($script) . ' 2>/dev/null';
         $raw = self::shell_with_timeout($cmd, 30);
         if ($raw === '') {
+            self::$lastCollectMeta = array('sudo_ok' => false, 'source' => 'collect_script');
             return null;
         }
 
         $data = json_decode(trim($raw), true);
         if (!is_array($data) || empty($data['ok'])) {
+            self::$lastCollectMeta = array('sudo_ok' => true, 'parse_ok' => false);
             return null;
+        }
+
+        if (isset($data['_meta']) && is_array($data['_meta'])) {
+            self::$lastCollectMeta = array_merge(array('sudo_ok' => true, 'source' => 'collect_script'), $data['_meta']);
+        } else {
+            self::$lastCollectMeta = array('sudo_ok' => true, 'source' => 'collect_script');
         }
 
         return array(
@@ -215,7 +255,16 @@ class USK_ProtocolUsage
         $names = array(
             trim((string) $username),
             trim((string) ($rec['username'] ?? '')),
+            trim((string) ($rec['email'] ?? '')),
         );
+        $uuid = trim((string) ($rec['uuid'] ?? ($rec['meta']['uuid'] ?? '')));
+        if ($uuid !== '') {
+            $names[] = $uuid;
+            $email = self::xray_email_for_uuid($uuid);
+            if ($email !== '') {
+                $names[] = $email;
+            }
+        }
         $out = array();
         foreach ($names as $name) {
             if ($name !== '' && !in_array($name, $out, true)) {
@@ -223,6 +272,60 @@ class USK_ProtocolUsage
             }
         }
         return $out;
+    }
+
+    private static function xray_email_for_uuid($uuid)
+    {
+        $uuid = trim((string) $uuid);
+        if ($uuid === '') {
+            return '';
+        }
+        $map = self::xray_uuid_email_map();
+        return $map[$uuid] ?? '';
+    }
+
+    /** @return array<string, string> */
+    private static function xray_uuid_email_map()
+    {
+        if (self::$xrayUuidEmailCache !== null) {
+            return self::$xrayUuidEmailCache;
+        }
+
+        self::$xrayUuidEmailCache = array();
+        $paths = array(
+            '/usr/local/etc/xray/config.json',
+            getenv('XRAY_CFG') ?: '',
+        );
+        foreach ($paths as $path) {
+            $path = trim((string) $path);
+            if ($path === '' || !is_readable($path)) {
+                continue;
+            }
+            $cfg = json_decode((string) file_get_contents($path), true);
+            if (!is_array($cfg)) {
+                continue;
+            }
+            foreach ($cfg['inbounds'] ?? array() as $inbound) {
+                if (!is_array($inbound) || ($inbound['protocol'] ?? '') !== 'vless') {
+                    continue;
+                }
+                foreach ($inbound['settings']['clients'] ?? array() as $client) {
+                    if (!is_array($client)) {
+                        continue;
+                    }
+                    $id = trim((string) ($client['id'] ?? ''));
+                    $email = trim((string) ($client['email'] ?? ''));
+                    if ($id !== '' && $email !== '') {
+                        self::$xrayUuidEmailCache[$id] = $email;
+                    }
+                }
+            }
+            if (self::$xrayUuidEmailCache !== array()) {
+                break;
+            }
+        }
+
+        return self::$xrayUuidEmailCache;
     }
 
     /** @return array<string, int> public_key => bytes */
@@ -251,46 +354,84 @@ class USK_ProtocolUsage
             return $map;
         }
 
-        $cmd = escapeshellarg($xray) . ' api statsquery --server=127.0.0.1:10085 --pattern '
-            . escapeshellarg('user>>>') . ' 2>/dev/null';
-        $raw = self::shell_with_timeout($cmd, 5);
-        if ($raw === '') {
-            return $map;
+        $cmd = escapeshellarg($xray) . ' api statsquery --server=127.0.0.1:10085 2>/dev/null';
+        $raw = self::shell_with_timeout($cmd, 8);
+        if ($raw !== '') {
+            $data = json_decode(trim($raw), true);
+            if (is_array($data)) {
+                $stats = $data['stat'] ?? ($data['stats'] ?? array());
+                if (is_array($stats)) {
+                    foreach ($stats as $row) {
+                        if (!is_array($row)) {
+                            continue;
+                        }
+                        $name = (string) ($row['name'] ?? '');
+                        if ($name === '' || strpos($name, 'user>>>') !== 0) {
+                            continue;
+                        }
+                        $parts = explode('>>>', $name);
+                        if (count($parts) < 4) {
+                            continue;
+                        }
+                        $user = $parts[1];
+                        if ($user === '') {
+                            continue;
+                        }
+                        if (!isset($map[$user])) {
+                            $map[$user] = 0;
+                        }
+                        $map[$user] += (int) ($row['value'] ?? 0);
+                    }
+                }
+            }
         }
 
-        $data = json_decode(trim($raw), true);
-        if (!is_array($data)) {
-            return $map;
-        }
-
-        $stats = $data['stat'] ?? ($data['stats'] ?? array());
-        if (!is_array($stats)) {
-            return $map;
-        }
-
-        foreach ($stats as $row) {
-            if (!is_array($row)) {
+        foreach (self::xray_uuid_email_map() as $uuid => $email) {
+            if ($email === '') {
                 continue;
             }
-            $name = (string) ($row['name'] ?? '');
-            if ($name === '' || strpos($name, 'user>>>') !== 0) {
+            if (isset($map[$email]) && $map[$email] > 0) {
+                $map[$uuid] = $map[$email];
                 continue;
             }
-            $parts = explode('>>>', $name);
-            if (count($parts) < 4) {
-                continue;
+            $bytes = self::xray_email_stats_total($xray, $email);
+            if ($bytes !== null) {
+                $map[$email] = $bytes;
+                $map[$uuid] = $bytes;
             }
-            $user = $parts[1];
-            if ($user === '') {
-                continue;
-            }
-            if (!isset($map[$user])) {
-                $map[$user] = 0;
-            }
-            $map[$user] += (int) ($row['value'] ?? 0);
         }
 
         return $map;
+    }
+
+    private static function xray_email_stats_total($xray, $email)
+    {
+        $email = trim((string) $email);
+        if ($email === '') {
+            return null;
+        }
+        $total = 0;
+        $found = false;
+        foreach (array('downlink', 'uplink') as $dir) {
+            $statName = 'user>>>' . $email . '>>>traffic>>>' . $dir;
+            $cmd = escapeshellarg($xray) . ' api stats --server=127.0.0.1:10085 -name '
+                . escapeshellarg($statName) . ' 2>/dev/null';
+            $raw = self::shell_with_timeout($cmd, 3);
+            if ($raw === '') {
+                continue;
+            }
+            $data = json_decode(trim($raw), true);
+            if (!is_array($data)) {
+                continue;
+            }
+            $val = $data['stat']['value'] ?? null;
+            if ($val === null) {
+                continue;
+            }
+            $found = true;
+            $total += (int) $val;
+        }
+        return $found ? $total : null;
     }
 
     /** @return array<string, int> username => bytes */
@@ -348,14 +489,11 @@ class USK_ProtocolUsage
 
     public static function xray_usage_bytes(array $rec)
     {
-        $email = trim((string) ($rec['username'] ?? ''));
-        if ($email === '') {
-            return null;
-        }
-
         $maps = self::batch_usage_maps();
-        if (isset($maps['xray'][$email])) {
-            return (int) $maps['xray'][$email];
+        foreach (self::usage_name_candidates((string) ($rec['username'] ?? ''), $rec) as $name) {
+            if (isset($maps['xray'][$name])) {
+                return (int) $maps['xray'][$name];
+            }
         }
 
         $xray = self::xray_bin();
@@ -363,31 +501,14 @@ class USK_ProtocolUsage
             return null;
         }
 
-        $pattern = 'user>>>' . $email . '>>>traffic>>>.*';
-        $cmd = escapeshellarg($xray) . ' api statsquery --server=127.0.0.1:10085 --pattern '
-            . escapeshellarg($pattern) . ' 2>/dev/null';
-        $raw = self::shell_with_timeout($cmd, 3);
-        if ($raw === '') {
-            return null;
-        }
-
-        $data = json_decode(trim($raw), true);
-        if (!is_array($data)) {
-            return null;
-        }
-
-        $total = 0;
-        $stats = $data['stat'] ?? ($data['stats'] ?? array());
-        if (!is_array($stats)) {
-            return null;
-        }
-        foreach ($stats as $row) {
-            if (!is_array($row)) {
-                continue;
+        foreach (self::usage_name_candidates((string) ($rec['username'] ?? ''), $rec) as $name) {
+            $total = self::xray_email_stats_total($xray, $name);
+            if ($total !== null) {
+                return $total;
             }
-            $total += (int) ($row['value'] ?? 0);
         }
-        return $total;
+
+        return null;
     }
 
     public static function openvpn_usage_bytes(array $rec)

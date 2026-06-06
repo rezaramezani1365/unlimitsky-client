@@ -220,8 +220,6 @@ usk_xray_write_config() {
       stats: {},
       api: {
         tag: "api",
-        listen: "127.0.0.1",
-        port: 10085,
         services: ["StatsService"]
       },
       policy: {
@@ -229,6 +227,13 @@ usk_xray_write_config() {
         system: { statsInboundUplink: true, statsInboundDownlink: true }
       },
       inbounds: [
+        {
+          listen: "127.0.0.1",
+          port: 10085,
+          protocol: "dokodemo-door",
+          settings: { address: "127.0.0.1" },
+          tag: "api"
+        },
         {
           listen: "0.0.0.0",
           port: $vless_port,
@@ -257,6 +262,7 @@ usk_xray_write_config() {
       routing: {
         domainStrategy: "IPIfNonMatch",
         rules: [
+          { type: "field", inboundTag: ["api"], outboundTag: "api" },
           { type: "field", outboundTag: "block", ip: ["geoip:private"] }
         ]
       }
@@ -439,11 +445,32 @@ usk_xray_ensure_stats_policy() {
   tmp=$(mktemp)
   if ! jq '
     .stats = (.stats // {}) |
-    .api = (.api // {tag:"api",listen:"127.0.0.1",port:10085,services:["StatsService"]}) |
+    .api = { tag: "api", services: ["StatsService"] } |
     .policy = (.policy // {}) |
     .policy.levels = (.policy.levels // {}) |
     .policy.levels["0"] = (.policy.levels["0"] // {statsUserUplink:true,statsUserDownlink:true}) |
     .policy.system = (.policy.system // {statsInboundUplink:true,statsInboundDownlink:true}) |
+    .inbounds = (
+      if ([.inbounds[]? | select(.tag == "api")] | length) > 0 then
+        .inbounds
+      else
+        .inbounds + [{
+          listen: "127.0.0.1",
+          port: 10085,
+          protocol: "dokodemo-door",
+          settings: { address: "127.0.0.1" },
+          tag: "api"
+        }]
+      end
+    ) |
+    .routing = (.routing // { domainStrategy: "IPIfNonMatch", rules: [] }) |
+    .routing.rules = (
+      if ([.routing.rules[]? | select(.inboundTag? != null and (.inboundTag | index("api")))] | length) > 0 then
+        .routing.rules
+      else
+        [{ type: "field", inboundTag: ["api"], outboundTag: "api" }] + (.routing.rules // [])
+      end
+    ) |
     .inbounds |= map(
       if .protocol == "vless" then
         .settings.clients = [.settings.clients[]? | . + {level: (.level // 0)}]
@@ -454,6 +481,12 @@ usk_xray_ensure_stats_policy() {
   fi
   mv "$tmp" "$cfg"
   usk_xray_fix_perms "$cfg"
+}
+
+usk_xray_verify_stats_api() {
+  local bin
+  bin=$(usk_xray_bin 2>/dev/null) || return 1
+  "$bin" api statsquery --server=127.0.0.1:10085 >/dev/null 2>&1
 }
 
 usk_xray_service_restart() {

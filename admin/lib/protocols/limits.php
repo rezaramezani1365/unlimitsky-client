@@ -7,10 +7,31 @@ class USK_ProtocolLimits
         return USK_ROOT . '/data/clients';
     }
 
-    public static function load_protocol_clients($protocol)
+    public static function vpn_data_root()
     {
-        $file = self::clients_dir() . '/' . $protocol . '.json';
-        if (!file_exists($file)) {
+        $candidates = array(
+            getenv('USK_DATA_ROOT') ?: '',
+            '/var/lib/unlimitsky',
+        );
+        foreach ($candidates as $root) {
+            $root = rtrim(trim((string) $root), '/');
+            if ($root !== '' && is_dir($root)) {
+                return $root;
+            }
+        }
+        return '/var/lib/unlimitsky';
+    }
+
+    private static function registry_clients_file($protocol)
+    {
+        return self::vpn_data_root() . '/' . $protocol . '/clients.json';
+    }
+
+    /** Shell provisioning registry (/var/lib/unlimitsky/{protocol}/clients.json). */
+    public static function load_registry_clients($protocol)
+    {
+        $file = self::registry_clients_file($protocol);
+        if (!is_file($file)) {
             return array();
         }
         $data = json_decode((string) file_get_contents($file), true);
@@ -18,6 +39,35 @@ class USK_ProtocolLimits
             return array();
         }
         return self::normalize_clients($data);
+    }
+
+    private static function merge_client_records(array $panel, array $registry)
+    {
+        foreach ($registry as $username => $rec) {
+            if (!is_array($rec)) {
+                continue;
+            }
+            if (!isset($panel[$username]) || !is_array($panel[$username])) {
+                $panel[$username] = $rec;
+                continue;
+            }
+            $panel[$username] = array_merge($rec, $panel[$username]);
+        }
+        return $panel;
+    }
+
+    public static function load_protocol_clients($protocol)
+    {
+        $panel = array();
+        $file = self::clients_dir() . '/' . $protocol . '.json';
+        if (is_file($file)) {
+            $data = json_decode((string) file_get_contents($file), true);
+            if (is_array($data)) {
+                $panel = self::normalize_clients($data);
+            }
+        }
+        $registry = self::load_registry_clients($protocol);
+        return self::merge_client_records($panel, $registry);
     }
 
     /** Accept legacy list-shaped JSON registries. */
@@ -66,9 +116,11 @@ class USK_ProtocolLimits
     {
         require_once __DIR__ . '/usage.php';
         $usageUpdated = USK_ProtocolUsage::sync_all();
+        $usageMeta = USK_ProtocolUsage::last_collect_meta();
 
         $report = array(
             'usage_updated' => (int) $usageUpdated,
+            'usage_meta' => is_array($usageMeta) ? $usageMeta : array(),
             'checked' => 0,
             'disabled' => 0,
             'details' => array(),

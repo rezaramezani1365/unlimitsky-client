@@ -13,6 +13,31 @@ function usk_services_redirect(array $params = array())
     exit;
 }
 
+function usk_services_sync_diag(array $report)
+{
+    $meta = $report['usage_meta'] ?? array();
+    if (!is_array($meta)) {
+        return '';
+    }
+    $synced = (int) ($meta['usage_synced'] ?? 0);
+    $parts = array();
+    if ($synced > 0 && (int) ($report['usage_updated'] ?? 0) === 0) {
+        $parts[] = sprintf(__('services_sync_diag_synced'), $synced);
+    }
+    if (empty($meta['sudo_ok']) && ($meta['source'] ?? '') !== 'collect_script') {
+        $parts[] = __('services_sync_diag_no_sudo');
+    }
+    $xrayCfg = (int) ($meta['xray_cfg_clients'] ?? 0);
+    $xrayUsers = (int) ($meta['xray_users'] ?? ($meta['map_counts']['xray'] ?? 0));
+    if ($xrayCfg > 0 && $xrayUsers === 0) {
+        $parts[] = __('services_sync_diag_xray_stats');
+    }
+    if ($parts === array()) {
+        return '';
+    }
+    return ' ' . implode(' ', $parts);
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     usk_services_redirect();
 }
@@ -50,7 +75,7 @@ try {
         (int) ($report['usage_updated'] ?? 0),
         (int) ($report['checked'] ?? 0),
         (int) ($report['disabled'] ?? 0)
-    ));
+    ) . usk_services_sync_diag($report));
 } catch (Throwable $e) {
     error_log('USK services sync_usage: ' . $e->getMessage());
     usk_flash(__('services_sync_failed'), 'error');
