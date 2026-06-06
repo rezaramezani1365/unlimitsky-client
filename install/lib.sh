@@ -193,10 +193,58 @@ usk_ensure_php_zip() {
     if php -r 'exit(class_exists("ZipArchive") ? 0 : 1);' 2>/dev/null; then
         return 0
     fi
-    echo "[*] Installing php-zip (required for backup export/import)..."
+    echo "[*] Installing PHP zip extension (backup export/import)..."
     apt-get update -qq
-    apt-get install -y php-zip
-    usk_restart_php_fpm
+    local ver pkg
+    ver="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null || echo "")"
+    for pkg in "php${ver}-zip" php-zip php8.3-zip php8.2-zip php8.1-zip php8.0-zip; do
+        [ -n "$pkg" ] || continue
+        if apt-cache show "$pkg" >/dev/null 2>&1; then
+            apt-get install -y "$pkg"
+            usk_restart_php_fpm
+            php -r 'exit(class_exists("ZipArchive") ? 0 : 1);' 2>/dev/null && return 0
+        fi
+    done
+    echo "[!] Warning: ZipArchive not available — backup export may fail until php zip is installed." >&2
+    return 0
+}
+
+usk_panel_is_installed() {
+    local web_root="$1"
+    [ -f "${web_root}/install/unlimitsky.install" ] && ! usk_config_incomplete "$web_root"
+}
+
+usk_deploy_panel_files() {
+    local src_dir="$1"
+    local web_root="$2"
+    echo "[*] Deploying panel files to ${web_root}..."
+    mkdir -p "$web_root"
+    rsync -a --exclude '.git' --exclude 'install-ubuntu.sh' --exclude 'REPOSITORY.md' \
+        --exclude 'config.php' --exclude 'install/unlimitsky.install' --exclude 'install/.db-provision.json' \
+        --exclude 'admin/data/api-keys.json' --exclude 'admin/data/license.json' \
+        "$src_dir/" "$web_root/" 2>/dev/null \
+        || cp -r "$src_dir"/* "$web_root/"
+    chmod +x "$web_root"/bin/*.sh "$web_root"/bin/*.py 2>/dev/null || true
+    chmod +x "$web_root"/scripts/*.sh 2>/dev/null || true
+    chown -R www-data:www-data "$web_root"
+    chmod -R 755 "$web_root"
+    mkdir -p "$web_root/data/protocols" "$web_root/admin/data" "$web_root/data/clients" \
+        "$web_root/data/backups/tmp" "$web_root/data/settings"
+    chmod -R 775 "$web_root/admin/data" "$web_root/data" "$web_root/install" 2>/dev/null || true
+    chown -R www-data:www-data "$web_root/data" "$web_root/admin/data"
+    usk_verify_panel_deploy "$web_root"
+    usk_write_deploy_stamp "$web_root" "$src_dir"
+}
+
+usk_ensure_web_update_sudoers() {
+    local web_root="$1"
+    local sudoers="/etc/sudoers.d/unlimitsky"
+    local line="www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/scripts/panel-self-update.sh *"
+    if [ -f "$sudoers" ] && grep -qF 'panel-self-update.sh' "$sudoers" 2>/dev/null; then
+        return 0
+    fi
+    echo "$line" >> "$sudoers"
+    chmod 440 "$sudoers"
 }
 
 usk_write_deploy_stamp() {

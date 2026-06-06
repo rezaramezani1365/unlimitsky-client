@@ -101,6 +101,7 @@ function usk_admin_nav()
         'users' => array('icon' => 'fa-users', 'label' => __('nav_users')),
         'license' => array('icon' => 'fa-crown', 'label' => __('nav_license')),
         'backup' => array('icon' => 'fa-database', 'label' => __('nav_backup')),
+        'updates' => array('icon' => 'fa-arrows-rotate', 'label' => __('nav_updates')),
         'settings' => array('icon' => 'fa-gear', 'label' => __('nav_settings')),
     );
 }

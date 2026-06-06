@@ -1,0 +1,57 @@
+#!/bin/bash
+# Pull latest unlimitsky-client from GitHub and rsync to the live web root.
+# Called from admin panel (www-data via sudo) or manually as root.
+#
+#   sudo bash scripts/panel-self-update.sh /var/www/unlimitsky
+#
+set -euo pipefail
+
+WEB_ROOT="${1:-/var/www/unlimitsky}"
+INSTALL_DIR="${USK_INSTALL_DIR:-/opt/unlimitsky}"
+BRANCH="${USK_BRANCH:-main}"
+REPO_URL="${USK_REPO_URL:-https://github.com/rezaramezani1365/unlimitsky-client.git}"
+
+if [ "$EUID" -ne 0 ]; then
+    echo "ERROR: run as root" >&2
+    exit 1
+fi
+
+if [ ! -f "$WEB_ROOT/config.php" ]; then
+    echo "ERROR: $WEB_ROOT/config.php not found" >&2
+    exit 1
+fi
+
+if ! command -v git >/dev/null 2>&1; then
+    apt-get update -qq
+    apt-get install -y git
+fi
+
+echo "[*] Fetching latest from GitHub ($REPO_URL)..."
+if [ ! -d "$INSTALL_DIR/.git" ]; then
+    mkdir -p "$(dirname "$INSTALL_DIR")"
+    git clone --branch "$BRANCH" --depth 1 "$REPO_URL" "$INSTALL_DIR"
+else
+    git -C "$INSTALL_DIR" fetch --depth 1 origin "$BRANCH"
+    git -C "$INSTALL_DIR" checkout "$BRANCH"
+    git -C "$INSTALL_DIR" reset --hard "origin/$BRANCH"
+fi
+
+COMMIT="$(git -C "$INSTALL_DIR" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+echo "[*] Source commit: $COMMIT"
+
+UPDATE_SH="${INSTALL_DIR}/scripts/update-panel.sh"
+if [ ! -f "$UPDATE_SH" ]; then
+    echo "ERROR: $UPDATE_SH missing after git update" >&2
+    exit 1
+fi
+
+bash "$UPDATE_SH" "$WEB_ROOT" "$INSTALL_DIR"
+
+LIB="${INSTALL_DIR}/install/lib.sh"
+if [ -f "$LIB" ]; then
+    # shellcheck source=/dev/null
+    source "$LIB"
+    usk_ensure_web_update_sudoers "$WEB_ROOT"
+fi
+
+echo "[*] Panel update complete ($COMMIT)"

@@ -78,10 +78,37 @@ if [ "$AUTO" -eq 1 ] && [ -z "$ADMIN_PASS" ]; then
     MUST_CHANGE=1
 fi
 
+SERVER_IP="$(usk_detect_ip)"
+PUBLIC_URL="http://${SERVER_IP}:${PORT}"
+
+# Existing panel — deploy latest files first (do not fail on apt/php-zip)
+if [ "$AUTO" -eq 1 ] && usk_panel_is_installed "$WEB_ROOT"; then
+    echo "[*] Existing panel detected — deploying latest files from ${SCRIPT_DIR}..."
+    usk_deploy_panel_files "$SCRIPT_DIR" "$WEB_ROOT"
+    usk_ensure_php_zip || true
+    usk_secure_app_files "$WEB_ROOT"
+    usk_ensure_web_update_sudoers "$WEB_ROOT"
+    usk_restart_php_fpm
+    DEPLOY_REV=""
+    [ -f "$WEB_ROOT/admin/data/.deploy-rev" ] && DEPLOY_REV="$(head -1 "$WEB_ROOT/admin/data/.deploy-rev" | cut -c1-12)"
+    usk_print_box \
+        "unlimitsky Client updated" \
+        "" \
+        "URL:        ${PUBLIC_URL}" \
+        "Admin:      ${PUBLIC_URL}/admin/login.php" \
+        "Updates:    ${PUBLIC_URL}/admin/index.php?page=updates" \
+        "Backup:     ${PUBLIC_URL}/admin/index.php?page=backup" \
+        "Check:      ${PUBLIC_URL}/admin/check.php" \
+        "${DEPLOY_REV:+Deploy rev:  ${DEPLOY_REV}}" \
+        "" \
+        "Database left unchanged."
+    exit 0
+fi
+
 export DEBIAN_FRONTEND=noninteractive
 echo "[*] Installing packages (nginx, mysql, php)..."
 apt-get update -qq
-apt-get install -y nginx mysql-server php-cli php-fpm php-mysql php-curl php-json php-mbstring php-xml php-zip unzip curl sudo rsync openssl git
+apt-get install -y nginx mysql-server php-cli php-fpm php-mysql php-curl php-json php-mbstring php-xml unzip curl sudo rsync openssl git
 
 echo "[*] Starting MySQL..."
 usk_mysql_ensure
@@ -89,25 +116,12 @@ usk_mysql_ensure
 echo "[*] Hardening MySQL (localhost only)..."
 usk_mysql_harden
 
+usk_ensure_php_zip || true
+
 PHP_SOCK="$(usk_detect_php_sock)"
-SERVER_IP="$(usk_detect_ip)"
-PUBLIC_URL="http://${SERVER_IP}:${PORT}"
 
 echo "[*] Deploying files to ${WEB_ROOT}..."
-mkdir -p "$WEB_ROOT"
-rsync -a --exclude '.git' --exclude 'install-ubuntu.sh' --exclude 'REPOSITORY.md' \
-    --exclude 'config.php' --exclude 'install/unlimitsky.install' --exclude 'install/.db-provision.json' \
-    --exclude 'admin/data/api-keys.json' --exclude 'admin/data/license.json' \
-    "$SCRIPT_DIR/" "$WEB_ROOT/" 2>/dev/null \
-    || cp -r "$SCRIPT_DIR"/* "$WEB_ROOT/"
-
-if ! usk_verify_panel_deploy "$WEB_ROOT"; then
-    echo "ERROR: Panel files in ${WEB_ROOT} are incomplete after deploy." >&2
-    echo "       Check git clone at ${SCRIPT_DIR} or run: bash ${SCRIPT_DIR}/scripts/update-panel.sh ${WEB_ROOT} ${SCRIPT_DIR}" >&2
-    exit 1
-fi
-usk_write_deploy_stamp "$WEB_ROOT" "$SCRIPT_DIR"
-usk_ensure_php_zip
+usk_deploy_panel_files "$SCRIPT_DIR" "$WEB_ROOT"
 
 usk_reset_incomplete_install "$WEB_ROOT"
 
@@ -132,6 +146,7 @@ www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/add-user-*.sh *
 www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/disable-user-*.sh *
 www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/enable-user-*.sh *
 www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/remove-user-*.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/scripts/panel-self-update.sh *
 SUDO
 chmod 440 "$SUDOERS"
 
@@ -183,25 +198,6 @@ done
 
 [ "$OPEN_FW" -eq 1 ] && usk_firewall_allow_port "$PORT"
 
-# Already installed and healthy — update files only
-if [ "$AUTO" -eq 1 ] && [ -f "$WEB_ROOT/install/unlimitsky.install" ] && ! usk_config_incomplete "$WEB_ROOT"; then
-    usk_secure_app_files "$WEB_ROOT"
-    usk_restart_php_fpm
-    DEPLOY_REV=""
-    [ -f "$WEB_ROOT/admin/data/.deploy-rev" ] && DEPLOY_REV="$(head -1 "$WEB_ROOT/admin/data/.deploy-rev" | cut -c1-12)"
-    usk_print_box \
-        "unlimitsky Client updated" \
-        "" \
-        "URL:        ${PUBLIC_URL}" \
-        "Admin:      ${PUBLIC_URL}/admin/login.php" \
-        "Backup:     ${PUBLIC_URL}/admin/index.php?page=backup" \
-        "Check:      ${PUBLIC_URL}/admin/check.php" \
-        "${DEPLOY_REV:+Deploy rev:  ${DEPLOY_REV}}" \
-        "" \
-        "Install marker present — database left unchanged."
-    exit 0
-fi
-
 echo "[*] Creating MySQL database..."
 usk_mysql_create_app_db "usk_client" || exit 1
 DB_NAME="$USK_DB_NAME"
@@ -231,6 +227,8 @@ if [ "$AUTO" -eq 1 ]; then
     fi
 
     usk_secure_app_files "$WEB_ROOT"
+
+    usk_ensure_web_update_sudoers "$WEB_ROOT"
 
     usk_save_credentials "$CREDS_FILE" \
         echo "TYPE=client" \

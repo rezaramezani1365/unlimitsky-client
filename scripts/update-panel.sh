@@ -53,13 +53,14 @@ if declare -F usk_verify_panel_deploy >/dev/null 2>&1; then
     usk_ensure_php_zip
     usk_restart_php_fpm
 else
-    if ! php -r 'exit(class_exists("ZipArchive")?0:1);' 2>/dev/null; then
-        echo "[!] Installing php-zip for backup export/import..."
-        apt-get update -qq
-        apt-get install -y php-zip
+    if declare -F usk_ensure_php_zip >/dev/null 2>&1; then
+        usk_ensure_php_zip || true
+    elif ! php -r 'exit(class_exists("ZipArchive")?0:1);' 2>/dev/null; then
+        echo "[!] ZipArchive missing — install php zip manually if backup export fails."
     fi
+    usk_restart_php_fpm 2>/dev/null || true
 fi
 
-echo "[*] Done. Open: ${WEB_ROOT%/}/admin/index.php?page=settings#usk-backup-section"
+echo "[*] Done. Open: ${WEB_ROOT%/}/admin/index.php?page=updates"
 echo "    Backup page: ${WEB_ROOT%/}/admin/index.php?page=backup"
 echo "    Health:      ${WEB_ROOT%/}/admin/check.php"

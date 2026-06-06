@@ -41,9 +41,11 @@ try {
     echo "panel version: " . usk_panel_version() . "\n";
     $base = usk_admin_base();
     echo "\nURLs:\n";
+    echo "  updates:         {$base}/index.php?page=updates\n";
     echo "  settings+backup: {$base}/index.php?page=settings#usk-backup-section\n";
     echo "  backup page:     {$base}/index.php?page=backup\n";
-    echo "\nIf any file shows MISSING, run update-panel.sh on the VPS.\n";
+    echo "  legacy panel:    " . (is_file("$adminDir/pages/coupons.php") ? 'YES (run update!)' : 'NO') . "\n";
+    echo "\nIf any file shows MISSING, open Updates page or run panel-self-update.sh on the VPS.\n";
 } catch (Throwable $e) {
     echo "\nERROR: " . $e->getMessage() . "\n";
     echo $e->getFile() . ':' . $e->getLine() . "\n";
