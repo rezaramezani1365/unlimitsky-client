@@ -96,6 +96,19 @@ class USK_UnlimitSky_Panel
     }
 
     /**
+     * @return array<int, array{code:string,name:string,volume_gb:int,duration_days:int,price?:string,status?:string}>
+     */
+    public static function list_plans(string $api_url, string $api_key): array
+    {
+        $result = self::request($api_url, $api_key, 'plans');
+        if (empty($result['ok'])) {
+            return [];
+        }
+        $plans = $result['data']['plans'] ?? [];
+        return is_array($plans) ? $plans : [];
+    }
+
+    /**
      * @return array{success:bool, subscription_url?:string, config_links?:string, username?:string, error?:string}
      */
     public static function create_service(array $panel, int $volume_gb, int $duration_days, string $username, string $protocol = '', int $wc_order_id = 0, string $plan_code = '', string $openvpn_proto = 'tcp', string $wireguard_transport = 'tcp', string $external_panel_code = ''): array

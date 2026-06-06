@@ -83,6 +83,16 @@ if ($action === 'panels') {
     usk_api_response(200, array('ok' => true, 'panels' => $panels));
 }
 
+if ($action === 'plans') {
+    $plans = USK_License::list_active_plans();
+    usk_api_response(200, array(
+        'ok' => true,
+        'plans' => $plans,
+        'max_plans' => USK_License::max_plans(),
+        'plan_count' => USK_License::current_plan_count(),
+    ));
+}
+
 if ($action === 'create-service') {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         usk_api_response(405, array('ok' => false, 'error' => 'method_not_allowed'));
@@ -101,8 +111,13 @@ if ($action === 'create-service') {
     $server_ip = USK_ConnectHost::sanitize(trim((string) ($body['server_ip'] ?? '')));
     $plan_code = preg_replace('/[^0-9]/', '', (string) ($body['plan_code'] ?? ''));
 
-    if ($plan_code !== '' && !USK_License::plan_is_usable($plan_code)) {
-        usk_api_response(403, array('ok' => false, 'error' => 'plan_inactive_or_missing'));
+    if ($plan_code !== '') {
+        $planRow = USK_License::get_plan_by_code($plan_code);
+        if ($planRow === null) {
+            usk_api_response(403, array('ok' => false, 'error' => 'plan_inactive_or_missing'));
+        }
+        $volume_gb = max(1, (int) ($planRow['limit'] ?? 0));
+        $duration_days = max(1, (int) ($planRow['date'] ?? 0));
     }
 
     if ($panel_code !== '') {
@@ -174,6 +189,10 @@ if ($action === 'create-service') {
 
     if ($protocol === '') {
         usk_api_response(400, array('ok' => false, 'error' => 'protocol_required'));
+    }
+
+    if ($volume_gb < 1 || $duration_days < 1) {
+        usk_api_response(400, array('ok' => false, 'error' => 'volume_duration_required'));
     }
 
     $code = (string) rand(111111, 999999);
@@ -304,6 +323,7 @@ if ($action === 'create-service') {
         'tcp_client_cmd' => $raw['tcp_client_cmd'] ?? '',
         'volume_gb' => $volume_gb,
         'duration_days' => $duration_days,
+        'plan_code' => $plan_code !== '' ? $plan_code : null,
         'qr_png' => $created['qr_png'] ?? '',
         'vpn_uri' => $created['vpn_uri'] ?? '',
         'wg_conf' => $created['wg_conf'] ?? '',

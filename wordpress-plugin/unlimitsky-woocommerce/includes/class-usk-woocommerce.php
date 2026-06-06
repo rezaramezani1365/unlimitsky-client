@@ -65,6 +65,34 @@ class USK_WooCommerce
 
         $current_provision = get_post_meta($post->ID, '_usk_provision_mode', true) ?: 'native';
         $current_ext_panel = get_post_meta($post->ID, '_usk_external_panel_code', true) ?: '';
+        $current_panel_id = (int) get_post_meta($post->ID, '_usk_panel_id', true);
+        $current_plan_code = preg_replace('/[^0-9]/', '', (string) get_post_meta($post->ID, '_usk_plan_code', true));
+
+        $plans_by_panel = [];
+        $plan_options = ['' => __('— انتخاب پلن از پنل —', 'unlimitsky-wc')];
+        foreach ($panels as $panel) {
+            if (($panel['type'] ?? '') !== 'unlimitsky' || empty($panel['token'])) {
+                continue;
+            }
+            $panel_plans = USK_UnlimitSky_Panel::list_plans($panel['login_link'], $panel['token']);
+            $plans_by_panel[(string) $panel['id']] = $panel_plans;
+            if ((int) $panel['id'] === $current_panel_id) {
+                foreach ($panel_plans as $p) {
+                    $code = (string) ($p['code'] ?? '');
+                    if ($code === '') {
+                        continue;
+                    }
+                    $label = sprintf(
+                        '%s — %d GB / %d %s',
+                        $p['name'] ?? $code,
+                        (int) ($p['volume_gb'] ?? 0),
+                        (int) ($p['duration_days'] ?? 0),
+                        __('روز', 'unlimitsky-wc')
+                    );
+                    $plan_options[$code] = $label;
+                }
+            }
+        }
 
         woocommerce_wp_select([
             'id'      => '_usk_panel_id',
@@ -107,13 +135,29 @@ class USK_WooCommerce
         echo esc_html__('این محصول روی پنل Marzban/Sanaei مستقیم ساخته می‌شود — فقط VLESS/VMess (Xray).', 'unlimitsky-wc');
         echo '</span></p>';
 
+        woocommerce_wp_select([
+            'id'          => '_usk_plan_code',
+            'label'       => __('پلن پنل unlimitsky', 'unlimitsky-wc'),
+            'options'     => $plan_options,
+            'value'       => $current_plan_code,
+            'wrapper_class' => 'usk-panel-plan-field',
+            'desc_tip'    => true,
+            'description' => __('پلن‌های فعال از پنل کلاینت (API) — با انتخاب پلن، حجم و مدت خودکار پر می‌شود.', 'unlimitsky-wc'),
+        ]);
+
+        if ($current_panel_id > 0 && count($plan_options) <= 1) {
+            echo '<p class="form-field usk-panel-plan-field"><span class="description" style="color:#b32d2e;">';
+            echo esc_html__('پلن فعالی در پنل یافت نشد — ابتدا در پنل کلاینت → پلن‌ها یک پلن بسازید.', 'unlimitsky-wc');
+            echo '</span></p>';
+        }
+
         woocommerce_wp_text_input([
             'id'                => '_usk_volume_gb',
             'label'             => __('حجم (GB)', 'unlimitsky-wc'),
             'type'              => 'number',
             'custom_attributes' => ['min' => '1', 'step' => '1'],
             'desc_tip'          => true,
-            'description'       => __('حجم ترافیک قابل استفاده', 'unlimitsky-wc'),
+            'description'       => __('از پلن انتخاب‌شده پر می‌شود — در صورت نیاز قابل ویرایش.', 'unlimitsky-wc'),
         ]);
 
         woocommerce_wp_text_input([
@@ -122,16 +166,7 @@ class USK_WooCommerce
             'type'              => 'number',
             'custom_attributes' => ['min' => '1', 'step' => '1'],
             'desc_tip'          => true,
-            'description'       => __('مدت اعتبار سرویس به روز', 'unlimitsky-wc'),
-        ]);
-
-        woocommerce_wp_text_input([
-            'id'                => '_usk_plan_code',
-            'label'             => __('کد پلن پنل (اختیاری)', 'unlimitsky-wc'),
-            'type'              => 'text',
-            'custom_attributes' => ['dir' => 'ltr'],
-            'desc_tip'          => true,
-            'description'       => __('کد پلن از پنل unlimitsky → پلن‌ها. اگر پلن غیرفعال باشد، سفارش خودکار ساخته نمی‌شود.', 'unlimitsky-wc'),
+            'description'       => __('از پلن انتخاب‌شده پر می‌شود — در صورت نیاز قابل ویرایش.', 'unlimitsky-wc'),
         ]);
 
         woocommerce_wp_select([
@@ -177,9 +212,39 @@ class USK_WooCommerce
         echo '</div>';
 
         $panel_types_json = wp_json_encode($panel_types);
+        $plans_by_panel_json = wp_json_encode($plans_by_panel);
 
         wc_enqueue_js("
             var uskPanelTypes = {$panel_types_json};
+            var uskPlansByPanel = {$plans_by_panel_json};
+            function uskPlanLabel(p) {
+                return p.name + ' — ' + p.volume_gb + ' GB / ' + p.duration_days + ' " . esc_js(__('روز', 'unlimitsky-wc')) . "';
+            }
+            function uskRebuildPlanSelect(panelId, selectedCode) {
+                var \$plan = jQuery('#_usk_plan_code');
+                if (!\$plan.length) return;
+                \$plan.empty();
+                \$plan.append(jQuery('<option>').val('').text('" . esc_js(__('— انتخاب پلن از پنل —', 'unlimitsky-wc')) . "'));
+                var list = uskPlansByPanel[String(panelId)] || [];
+                jQuery.each(list, function(i, p) {
+                    if (!p.code) return;
+                    var \$opt = jQuery('<option>').val(p.code).text(uskPlanLabel(p));
+                    \$opt.attr('data-volume', p.volume_gb);
+                    \$opt.attr('data-days', p.duration_days);
+                    if (selectedCode && String(p.code) === String(selectedCode)) {
+                        \$opt.prop('selected', true);
+                    }
+                    \$plan.append(\$opt);
+                });
+            }
+            function uskApplyPlanFields() {
+                var \$plan = jQuery('#_usk_plan_code');
+                var \$opt = \$plan.find('option:selected');
+                if (\$opt.val()) {
+                    jQuery('#_usk_volume_gb').val(\$opt.attr('data-volume') || '');
+                    jQuery('#_usk_duration_days').val(\$opt.attr('data-days') || '');
+                }
+            }
             function uskPanelType() {
                 var id = $('#_usk_panel_id').val();
                 return uskPanelTypes[id] || '';
@@ -199,6 +264,7 @@ class USK_WooCommerce
                 $('.usk-provision-mode-field').toggle(isUnlimitSky);
                 $('.usk-external-panel-field').toggle(isUnlimitSky && mode === 'external');
                 $('.usk-native-protocol-field, .usk-openvpn-proto-field, .usk-wireguard-transport-field').toggle(isUnlimitSky && mode === 'native');
+                $('.usk-panel-plan-field').toggle(isUnlimitSky);
                 $('.usk-xray-panel-note').toggle(isXrayPanel);
             }
             function UnlimitSkyToggleOpenvpnProto() {
@@ -217,7 +283,12 @@ class USK_WooCommerce
             }
             $('#_usk_is_vpn').change(UnlimitSkyToggleFields);
             $('#_usk_panel_id, #_usk_provision_mode').change(function(){
+                uskRebuildPlanSelect(jQuery('#_usk_panel_id').val(), '');
+                uskApplyPlanFields();
                 UnlimitSkyToggleProvision();
+            });
+            $('#_usk_plan_code').change(function(){
+                uskApplyPlanFields();
             });
             $('#_usk_protocol').change(function(){
                 UnlimitSkyToggleOpenvpnProto();
@@ -227,6 +298,8 @@ class USK_WooCommerce
             UnlimitSkyToggleProvision();
             UnlimitSkyToggleOpenvpnProto();
             UnlimitSkyToggleWireguardTransport();
+            uskRebuildPlanSelect($('#_usk_panel_id').val(), '" . esc_js($current_plan_code) . "');
+            uskApplyPlanFields();
         ");
     }
 
@@ -277,12 +350,16 @@ class USK_WooCommerce
         $panel_id      = (int) $product->get_meta('_usk_panel_id');
         $volume        = (int) $product->get_meta('_usk_volume_gb');
         $days          = (int) $product->get_meta('_usk_duration_days');
+        $plan_code     = preg_replace('/[^0-9]/', '', (string) $product->get_meta('_usk_plan_code'));
         $panel         = USK_Panel_Manager::get_panel($panel_id);
 
         echo '<div class="UnlimitSky-product-info" style="margin-bottom:1em;padding:1em;background:#f7f7f7;border-radius:4px;">';
         echo '<strong>' . esc_html__('مشخصات سرویس:', 'unlimitsky-wc') . '</strong><ul style="margin:0.5em 0 0;padding-right:1.2em;">';
         if ($panel) {
             echo '<li>' . esc_html__('سرور:', 'unlimitsky-wc') . ' ' . esc_html($panel['name']) . '</li>';
+        }
+        if ($plan_code !== '') {
+            echo '<li>' . esc_html__('پلن:', 'unlimitsky-wc') . ' <code dir="ltr">' . esc_html($plan_code) . '</code></li>';
         }
         echo '<li>' . esc_html__('حجم:', 'unlimitsky-wc') . ' ' . esc_html($volume) . ' GB</li>';
         echo '<li>' . esc_html__('مدت:', 'unlimitsky-wc') . ' ' . esc_html($days) . ' ' . esc_html__('روز', 'unlimitsky-wc') . '</li>';

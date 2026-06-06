@@ -418,14 +418,45 @@ class USK_License
     /** Check plan by code — used by API / WooCommerce */
     public static function plan_is_usable($plan_code)
     {
+        return self::get_plan_by_code($plan_code) !== null;
+    }
+
+    /** @return array|null */
+    public static function get_plan_by_code($plan_code)
+    {
         global $sql;
         $plan_code = preg_replace('/[^0-9]/', '', (string) $plan_code);
         if ($plan_code === '' || !$sql instanceof mysqli) {
-            return false;
+            return null;
         }
         $code = $sql->real_escape_string($plan_code);
         $r = $sql->query("SELECT * FROM `category` WHERE `code`='$code' AND `status`='active' LIMIT 1");
-        return $r && $r->num_rows > 0;
+        return ($r && $r->num_rows > 0) ? $r->fetch_assoc() : null;
+    }
+
+    /** @return array<int, array{code:string,name:string,volume_gb:int,duration_days:int,price:string,status:string}> */
+    public static function list_active_plans()
+    {
+        global $sql;
+        $out = array();
+        if (!$sql instanceof mysqli) {
+            return $out;
+        }
+        $r = $sql->query("SELECT `code`,`name`,`limit`,`date`,`price`,`status` FROM `category` WHERE `status`='active' ORDER BY `row` DESC");
+        if (!$r) {
+            return $out;
+        }
+        while ($row = $r->fetch_assoc()) {
+            $out[] = array(
+                'code' => (string) ($row['code'] ?? ''),
+                'name' => (string) ($row['name'] ?? ''),
+                'volume_gb' => (int) ($row['limit'] ?? 0),
+                'duration_days' => (int) ($row['date'] ?? 0),
+                'price' => (string) ($row['price'] ?? ''),
+                'status' => (string) ($row['status'] ?? 'active'),
+            );
+        }
+        return $out;
     }
 
     public static function first_active_plan()
