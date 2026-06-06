@@ -442,7 +442,7 @@ class USK_License
         if (!$sql instanceof mysqli) {
             return $out;
         }
-        $r = $sql->query("SELECT `code`,`name`,`limit`,`date`,`price`,`status` FROM `category` WHERE `status`='active' ORDER BY `row` DESC");
+        $r = $sql->query("SELECT `code`,`name`,`limit`,`date`,`price`,`status`,`connections` FROM `category` WHERE `status`='active' ORDER BY `row` DESC");
         if (!$r) {
             return $out;
         }
@@ -454,6 +454,7 @@ class USK_License
                 'duration_days' => (int) ($row['date'] ?? 0),
                 'price' => (string) ($row['price'] ?? ''),
                 'status' => (string) ($row['status'] ?? 'active'),
+                'max_connections' => max(1, (int) ($row['connections'] ?? 1)),
             );
         }
         return $out;

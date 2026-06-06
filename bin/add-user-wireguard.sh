@@ -93,12 +93,14 @@ if [ "$TRANSPORT" = "udp" ] && command -v qrencode >/dev/null 2>&1; then
   QR_B64=$(qrencode -t PNG -o - "$CONFIG" 2>/dev/null | base64 -w0 2>/dev/null || qrencode -t PNG -o - "$CONFIG" 2>/dev/null | base64)
 fi
 
+DOWNLOAD_TOKEN=$(openssl rand -hex 16 2>/dev/null || cat /proc/sys/kernel/random/uuid 2>/dev/null | tr -d '-' | cut -c1-32)
+
 ensure_jq
 if command -v jq >/dev/null 2>&1; then
   tmp=$(mktemp)
   jq --arg u "$USERNAME" --arg ip "$CLIENT_IP" --arg pk "$CLIENT_PUB" --arg ts "$(date -Iseconds)" \
-     --argjson vol "$VOLUME_GB" --arg exp "$EXPIRES" \
-    '. += [{"username":$u,"ip":$ip,"public_key":$pk,"created":$ts,"volume_gb":$vol,"expires_at":$exp,"status":"active"}]' \
+     --argjson vol "$VOLUME_GB" --arg exp "$EXPIRES" --arg token "$DOWNLOAD_TOKEN" \
+    '. += [{"username":$u,"ip":$ip,"public_key":$pk,"created":$ts,"volume_gb":$vol,"expires_at":$exp,"status":"active","download_token":$token}]' \
     "$REGISTRY" > "$tmp" && mv "$tmp" "$REGISTRY"
 
   echo -n "USK_JSON:"
@@ -116,7 +118,8 @@ if command -v jq >/dev/null 2>&1; then
     --arg tcp_port "$TCP_PORT" \
     --argjson vol "$VOLUME_GB" \
     --argjson days "$DURATION_DAYS" \
-    '{ok:true, username:$u, protocol:"wireguard", wireguard_transport:$transport, config:$cfg, links:$cfg, client_ip:$ip, endpoint:$ep, qr_png:$qr, expires_at:$exp, public_key:$pk, volume_gb:$vol, duration_days:$days, tcp_client_cmd:$tcp_cmd, tcp_port:$tcp_port}'
+    --arg token "$DOWNLOAD_TOKEN" \
+    '{ok:true, username:$u, protocol:"wireguard", wireguard_transport:$transport, config:$cfg, links:$cfg, client_ip:$ip, endpoint:$ep, qr_png:$qr, expires_at:$exp, public_key:$pk, volume_gb:$vol, duration_days:$days, tcp_client_cmd:$tcp_cmd, tcp_port:$tcp_port, download_token:$token}'
   exit 0
 fi
 

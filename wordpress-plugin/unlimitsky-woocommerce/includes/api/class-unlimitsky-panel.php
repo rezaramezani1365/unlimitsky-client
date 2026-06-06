@@ -190,11 +190,14 @@ class USK_UnlimitSky_Panel
         }
 
         $data = $result['data'];
+        $portalUrl = trim((string) ($data['portal_url'] ?? ''));
         $downloadUrl = $data['download_url'] ?? '';
         $config = $data['config_links'] ?? ($data['config'] ?? '');
         $vpnUri = trim((string) ($data['vpn_uri'] ?? ''));
         $protocolResolved = $data['protocol'] ?? $protocol;
-        if ($protocolResolved === 'amnezia' && $vpnUri !== '') {
+        if ($portalUrl !== '') {
+            $sub = $portalUrl;
+        } elseif ($protocolResolved === 'amnezia' && $vpnUri !== '') {
             $sub = $vpnUri;
         } else {
             $sub = $downloadUrl !== '' ? $downloadUrl : ($data['subscription_url'] ?? $config);
@@ -203,6 +206,7 @@ class USK_UnlimitSky_Panel
         return [
             'success'          => true,
             'subscription_url' => $sub,
+            'portal_url'       => $portalUrl,
             'config_links'     => $config,
             'download_url'     => $downloadUrl,
             'ovpn_filename'    => $data['ovpn_filename'] ?? ($data['conf_filename'] ?? ($username . ($protocolResolved === 'amnezia' ? '.conf' : '.ovpn'))),

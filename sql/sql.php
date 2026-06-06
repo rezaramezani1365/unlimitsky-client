@@ -116,7 +116,8 @@ try {
     `name` varchar(100) COLLATE utf8mb4_bin NOT NULL,
     `price` varchar(50) COLLATE utf8mb4_bin NOT NULL,
     `code` varchar(20) COLLATE utf8mb4_bin NOT NULL,
-    `status` varchar(15) COLLATE utf8mb4_bin NOT NULL
+    `status` varchar(15) COLLATE utf8mb4_bin NOT NULL,
+    `connections` varchar(10) COLLATE utf8mb4_bin NOT NULL DEFAULT '1'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin");
 
     usk_schema_query($sql, "CREATE TABLE IF NOT EXISTS `category_limit` (
@@ -253,6 +254,7 @@ try {
         "ALTER TABLE `factors` MODIFY `from_id` varchar(128) COLLATE utf8mb4_bin NOT NULL",
         "ALTER TABLE `service_factors` MODIFY `from_id` varchar(128) COLLATE utf8mb4_bin NOT NULL",
         "ALTER TABLE `test_account` MODIFY `from_id` varchar(128) COLLATE utf8mb4_bin NOT NULL",
+        "ALTER TABLE `category` ADD COLUMN `connections` varchar(10) COLLATE utf8mb4_bin NOT NULL DEFAULT '1' AFTER `status`",
     );
     foreach ($migrations as $migration) {
         @$sql->query($migration);

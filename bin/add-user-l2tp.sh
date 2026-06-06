@@ -45,12 +45,6 @@ REGISTRY="$DATA_ROOT/l2tp/clients.json"
 mkdir -p "$(dirname "$REGISTRY")"
 ensure_jq
 [ -f "$REGISTRY" ] || echo "[]" > "$REGISTRY"
-if command -v jq >/dev/null 2>&1; then
-  tmp=$(mktemp)
-  jq --arg u "$USERNAME" --arg ts "$(date -Iseconds)" --arg exp "$EXPIRES" \
-     --argjson vol "$VOLUME_GB" --argjson days "$DURATION_DAYS" \
-    '. += [{"username":$u,"created":$ts,"volume_gb":$vol,"duration_days":$days,"expires_at":$exp,"status":"active"}]' "$REGISTRY" > "$tmp" && mv "$tmp" "$REGISTRY"
-fi
 
 CONFIG="L2TP/IPsec VPN
 Server / IP: ${SERVER_IP}
@@ -74,6 +68,14 @@ Secret: ${PSK}
 
 Firewall VPS: UDP 500, 4500, 1701 must be open."
 
+DOWNLOAD_TOKEN=$(openssl rand -hex 16 2>/dev/null || cat /proc/sys/kernel/random/uuid 2>/dev/null | tr -d '-' | cut -c1-32)
+if command -v jq >/dev/null 2>&1; then
+  tmp=$(mktemp)
+  jq --arg u "$USERNAME" --arg ts "$(date -Iseconds)" --arg exp "$EXPIRES" \
+     --argjson vol "$VOLUME_GB" --argjson days "$DURATION_DAYS" --arg token "$DOWNLOAD_TOKEN" \
+    '. += [{"username":$u,"created":$ts,"volume_gb":$vol,"duration_days":$days,"expires_at":$exp,"status":"active","download_token":$token}]' "$REGISTRY" > "$tmp" && mv "$tmp" "$REGISTRY"
+fi
+
 echo -n "USK_JSON:"
 jq -n \
   --arg u "$USERNAME" \
@@ -84,5 +86,6 @@ jq -n \
   --arg exp "$EXPIRES" \
   --argjson vol "$VOLUME_GB" \
   --argjson days "$DURATION_DAYS" \
-  '{ok:true, username:$u, protocol:"l2tp", config:$cfg, links:$cfg, password:$pass, psk:$psk, server_ip:$ip, expires_at:$exp, volume_gb:$vol, duration_days:$days}'
+  --arg token "$DOWNLOAD_TOKEN" \
+  '{ok:true, username:$u, protocol:"l2tp", config:$cfg, links:$cfg, password:$pass, psk:$psk, server_ip:$ip, expires_at:$exp, volume_gb:$vol, duration_days:$days, download_token:$token}'
 exit 0

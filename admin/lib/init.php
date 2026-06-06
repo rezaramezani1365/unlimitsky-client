@@ -21,6 +21,7 @@ require_once __DIR__ . '/connect-host.php';
 require_once __DIR__ . '/panel-access.php';
 require_once __DIR__ . '/backup.php';
 require_once __DIR__ . '/migration.php';
+require_once __DIR__ . '/schema-upgrade.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -28,6 +29,9 @@ if (session_status() === PHP_SESSION_NONE) {
 
 USK_I18n::boot();
 USK_License::boot();
+if (isset($GLOBALS['sql']) && $GLOBALS['sql'] instanceof mysqli) {
+    USK_SchemaUpgrade::run();
+}
 USK_PanelAccess::enforce_request_host();
 
 function usk_admin_base()

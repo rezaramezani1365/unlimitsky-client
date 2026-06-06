@@ -1,13 +1,25 @@
 <?php
 
-function usk_config_download_url($code, $token)
+function usk_public_base_url()
 {
+    if (class_exists('USK_PanelAccess')) {
+        $url = USK_PanelAccess::current_public_url();
+        if ($url !== '') {
+            return rtrim($url, '/');
+        }
+    }
     global $config;
     $base = rtrim($config['domain'] ?? '', '/');
-    if ($base === '') {
-        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-        $base = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
+    if ($base !== '') {
+        return $base;
     }
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    return $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
+}
+
+function usk_config_download_url($code, $token)
+{
+    $base = usk_public_base_url();
     return $base . '/download-config.php?code=' . rawurlencode((string) $code) . '&t=' . rawurlencode((string) $token);
 }
 
@@ -165,6 +177,47 @@ function usk_serve_xray_download($code, $token)
     }
 
     header('Content-Type: application/json; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . str_replace('"', '', $filename) . '"');
+    header('Cache-Control: no-store');
+    echo $body;
+    return true;
+}
+
+function usk_serve_wireguard_download($code, $token)
+{
+    global $sql;
+
+    if ($code === '' || $token === '' || !$sql instanceof mysqli) {
+        return false;
+    }
+
+    $code_esc = $sql->real_escape_string($code);
+    $order = $sql->query("SELECT * FROM `orders` WHERE `code`='$code_esc' LIMIT 1")->fetch_assoc();
+    if (!$order) {
+        return false;
+    }
+
+    require_once __DIR__ . '/protocols/limits.php';
+    $native = USK_ProtocolLimits::find_client_for_order($order);
+    if (!$native || ($native['protocol'] ?? '') !== 'wireguard') {
+        return false;
+    }
+
+    $client = $native['client'] ?? array();
+    $stored = $client['download_token']
+        ?? ($client['meta']['download_token'] ?? '');
+    if ($stored === '' || !hash_equals((string) $stored, (string) $token)) {
+        return false;
+    }
+
+    $username = $native['username'] ?? '';
+    $filename = preg_replace('/[^a-zA-Z0-9_-]/', '_', $username) . '.conf';
+    $body = $client['config'] ?? ($client['meta']['config'] ?? ($order['link'] ?? ''));
+    if ($body === '') {
+        return false;
+    }
+
+    header('Content-Type: application/octet-stream');
     header('Content-Disposition: attachment; filename="' . str_replace('"', '', $filename) . '"');
     header('Cache-Control: no-store');
     echo $body;

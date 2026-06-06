@@ -26,11 +26,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $date = $sql->real_escape_string(trim($_POST['date'] ?? '0'));
         $price = $sql->real_escape_string(trim($_POST['price'] ?? '0'));
         $status = $sql->real_escape_string($_POST['status'] ?? 'active');
+        $connections = max(1, min(99, (int) ($_POST['connections'] ?? 1)));
+        $connections_esc = $sql->real_escape_string((string) $connections);
         $code = (string) rand(111111, 999999);
         if ($id > 0) {
-            $sql->query("UPDATE `category` SET `name`='$name',`limit`='$limit',`date`='$date',`price`='$price',`status`='$status' WHERE `row`=$id");
+            $sql->query("UPDATE `category` SET `name`='$name',`limit`='$limit',`date`='$date',`price`='$price',`status`='$status',`connections`='$connections_esc' WHERE `row`=$id");
         } else {
-            $sql->query("INSERT INTO `category` (`limit`,`date`,`name`,`price`,`code`,`status`) VALUES ('$limit','$date','$name','$price','$code','$status')");
+            $sql->query("INSERT INTO `category` (`limit`,`date`,`name`,`price`,`code`,`status`,`connections`) VALUES ('$limit','$date','$name','$price','$code','$status','$connections_esc')");
         }
         usk_flash('پلن ذخیره شد');
         header('Location: ' . usk_admin_url('plans'));
@@ -65,6 +67,15 @@ $plans = $sql->query("SELECT * FROM `category` ORDER BY `row` DESC");
             <div class="form-group"><label>حجم (GB)</label><input class="form-control" name="limit" type="number" required></div>
             <div class="form-group"><label>مدت (روز)</label><input class="form-control" name="date" type="number" required></div>
         </div>
+        <div class="form-group">
+            <label><?= __('plan_connections') ?></label>
+            <select class="form-control" name="connections" required>
+                <?php for ($c = 1; $c <= 10; $c++) : ?>
+                    <option value="<?= $c ?>"<?= $c === 1 ? ' selected' : '' ?>><?= $c ?> <?= __('plan_connections_unit') ?></option>
+                <?php endfor; ?>
+            </select>
+            <small class="text-muted"><?= __('plan_connections_hint') ?></small>
+        </div>
         <div class="form-group"><label>وضعیت</label>
             <select class="form-control" name="status"><option value="active">فعال</option><option value="inactive">غیرفعال</option></select>
         </div>
@@ -75,7 +86,7 @@ $plans = $sql->query("SELECT * FROM `category` ORDER BY `row` DESC");
 <div class="card">
     <h3 style="margin-bottom:16px;">پلن‌های ثبت‌شده</h3>
     <table>
-        <thead><tr><th>نام</th><th>کد</th><th>حجم</th><th>مدت</th><th>قیمت</th><th>وضعیت</th><th></th></tr></thead>
+        <thead><tr><th>نام</th><th>کد</th><th>حجم</th><th>مدت</th><th><?= __('plan_connections') ?></th><th>قیمت</th><th>وضعیت</th><th></th></tr></thead>
         <tbody>
         <?php while ($p = $plans->fetch_assoc()) : ?>
             <tr>
@@ -83,6 +94,7 @@ $plans = $sql->query("SELECT * FROM `category` ORDER BY `row` DESC");
                 <td><code class="usk-code"><?= usk_esc($p['code']) ?></code></td>
                 <td><?= usk_esc($p['limit']) ?> GB</td>
                 <td><?= usk_esc($p['date']) ?> روز</td>
+                <td><?= usk_esc($p['connections'] ?? '1') ?></td>
                 <td><?= number_format((int) $p['price']) ?></td>
                 <td><span class="badge badge-<?= $p['status'] === 'active' ? 'success' : 'danger' ?>"><?= usk_esc($p['status']) ?></span></td>
                 <td>

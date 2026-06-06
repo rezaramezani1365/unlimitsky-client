@@ -38,6 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $duration_days = (int) ($_POST['manual_duration_days'] ?? 0);
     $plan_id = (int) ($_POST['plan_id'] ?? 0);
     $plan = null;
+    $max_connections = 1;
 
     if ($plan_source === 'plan') {
         $plan = $sql->query("SELECT * FROM `category` WHERE `row`=$plan_id AND `status`='active'")->fetch_assoc();
@@ -46,12 +47,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $volume_gb = (int) $plan['limit'];
             $duration_days = (int) $plan['date'];
+            $max_connections = max(1, (int) ($plan['connections'] ?? 1));
         }
     } elseif ($volume_gb < 1 || $duration_days < 1) {
         usk_flash(__('create_manual_invalid'), 'error');
         $plan = null;
     } else {
         $plan = array('limit' => $volume_gb, 'date' => $duration_days, 'price' => '0', 'name' => 'manual');
+        $max_connections = max(1, (int) ($_POST['manual_connections'] ?? 1));
     }
 
     if ($plan) {
@@ -79,6 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($clientDns !== '') {
                     $provisionMeta['client_dns'] = preg_replace('/[^0-9a-zA-Z.,;:\- _]/', '', $clientDns);
                 }
+                $provisionMeta['max_connections'] = $max_connections;
                 $created = USK_Service::create_native($protocol, $volume_gb, $duration_days, $username, $provisionMeta);
 
                 if (!$created['ok']) {
@@ -90,21 +94,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $username,
                         $volume_gb,
                         $duration_days,
-                        $created['links'] ?: $created['subscription']
+                        $created['links'] ?: $created['subscription'],
+                        'admin',
+                        null,
+                        array('max_connections' => $max_connections)
                     );
                     if (empty($order['ok'])) {
                         usk_flash(__('create_order_save_failed') . ' (' . ($order['error'] ?? '') . ')', 'error');
                     } else {
                         $raw = $created['raw'] ?? array();
-                        $downloadUrl = USK_ProtocolProvisioner::finalize_order_link(
+                        $portalUrl = USK_ProtocolProvisioner::finalize_order_link(
                             $protocol,
                             $raw,
                             $order['code'],
                             ''
                         );
-                        if ($downloadUrl !== '') {
+                        $fileDownloadUrl = USK_ProtocolProvisioner::config_file_download_url($order['code'], $raw);
+                        if ($portalUrl !== '') {
                             global $sql;
-                            $dl_esc = $sql->real_escape_string($downloadUrl);
+                            $dl_esc = $sql->real_escape_string($portalUrl);
                             $code_esc = $sql->real_escape_string($order['code']);
                             $sql->query("UPDATE `orders` SET `link`='$dl_esc' WHERE `code`='$code_esc'");
                         }
@@ -116,7 +124,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $result['vpn_uri'] = $created['vpn_uri'] ?? '';
                         $result['wg_conf'] = $created['wg_conf'] ?? '';
                         $result['expires_at'] = $created['expires_at'] ?? null;
-                        $result['download_url'] = $downloadUrl;
+                        $result['portal_url'] = $portalUrl;
+                        $result['download_url'] = $fileDownloadUrl;
+                        $result['max_connections'] = $max_connections;
                         $result['ovpn_filename'] = $raw['ovpn_filename'] ?? ($raw['json_filename'] ?? ($raw['conf_filename'] ?? ($username . ($protocol === 'amnezia' ? '.conf' : ($protocol === 'xray' ? '.json' : '.ovpn')))));
                         $result['client_dns'] = $raw['client_dns'] ?? ($provisionMeta['client_dns'] ?? '');
                         $result['vless'] = $raw['vless'] ?? ($created['subscription'] ?? '');
@@ -460,6 +470,15 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         <p class="mt-2"><strong><?= __('xray_vless_link') ?>:</strong></p>
         <code class="d-block p-3" style="white-space:pre-wrap;word-break:break-all;direction:ltr;text-align:left;"><?= usk_esc($result['vless']) ?></code>
         <p class="text-muted small"><?= __('xray_vless_hint') ?></p>
+    <?php endif; ?>
+    <?php if (!empty($result['portal_url'])) : ?>
+        <p class="mt-2"><strong><?= __('portal_customer_link') ?>:</strong></p>
+        <code class="d-block p-3" style="white-space:pre-wrap;word-break:break-all;direction:ltr;text-align:left;"><?= usk_esc($result['portal_url']) ?></code>
+        <p class="text-muted small"><?= __('portal_customer_link_hint') ?></p>
+        <p><a class="btn btn-usk-primary" href="<?= usk_esc($result['portal_url']) ?>" target="_blank" rel="noopener"><i class="fa-solid fa-external-link"></i> <?= __('portal_open_page') ?></a></p>
+    <?php endif; ?>
+    <?php if (!empty($result['max_connections'])) : ?>
+        <p><strong><?= __('portal_max_connections') ?>:</strong> <?= (int) $result['max_connections'] ?> <?= __('plan_connections_unit') ?></p>
     <?php endif; ?>
     <?php if (!empty($result['download_url'])) : ?>
         <p class="mt-2">

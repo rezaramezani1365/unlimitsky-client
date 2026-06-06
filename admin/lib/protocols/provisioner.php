@@ -138,6 +138,7 @@ class USK_ProtocolProvisioner
             'status' => 'active',
             'source' => $meta['source'] ?? 'admin',
             'wc_order_id' => $meta['wc_order_id'] ?? null,
+            'max_connections' => max(1, (int) ($meta['max_connections'] ?? 1)),
             'vpn_uri' => $vpnUri !== '' ? $vpnUri : null,
             'qr_conf_png' => $data['qr_conf_png'] ?? '',
         ));
@@ -183,7 +184,7 @@ class USK_ProtocolProvisioner
             $record['status'] = 'active';
         }
         if (!empty($record['meta']) && is_array($record['meta'])) {
-            foreach (array('public_key', 'client_ip', 'uuid', 'password', 'psk', 'config', 'qr_png', 'vpn_uri', 'wg_conf', 'endpoint', 'download_token', 'ovpn_filename', 'conf_filename', 'json_filename', 'client_dns', 'client_json', 'vless', 'proto', 'port') as $k) {
+            foreach (array('public_key', 'client_ip', 'uuid', 'password', 'psk', 'config', 'qr_png', 'vpn_uri', 'wg_conf', 'endpoint', 'download_token', 'ovpn_filename', 'conf_filename', 'json_filename', 'client_dns', 'client_json', 'vless', 'proto', 'port', 'server_ip', 'max_connections') as $k) {
                 if (isset($record['meta'][$k]) && $record['meta'][$k] !== '') {
                     $record[$k] = $record['meta'][$k];
                 }
@@ -193,7 +194,7 @@ class USK_ProtocolProvisioner
         file_put_contents($file, json_encode($all, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
     }
 
-    public static function save_order($protocol, $username, $volume_gb, $duration_days, $link, $source = 'api', $wc_order_id = null)
+    public static function save_order($protocol, $username, $volume_gb, $duration_days, $link, $source = 'api', $wc_order_id = null, array $extra = array())
     {
         global $sql;
         $code = (string) rand(111111, 999999);
@@ -214,6 +215,9 @@ class USK_ProtocolProvisioner
         $clients = self::load_protocol_clients($protocol);
         if (isset($clients[$username])) {
             $clients[$username]['order_code'] = $code;
+            if (!empty($extra['max_connections'])) {
+                $clients[$username]['max_connections'] = max(1, (int) $extra['max_connections']);
+            }
             self::save_protocol_clients($protocol, $clients);
         }
 
@@ -271,13 +275,20 @@ class USK_ProtocolProvisioner
 
     public static function finalize_order_link($protocol, array $raw, $order_code, $fallback_link)
     {
-        if ($protocol === 'openvpn' || $protocol === 'amnezia' || $protocol === 'xray') {
-            $url = self::openvpn_download_url($order_code, $raw);
-            if ($url !== '') {
-                return $url;
-            }
+        if (!empty($raw['download_token'])) {
+            require_once dirname(__DIR__) . '/customer-portal.php';
+            return usk_customer_portal_url($order_code, $raw['download_token']);
         }
         return $fallback_link;
+    }
+
+    public static function config_file_download_url($order_code, array $raw)
+    {
+        if (empty($raw['download_token'])) {
+            return '';
+        }
+        require_once dirname(__DIR__) . '/config-download.php';
+        return usk_config_download_url($order_code, $raw['download_token']);
     }
 
     private static function load_protocol_clients($protocol)

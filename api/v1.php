@@ -110,6 +110,7 @@ if ($action === 'create-service') {
     $wc_order_id = isset($body['wc_order_id']) ? (int) $body['wc_order_id'] : null;
     $server_ip = USK_ConnectHost::sanitize(trim((string) ($body['server_ip'] ?? '')));
     $plan_code = preg_replace('/[^0-9]/', '', (string) ($body['plan_code'] ?? ''));
+    $max_connections = max(1, (int) ($body['max_connections'] ?? 1));
 
     if ($plan_code !== '') {
         $planRow = USK_License::get_plan_by_code($plan_code);
@@ -118,6 +119,7 @@ if ($action === 'create-service') {
         }
         $volume_gb = max(1, (int) ($planRow['limit'] ?? 0));
         $duration_days = max(1, (int) ($planRow['date'] ?? 0));
+        $max_connections = max(1, (int) ($planRow['connections'] ?? 1));
     }
 
     if ($panel_code !== '') {
@@ -239,6 +241,7 @@ if ($action === 'create-service') {
         'openvpn_proto' => $ovpnProto,
         'wireguard_transport' => $wgTransport,
         'client_dns' => preg_replace('/[^0-9a-zA-Z.,;:\- _]/', '', trim((string) ($body['client_dns'] ?? ''))),
+        'max_connections' => $max_connections,
     ));
 
     if (empty($created['ok'])) {
@@ -255,7 +258,8 @@ if ($action === 'create-service') {
         $duration_days,
         $created['links'] ?: $created['config'],
         'api',
-        $wc_order_id
+        $wc_order_id,
+        array('max_connections' => $max_connections)
     );
 
     if (empty($order['ok'])) {
@@ -267,21 +271,24 @@ if ($action === 'create-service') {
     }
 
     $raw = $created['raw'] ?? array();
-    $downloadUrl = USK_ProtocolProvisioner::finalize_order_link(
+    $portalUrl = USK_ProtocolProvisioner::finalize_order_link(
         $protocol,
         $raw,
         $order['code'],
         ''
     );
-    if ($downloadUrl !== '') {
+    $fileDownloadUrl = USK_ProtocolProvisioner::config_file_download_url($order['code'], $raw);
+    if ($portalUrl !== '') {
         global $sql;
-        $dl_esc = $sql->real_escape_string($downloadUrl);
+        $dl_esc = $sql->real_escape_string($portalUrl);
         $code_esc = $sql->real_escape_string($order['code']);
         $sql->query("UPDATE `orders` SET `link`='$dl_esc' WHERE `code`='$code_esc'");
     }
 
     $subUrl = $created['subscription'];
-    if ($protocol === 'amnezia') {
+    if ($portalUrl !== '') {
+        $subUrl = $portalUrl;
+    } elseif ($protocol === 'amnezia') {
         $vpnUri = trim((string) ($created['vpn_uri'] ?? ''));
         if ($vpnUri !== '') {
             $subUrl = $vpnUri;
@@ -291,8 +298,8 @@ if ($action === 'create-service') {
         if ($vless !== '') {
             $subUrl = $vless;
         }
-    } elseif ($downloadUrl !== '') {
-        $subUrl = $downloadUrl;
+    } elseif ($fileDownloadUrl !== '') {
+        $subUrl = $fileDownloadUrl;
     }
 
     $dlFilename = $raw['ovpn_filename'] ?? ($username . '.ovpn');
@@ -308,9 +315,11 @@ if ($action === 'create-service') {
         'protocol' => $protocol,
         'service_code' => $order['code'],
         'subscription_url' => $subUrl,
+        'portal_url' => $portalUrl,
         'config' => $created['config'],
         'config_links' => $created['links'],
-        'download_url' => $downloadUrl,
+        'download_url' => $fileDownloadUrl,
+        'max_connections' => $max_connections,
         'ovpn_filename' => $dlFilename,
         'json_filename' => $raw['json_filename'] ?? '',
         'conf_filename' => $raw['conf_filename'] ?? '',
