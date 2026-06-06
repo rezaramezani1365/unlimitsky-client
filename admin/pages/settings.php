@@ -71,6 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'domain_enabled' => !empty($_POST['panel_domain_enabled']),
             'panel_domain' => $_POST['panel_domain'] ?? '',
             'panel_port' => $_POST['panel_port'] ?? 8082,
+            'https_enabled' => !empty($_POST['panel_https_enabled']),
             'hint' => $_POST['panel_access_hint'] ?? '',
         ));
         $applied = USK_PanelAccess::apply($saved);
@@ -164,12 +165,23 @@ $panels = $sql->query("SELECT `code`,`name` FROM `panels`");
                 <label><?= __('settings_panel_access_domain') ?></label>
                 <input class="form-control" name="panel_domain" dir="ltr" style="text-align:left;" value="<?= usk_esc($panelAccessCfg['panel_domain'] ?? '') ?>" placeholder="<?= __('settings_panel_access_domain_ph') ?>">
                 <p class="text-muted small mt-1 mb-0"><?= __('settings_panel_access_domain_hint') ?></p>
+                <p class="text-muted small mt-1 mb-0"><?= __('settings_panel_access_domain_lock_note') ?></p>
             </div>
             <div class="form-group mb-3">
                 <label><?= __('settings_panel_access_port') ?></label>
                 <input class="form-control" type="number" name="panel_port" min="1024" max="65535" dir="ltr" style="text-align:left;" value="<?= (int) ($panelAccessCfg['panel_port'] ?? 8082) ?>">
                 <p class="text-muted small mt-1 mb-0"><?= __('settings_panel_access_port_hint') ?></p>
             </div>
+            <div class="form-group mb-3">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="panel_https_enabled" id="panel-https-enabled" value="1" <?= !empty($panelAccessCfg['https_enabled']) ? 'checked' : '' ?>>
+                    <label class="form-check-label" for="panel-https-enabled"><?= __('settings_panel_access_https_enable') ?></label>
+                </div>
+                <p class="text-muted small mt-1 mb-0"><?= __('settings_panel_access_https_hint') ?></p>
+            </div>
+            <?php if (USK_PanelAccess::is_domain_locked()) : ?>
+            <p class="alert alert-usk-info small py-2"><?= __('settings_panel_access_ip_blocked') ?></p>
+            <?php endif; ?>
             <div class="form-group mb-3">
                 <label><?= __('settings_panel_access_hint_label') ?></label>
                 <input class="form-control" name="panel_access_hint" value="<?= usk_esc($panelAccessCfg['hint'] ?? '') ?>" placeholder="<?= __('settings_panel_access_hint_ph') ?>">

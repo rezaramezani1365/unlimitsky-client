@@ -1,10 +1,12 @@
 #!/bin/bash
-# Apply admin panel domain + port (nginx + config.php)
+# Apply admin panel domain + port + HTTPS URL + block direct IP access (nginx + config.php)
 set -euo pipefail
 
 WEB_ROOT="${1:-/var/www/unlimitsky}"
 NEW_PORT="${2:-8082}"
 PANEL_DOMAIN="${3:-}"
+HTTPS_ENABLED="${4:-0}"
+LOCK_DOMAIN="${5:-0}"
 
 if [ "$EUID" -ne 0 ]; then
   echo "USK_ERR: root_required"
@@ -32,13 +34,78 @@ if [ -z "$SITE_FILE" ] || [ ! -f "$SITE_FILE" ]; then
   exit 1
 fi
 
-sed -i "s/^\([[:space:]]*\)listen [0-9]\+;/\1listen ${NEW_PORT};/" "$SITE_FILE"
-sed -i "s/^\([[:space:]]*\)listen \[::\]:[0-9]\+;/\1listen [::]:${NEW_PORT};/" "$SITE_FILE"
+PHP_SOCK="$(grep -o 'unix:/[^;]*' "$SITE_FILE" 2>/dev/null | head -1 | sed 's/unix://' || true)"
+if [ -z "$PHP_SOCK" ]; then
+  for sock in /run/php/php*-fpm.sock; do
+    [ -S "$sock" ] && PHP_SOCK="$sock" && break
+  done
+fi
+if [ -z "$PHP_SOCK" ] || [ ! -S "$PHP_SOCK" ]; then
+  echo "USK_ERR: php_fpm_socket_not_found"
+  exit 1
+fi
 
+SERVER_NAMES="_"
+DEFAULT_BLOCK=""
 if [ -n "$PANEL_DOMAIN" ]; then
-  sed -i "s/^\([[:space:]]*\)server_name .*;/\1server_name ${PANEL_DOMAIN};/" "$SITE_FILE"
+  SERVER_NAMES="$PANEL_DOMAIN"
+  if [ "$LOCK_DOMAIN" = "1" ]; then
+    DEFAULT_BLOCK="1"
+  fi
+fi
+
+write_panel_server() {
+  local listen_extra="${1:-}"
+  cat <<NGX
+server {
+    listen ${NEW_PORT}${listen_extra};
+    listen [::]:${NEW_PORT}${listen_extra};
+    server_name ${SERVER_NAMES};
+    root ${WEB_ROOT};
+    index home.php install/index.php;
+
+    client_max_body_size 32m;
+    server_tokens off;
+
+    location ^~ /admin/data/ { deny all; return 404; }
+    location ^~ /sql/ { deny all; return 404; }
+    location = /config.php { deny all; return 404; }
+    location ~ /install/\.db-provision\.json$ { deny all; return 404; }
+
+    location / {
+        try_files \$uri \$uri/ /home.php?\$query_string;
+    }
+
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:${PHP_SOCK};
+        fastcgi_hide_header X-Powered-By;
+        fastcgi_read_timeout 600s;
+        fastcgi_send_timeout 600s;
+        fastcgi_param HTTP_X_FORWARDED_PROTO \$http_x_forwarded_proto;
+        fastcgi_param HTTP_CF_VISITOR \$http_cf_visitor;
+    }
+
+    location ~ /\. { deny all; }
+}
+NGX
+}
+
+if [ -n "$DEFAULT_BLOCK" ]; then
+  {
+    cat <<NGX
+server {
+    listen ${NEW_PORT} default_server;
+    listen [::]:${NEW_PORT} default_server;
+    server_name _;
+    return 444;
+}
+
+NGX
+    write_panel_server ""
+  } > "$SITE_FILE"
 else
-  sed -i "s/^\([[:space:]]*\)server_name .*;/\1server_name _;/" "$SITE_FILE"
+  write_panel_server "" > "$SITE_FILE"
 fi
 
 if ! nginx -t >/dev/null 2>&1; then
@@ -51,13 +118,23 @@ if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "Status: a
   ufw allow "${NEW_PORT}/tcp" >/dev/null 2>&1 || true
 fi
 
+SCHEME="http"
+[ "$HTTPS_ENABLED" = "1" ] && SCHEME="https"
+
 if [ -n "$PANEL_DOMAIN" ]; then
   HOST="$PANEL_DOMAIN"
 else
   HOST="$(hostname -I 2>/dev/null | awk '{print $1}')"
   [ -z "$HOST" ] && HOST="127.0.0.1"
 fi
-PUBLIC_URL="http://${HOST}:${NEW_PORT}"
+
+if [ "$HTTPS_ENABLED" = "1" ] && [ -n "$PANEL_DOMAIN" ]; then
+  PUBLIC_URL="${SCHEME}://${HOST}"
+elif [ -n "$PANEL_DOMAIN" ]; then
+  PUBLIC_URL="${SCHEME}://${HOST}:${NEW_PORT}"
+else
+  PUBLIC_URL="${SCHEME}://${HOST}:${NEW_PORT}"
+fi
 
 CONFIG="${WEB_ROOT}/config.php"
 if [ ! -f "$CONFIG" ]; then
@@ -88,15 +165,17 @@ import json, datetime
 print(json.dumps({
   'port': int('$NEW_PORT'),
   'panel_domain': '$PANEL_DOMAIN',
+  'https_enabled': '$HTTPS_ENABLED' == '1',
+  'lock_domain': '$LOCK_DOMAIN' == '1',
   'public_url': '$PUBLIC_URL',
   'nginx_site': '$SITE_FILE',
   'applied_at': datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()
 }, ensure_ascii=False))
 " > "$STATE_FILE" 2>/dev/null || cat > "$STATE_FILE" <<JSON
-{"port":${NEW_PORT},"panel_domain":"${PANEL_DOMAIN}","public_url":"${PUBLIC_URL}","nginx_site":"${SITE_FILE}","applied_at":"$(date -Iseconds)"}
+{"port":${NEW_PORT},"panel_domain":"${PANEL_DOMAIN}","https_enabled":$([ "$HTTPS_ENABLED" = "1" ] && echo true || echo false),"lock_domain":$([ "$LOCK_DOMAIN" = "1" ] && echo true || echo false),"public_url":"${PUBLIC_URL}","nginx_site":"${SITE_FILE}","applied_at":"$(date -Iseconds)"}
 JSON
 chown www-data:www-data "$STATE_FILE" 2>/dev/null || true
 chmod 664 "$STATE_FILE" 2>/dev/null || true
 
-python3 -c "import json; print('USK_JSON:'+json.dumps({'ok':True,'public_url':'$PUBLIC_URL','admin_url':'${PUBLIC_URL}/admin/login.php','port':int('$NEW_PORT'),'panel_domain':'$PANEL_DOMAIN','nginx_site':'$SITE_FILE'}, ensure_ascii=False))" 2>/dev/null \
+python3 -c "import json; print('USK_JSON:'+json.dumps({'ok':True,'public_url':'$PUBLIC_URL','admin_url':'${PUBLIC_URL}/admin/login.php','port':int('$NEW_PORT'),'panel_domain':'$PANEL_DOMAIN','https_enabled':('$HTTPS_ENABLED'=='1'),'lock_domain':('$LOCK_DOMAIN'=='1'),'nginx_site':'$SITE_FILE'}, ensure_ascii=False))" 2>/dev/null \
   || echo "USK_JSON:{\"ok\":true,\"public_url\":\"$PUBLIC_URL\",\"admin_url\":\"${PUBLIC_URL}/admin/login.php\",\"port\":${NEW_PORT},\"panel_domain\":\"$PANEL_DOMAIN\"}"

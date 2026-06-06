@@ -3,6 +3,8 @@
 define('USK_ROOT', __DIR__);
 
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/admin/lib/panel-access.php';
+USK_PanelAccess::enforce_request_host();
 require_once __DIR__ . '/admin/lib/config-download.php';
 
 $code = preg_replace('/[^0-9]/', '', (string) ($_GET['code'] ?? ''));

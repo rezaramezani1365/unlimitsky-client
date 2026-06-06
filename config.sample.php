@@ -7,6 +7,13 @@
 date_default_timezone_set('Asia/Tehran');
 error_reporting(E_ALL ^ E_NOTICE);
 
+if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https') {
+    $_SERVER['HTTPS'] = 'on';
+}
+if (!empty($_SERVER['HTTP_CF_VISITOR']) && stripos($_SERVER['HTTP_CF_VISITOR'], 'https') !== false) {
+    $_SERVER['HTTPS'] = 'on';
+}
+
 $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
 
@@ -69,5 +76,10 @@ if ($connect_error !== '') {
 }
 
 $sql->set_charset('utf8mb4');
+
+if (is_file(__DIR__ . '/admin/lib/panel-access.php')) {
+    require_once __DIR__ . '/admin/lib/panel-access.php';
+    USK_PanelAccess::enforce_request_host();
+}
 
 define('API_KEY', $config['token']);

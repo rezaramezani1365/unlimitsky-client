@@ -21,6 +21,7 @@ class USK_PanelAccess
             'domain_enabled' => false,
             'panel_domain' => '',
             'panel_port' => 8082,
+            'https_enabled' => false,
             'hint' => '',
             'last_applied_url' => '',
             'last_apply_error' => '',
@@ -50,6 +51,7 @@ class USK_PanelAccess
         $cfg['domain_enabled'] = !empty($input['domain_enabled']);
         $cfg['panel_domain'] = self::sanitize_domain((string) ($input['panel_domain'] ?? ''));
         $cfg['panel_port'] = self::sanitize_port($input['panel_port'] ?? $cfg['panel_port']);
+        $cfg['https_enabled'] = !empty($input['https_enabled']);
         $cfg['hint'] = trim((string) ($input['hint'] ?? ''));
         $cfg['updated_at'] = date('c');
         file_put_contents(
@@ -61,6 +63,9 @@ class USK_PanelAccess
 
     public static function sanitize_domain($raw)
     {
+        if (!class_exists('USK_ConnectHost')) {
+            require_once __DIR__ . '/connect-host.php';
+        }
         return USK_ConnectHost::sanitize($raw);
     }
 
@@ -138,6 +143,79 @@ class USK_PanelAccess
         return '';
     }
 
+    public static function is_domain_locked()
+    {
+        $cfg = self::get();
+        if (empty($cfg['domain_enabled'])) {
+            return false;
+        }
+        if (self::sanitize_domain($cfg['panel_domain'] ?? '') === '') {
+            return false;
+        }
+        return !empty($cfg['last_applied_at']);
+    }
+
+    public static function allowed_panel_host()
+    {
+        $cfg = self::get();
+        if (empty($cfg['domain_enabled'])) {
+            return '';
+        }
+        return self::sanitize_domain($cfg['panel_domain'] ?? '');
+    }
+
+    /**
+     * Block IP:port access when panel domain is active (nginx + PHP fallback).
+     */
+    public static function enforce_request_host()
+    {
+        if (PHP_SAPI === 'cli') {
+            return;
+        }
+
+        $uri = (string) ($_SERVER['REQUEST_URI'] ?? '');
+        if (strpos($uri, '/install/') !== false) {
+            return;
+        }
+
+        if (!self::is_domain_locked()) {
+            return;
+        }
+
+        $allowed = self::allowed_panel_host();
+        if ($allowed === '') {
+            return;
+        }
+
+        $host = strtolower((string) ($_SERVER['HTTP_HOST'] ?? ''));
+        $host = preg_replace('#:\d+$#', '', $host);
+
+        if ($host === $allowed) {
+            return;
+        }
+        if ($host === 'www.' . $allowed) {
+            return;
+        }
+
+        self::deny_direct_access();
+    }
+
+    private static function deny_direct_access()
+    {
+        http_response_code(403);
+        header('Content-Type: text/html; charset=utf-8');
+        $domain = self::allowed_panel_host();
+        $cfg = self::get();
+        $scheme = !empty($cfg['https_enabled']) ? 'https' : 'http';
+        $url = self::build_public_url($domain, (int) ($cfg['panel_port'] ?? 8082), !empty($cfg['https_enabled']), true);
+        echo '<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="UTF-8"><title>403</title></head><body style="font-family:tahoma;padding:40px;text-align:center;">';
+        echo '<h2>403 — دسترسی مستقیم با IP غیرفعال است</h2>';
+        echo '<p>فقط از دامنه پنل وارد شوید:</p>';
+        echo '<p><a href="' . htmlspecialchars($url . '/admin/login.php', ENT_QUOTES, 'UTF-8') . '" dir="ltr">' . htmlspecialchars($url, ENT_QUOTES, 'UTF-8') . '</a></p>';
+        echo '</body></html>';
+        exit;
+    }
+
     public static function current_public_url()
     {
         global $config;
@@ -148,7 +226,9 @@ class USK_PanelAccess
         $cfg = self::get();
         return self::build_public_url(
             !empty($cfg['domain_enabled']) ? ($cfg['panel_domain'] ?? '') : '',
-            (int) ($cfg['panel_port'] ?? self::detect_port())
+            (int) ($cfg['panel_port'] ?? self::detect_port()),
+            !empty($cfg['https_enabled']),
+            !empty($cfg['domain_enabled'])
         );
     }
 
@@ -157,14 +237,25 @@ class USK_PanelAccess
         return self::current_public_url() . '/admin/login.php';
     }
 
-    public static function build_public_url($panelDomain, $port)
+    public static function build_public_url($panelDomain, $port, $https = false, $domainMode = false)
     {
         $port = self::sanitize_port($port);
+        $scheme = $https ? 'https' : 'http';
         $host = self::sanitize_domain($panelDomain);
         if ($host === '') {
+            if (!class_exists('USK_ConnectHost')) {
+                require_once __DIR__ . '/connect-host.php';
+            }
             $host = USK_ConnectHost::detect_ip();
+            return $scheme . '://' . $host . ':' . $port;
         }
-        return 'http://' . $host . ':' . $port;
+        if ($https && $domainMode) {
+            return $scheme . '://' . $host;
+        }
+        if ($domainMode) {
+            return $scheme . '://' . $host . ':' . $port;
+        }
+        return $scheme . '://' . $host . ':' . $port;
     }
 
     public static function can_apply_from_web()
@@ -187,15 +278,20 @@ class USK_PanelAccess
             return array('ok' => false, 'error' => 'panel_domain_required');
         }
 
+        $https = !empty($cfg['https_enabled']) ? '1' : '0';
+        $lockDomain = (!empty($cfg['domain_enabled']) && $domain !== '') ? '1' : '0';
+
         $script = self::apply_script();
         if (!is_file($script)) {
             return array('ok' => false, 'error' => 'apply_script_missing');
         }
 
-        $cmd = 'sudo -n bash ' . escapeshellarg($script) . ' '
+        $cmd = 'sudo -n /bin/bash ' . escapeshellarg($script) . ' '
             . escapeshellarg(USK_ROOT) . ' '
             . escapeshellarg((string) $port) . ' '
-            . escapeshellarg($domain) . ' 2>&1';
+            . escapeshellarg($domain) . ' '
+            . escapeshellarg($https) . ' '
+            . escapeshellarg($lockDomain) . ' 2>&1';
         $out = shell_exec($cmd);
         if ($out === null || trim($out) === '') {
             return array('ok' => false, 'error' => 'apply_failed_empty', 'log' => '');
@@ -262,6 +358,7 @@ class USK_PanelAccess
             'config_update_failed' => 'settings_panel_access_err_config',
             'config_domain_key_missing' => 'settings_panel_access_err_config',
             'config_missing' => 'settings_panel_access_err_config',
+            'php_fpm_socket_not_found' => 'settings_panel_access_err_nginx',
             'sudo_denied' => 'err_sudo_denied',
             'apply_failed_empty' => 'settings_panel_access_err_apply',
             'invalid_apply_output' => 'err_sudo_denied',

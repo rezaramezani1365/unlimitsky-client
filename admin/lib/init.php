@@ -28,6 +28,7 @@ if (session_status() === PHP_SESSION_NONE) {
 
 USK_I18n::boot();
 USK_License::boot();
+USK_PanelAccess::enforce_request_host();
 
 function usk_admin_base()
 {
