@@ -86,6 +86,19 @@ unlimitsky **پروتکل‌های VPN را مستقیم روی VPS اوبونت
 4. **پنل → پروتکل‌ها** → نصب مجدد پروتکل‌هایی که داشتی (v1 خودکار VPN را روی سیستم‌عامل restore نمی‌کند)
 5. در صورت نیاز: **کلید API** جدید برای ووکامرس
 
+**به‌روزرسانی فایل‌های پنل** (بدون دست زدن به دیتابیس):
+
+```bash
+# اگر مخزن monorepo را clone کرده‌ای (پوشه client داخل repo):
+sudo bash /opt/unlimitsky/client/scripts/update-panel.sh /var/www/unlimitsky /opt/unlimitsky/client
+
+# یا دوباره install (فقط فایل‌ها):
+cd /opt/unlimitsky/client && sudo bash install-ubuntu.sh --auto --port 8082
+```
+
+بعد از به‌روزرسانی: **تنظیمات** (پایین صفحه) یا منوی **بکاپ و مهاجرت**.  
+تست: `http://IP:8082/admin/check.php` — باید همه فایل‌های backup «OK» باشند.
+
 ### اشتراک Pro بعد از مهاجرت
 
 لایسنس Pro به **IP VPS** و **شناسه یکتای همان سرور** (`instance_id`) وابسته است. با عوض شدن IP یا VPS:

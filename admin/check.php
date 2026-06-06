@@ -1,27 +1,46 @@
 <?php
 /**
- * تست سلامت پنل — بعد از رفع مشکل این فایل را حذف کنید
+ * Panel health check — remove this file after debugging
  */
 error_reporting(E_ALL);
 ini_set('display_errors', '1');
 header('Content-Type: text/html; charset=utf-8');
 
+$adminDir = __DIR__;
+$root = dirname($adminDir);
+
 echo '<pre style="direction:ltr;font-family:monospace;padding:20px;">';
 echo "PHP: " . PHP_VERSION . "\n";
-echo "USK_ROOT test: " . dirname(__DIR__) . "\n";
-echo "config exists: " . (file_exists(dirname(__DIR__) . '/config.php') ? 'YES' : 'NO') . "\n";
+echo "Panel root: $root\n";
+echo "config.php: " . (file_exists("$root/config.php") ? 'YES' : 'NO') . "\n\n";
+
+$files = array(
+    'backup module' => "$adminDir/lib/backup.php",
+    'backup action' => "$adminDir/backup-action.php",
+    'backup page'   => "$adminDir/pages/backup.php",
+    'backup UI'     => "$adminDir/includes/backup-panel.php",
+    'migration'     => "$adminDir/lib/migration.php",
+);
+
+foreach ($files as $label => $path) {
+    echo str_pad($label . ':', 16) . (is_file($path) ? 'OK' : 'MISSING') . "\n";
+}
+
+echo "\nZipArchive: " . (class_exists('ZipArchive') ? 'YES' : 'NO (apt install php-zip)') . "\n";
 
 try {
-    require_once __DIR__ . '/lib/init.php';
+    require_once "$adminDir/lib/init.php";
     echo "init.php: OK\n";
-    echo "DB: OK\n";
-    require_once __DIR__ . '/lib/auth.php';
-    USK_Admin_Auth::boot();
-    echo "auth boot: OK\n";
-    echo "data writable: " . (is_writable(__DIR__ . '/data') || is_writable(__DIR__) ? 'YES' : 'NO') . "\n";
-    echo "\nAll OK — login.php should work.\n";
+    $nav = usk_admin_nav();
+    echo "nav backup item: " . (isset($nav['backup']) ? 'YES' : 'NO') . "\n";
+    echo "panel version: " . usk_panel_version() . "\n";
+    $base = usk_admin_base();
+    echo "\nURLs:\n";
+    echo "  settings+backup: {$base}/index.php?page=settings#usk-backup-section\n";
+    echo "  backup page:     {$base}/index.php?page=backup\n";
+    echo "\nIf any file shows MISSING, run update-panel.sh on the VPS.\n";
 } catch (Throwable $e) {
-    echo "ERROR: " . $e->getMessage() . "\n";
+    echo "\nERROR: " . $e->getMessage() . "\n";
     echo $e->getFile() . ':' . $e->getLine() . "\n";
 }
 echo '</pre>';

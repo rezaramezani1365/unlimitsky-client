@@ -217,10 +217,12 @@ $panels = $sql->query("SELECT `code`,`name` FROM `panels`");
     </div>
 </div>
 
-<div class="usk-card mt-3">
+<div class="usk-card mt-3" id="usk-backup-section">
     <div class="usk-card-header"><i class="fa-solid fa-database"></i> <?= __('nav_backup') ?></div>
     <div class="p-3">
-        <p class="text-muted small mb-3"><?= __('backup_v1_intro') ?></p>
-        <a class="btn btn-outline-usk" href="<?= usk_admin_url('backup') ?>"><i class="fa-solid fa-database"></i> <?= __('nav_backup') ?></a>
+        <?php
+        $backupFormSuffix = '-settings';
+        require __DIR__ . '/../includes/backup-panel.php';
+        ?>
     </div>
 </div>
