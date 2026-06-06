@@ -9,7 +9,7 @@ $gitRev = USK_Panel_Update::gitHeadShort();
 $legacy = USK_Panel_Update::isLegacyPanel();
 $features = USK_Panel_Update::featureChecks();
 $canUpdate = USK_Panel_Update::canRunFromWeb();
-$outdated = $legacy || ($gitRev && $localRev && strpos((string) $localRev, (string) $gitRev) !== 0);
+$deployOutdated = USK_Panel_Update::isDeployOutdated();
 ?>
 <div class="usk-page-header">
     <h1><i class="fa-solid fa-arrows-rotate"></i> <?= __('nav_updates') ?></h1>
@@ -42,7 +42,9 @@ $outdated = $legacy || ($gitRev && $localRev && strpos((string) $localRev, (stri
                 <td><?= usk_esc(usk_panel_version()) ?></td>
             </tr>
         </table>
-        <?php if ($outdated) : ?>
+        <?php if ($legacy) : ?>
+        <p class="text-warning small mt-3 mb-0"><i class="fa-solid fa-circle-exclamation"></i> <?= __('update_features_missing') ?></p>
+        <?php elseif ($deployOutdated) : ?>
         <p class="text-warning small mt-3 mb-0"><i class="fa-solid fa-circle-exclamation"></i> <?= __('update_outdated') ?></p>
         <?php else : ?>
         <p class="text-success small mt-3 mb-0"><i class="fa-solid fa-circle-check"></i> <?= __('update_uptodate') ?></p>

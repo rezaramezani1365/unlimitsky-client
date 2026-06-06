@@ -41,21 +41,39 @@ class USK_Panel_Update
         return usk_github_repo_url();
     }
 
+    /** True when expected v3 panel features are missing (not orphan files on disk). */
     public static function isLegacyPanel()
     {
-        return is_file(USK_ROOT . '/admin/pages/coupons.php')
-            || !is_file(USK_ROOT . '/admin/lib/backup.php')
-            || !is_file(USK_ROOT . '/admin/pages/updates.php');
+        foreach (self::featureChecks() as $ok) {
+            if (!$ok) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static function featureChecks()
     {
+        $nav = function_exists('usk_admin_nav') ? usk_admin_nav() : array();
+        $removed = function_exists('usk_admin_removed_pages') ? usk_admin_removed_pages() : array();
+
         return array(
-            'backup module' => is_file(USK_ROOT . '/admin/lib/backup.php'),
-            'backup page'   => is_file(USK_ROOT . '/admin/pages/backup.php'),
-            'updates page'  => is_file(USK_ROOT . '/admin/pages/updates.php'),
-            'coupons removed' => !is_file(USK_ROOT . '/admin/pages/coupons.php'),
+            __('update_feat_backup') => is_file(USK_ROOT . '/admin/lib/backup.php'),
+            __('update_feat_backup_page') => is_file(USK_ROOT . '/admin/pages/backup.php'),
+            __('update_feat_updates') => is_file(USK_ROOT . '/admin/pages/updates.php'),
+            __('update_feat_coupons_nav') => !isset($nav['coupons']) && in_array('coupons', $removed, true),
         );
+    }
+
+    /** Git deploy stamp differs from /opt/unlimitsky HEAD (12-char prefix compare). */
+    public static function isDeployOutdated()
+    {
+        $localRev = self::localDeployRev();
+        $gitRev = self::gitHeadShort();
+        if (!$localRev || !$gitRev) {
+            return false;
+        }
+        return substr($localRev, 0, 12) !== substr($gitRev, 0, 12);
     }
 
     public static function updateScriptPath()
