@@ -10,6 +10,28 @@ $view = (int) ($_GET['view'] ?? 0);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
+
+    if ($action === 'sync_usage') {
+        @set_time_limit(300);
+        @ini_set('max_execution_time', '300');
+        $report = USK_ProtocolLimits::sync_usage_and_enforce();
+        $updated = (int) ($report['usage_updated'] ?? 0);
+        $checked = (int) ($report['checked'] ?? 0);
+        $disabled = (int) ($report['disabled'] ?? 0);
+        usk_flash(sprintf(__('services_sync_ok'), $updated, $checked, $disabled));
+        $returnFilter = preg_replace('/[^a-z_]/', '', (string) ($_POST['filter'] ?? 'all'));
+        $params = array();
+        if ($returnFilter !== '' && $returnFilter !== 'all') {
+            $params['filter'] = $returnFilter;
+        }
+        $returnView = (int) ($_POST['view'] ?? 0);
+        if ($returnView > 0) {
+            $params['view'] = $returnView;
+        }
+        header('Location: ' . usk_admin_url('services', $params));
+        exit;
+    }
+
     $id = (int) ($_POST['id'] ?? 0);
     $order = $id ? $sql->query("SELECT * FROM `orders` WHERE `row`=$id")->fetch_assoc() : null;
     $native = $order ? USK_ProtocolLimits::find_client_for_order($order) : null;
@@ -72,6 +94,7 @@ if ($filter === 'active') {
 $list = $sql->query("SELECT * FROM `orders` WHERE $where ORDER BY `row` DESC LIMIT 200");
 $list_count = $list ? $list->num_rows : 0;
 $search_base = usk_admin_base() . '/services-search.php';
+$lastSync = USK_ProtocolLimits::get_last_run();
 ?>
 <?php if (!empty($s)) :
     $badge = usk_service_status_badge($s['status']);
@@ -106,6 +129,9 @@ $search_base = usk_admin_base() . '/services-search.php';
                 / <?= usk_esc($s['volume']) ?> GB
                 (<?= usk_esc(__('portal_left')) ?>: <?= usk_esc((string) ($usageStats['remaining_gb'] ?? 0)) ?> GB)
             </p>
+            <?php if (!empty($client['usage_synced_at'])) : ?>
+                <p class="text-muted small mb-0"><?= sprintf(__('services_usage_synced_at'), usk_esc(USK_ProtocolLimits::format_last_run_at($client['usage_synced_at']))) ?></p>
+            <?php endif; ?>
         <?php endif; ?>
         <?php if (!empty($client['max_connections'])) : ?>
             <p><strong><?= __('portal_max_connections') ?>:</strong> <?= (int) $client['max_connections'] ?> <?= __('plan_connections_unit') ?></p>
@@ -186,7 +212,14 @@ $search_base = usk_admin_base() . '/services-search.php';
         <p class="mt-3 text-muted small"><?= __('service_config_missing') ?></p>
     <?php endif; ?>
 
-    <div class="mt-4 d-flex gap-2 flex-wrap">
+    <div class="mt-4 d-flex gap-2 flex-wrap align-items-center">
+        <form method="post" class="d-inline usk-sync-form" onsubmit="return uskSyncUsageSubmit(this)">
+            <input type="hidden" name="action" value="sync_usage">
+            <input type="hidden" name="view" value="<?= (int) $s['row'] ?>">
+            <button type="submit" class="btn btn-outline-usk usk-sync-btn">
+                <i class="fa-solid fa-arrows-rotate"></i> <?= __('services_sync_btn') ?>
+            </button>
+        </form>
         <a class="btn btn-outline" href="<?= usk_admin_url('services') ?>"><?= __('back') ?></a>
         <form method="post" onsubmit="return confirm('<?= usk_esc(__('service_delete_record_confirm')) ?>')">
             <input type="hidden" name="action" value="delete_record">
@@ -198,6 +231,32 @@ $search_base = usk_admin_base() . '/services-search.php';
 <?php else : ?>
 <div class="usk-card">
     <div class="alert alert-usk-info mb-3"><?= __('services_intro') ?></div>
+    <div class="usk-card mb-3 border border-secondary">
+        <div class="p-3 d-flex flex-wrap gap-3 align-items-center justify-content-between">
+            <div>
+                <strong><i class="fa-solid fa-gauge-high"></i> <?= __('services_sync_title') ?></strong>
+                <p class="text-muted small mb-0 mt-1"><?= __('services_sync_hint') ?></p>
+                <?php if (is_array($lastSync) && !empty($lastSync['ran_at'])) : ?>
+                    <p class="text-muted small mb-0 mt-1"><?= sprintf(
+                        __('services_sync_last'),
+                        usk_esc(USK_ProtocolLimits::format_last_run_at($lastSync['ran_at'])),
+                        (int) ($lastSync['usage_updated'] ?? 0),
+                        (int) ($lastSync['disabled'] ?? 0),
+                        (int) ($lastSync['checked'] ?? 0)
+                    ) ?></p>
+                <?php else : ?>
+                    <p class="text-muted small mb-0 mt-1"><?= __('services_sync_never') ?></p>
+                <?php endif; ?>
+            </div>
+            <form method="post" class="mb-0 usk-sync-form" onsubmit="return uskSyncUsageSubmit(this)">
+                <input type="hidden" name="action" value="sync_usage">
+                <input type="hidden" name="filter" value="<?= usk_esc($filter) ?>">
+                <button type="submit" class="btn btn-usk-primary usk-sync-btn">
+                    <i class="fa-solid fa-arrows-rotate"></i> <?= __('services_sync_btn') ?>
+                </button>
+            </form>
+        </div>
+    </div>
     <?php if ($count_ended > 0) : ?>
         <div class="alert alert-warning mb-3">
             <?= sprintf(__('services_ended_count'), $count_ended) ?>
@@ -408,3 +467,16 @@ $search_base = usk_admin_base() . '/services-search.php';
 })();
 </script>
 <?php endif; ?>
+<script>
+function uskSyncUsageSubmit(form) {
+    var btn = form.querySelector('.usk-sync-btn');
+    if (btn && btn.disabled) {
+        return false;
+    }
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ' + <?= json_encode(__('services_sync_running'), JSON_UNESCAPED_UNICODE) ?>;
+    }
+    return true;
+}
+</script>
