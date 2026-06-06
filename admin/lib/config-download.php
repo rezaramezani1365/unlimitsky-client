@@ -10,10 +10,19 @@ function usk_public_base_url()
     }
     global $config;
     $base = rtrim($config['domain'] ?? '', '/');
+    if ($base !== '' && class_exists('USK_PanelAccess')) {
+        return rtrim(USK_PanelAccess::normalize_public_url($base), '/');
+    }
     if ($base !== '') {
         return $base;
     }
-    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $scheme = 'http';
+    if (class_exists('USK_PanelAccess')) {
+        $cfg = USK_PanelAccess::get();
+        $scheme = !empty($cfg['https_enabled']) ? 'https' : 'http';
+    } elseif (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+        $scheme = 'https';
+    }
     return $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
 }
 

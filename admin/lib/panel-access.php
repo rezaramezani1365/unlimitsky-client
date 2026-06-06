@@ -236,11 +236,14 @@ class USK_PanelAccess
         if ($stored !== '' && strpos($stored, '[*') !== 0) {
             $parsed = parse_url($stored);
             $host = is_array($parsed) ? (string) ($parsed['host'] ?? '') : '';
-            if ($host !== '' && self::uses_public_http_mirror()) {
-                return self::build_public_url($host, $port, !empty($cfg['https_enabled']), true);
-            }
-            if ($host !== '' && !in_array($port, array(80, 443), true) && empty($parsed['port'])) {
-                return self::build_public_url($host, $port, !empty($cfg['https_enabled']), true);
+            if ($host !== '') {
+                $urlPort = !empty($parsed['port']) ? (int) $parsed['port'] : $port;
+                return self::build_public_url(
+                    $host,
+                    $urlPort,
+                    !empty($cfg['https_enabled']),
+                    true
+                );
             }
             return rtrim($stored, '/');
         }
@@ -251,6 +254,34 @@ class USK_PanelAccess
             !empty($cfg['https_enabled']),
             $panelDomain !== ''
         );
+    }
+
+    /** Rebuild path/query of a URL using current panel-access scheme and host. */
+    public static function normalize_public_url($url)
+    {
+        $url = trim((string) $url);
+        if ($url === '') {
+            return '';
+        }
+
+        $parsed = parse_url($url);
+        if (!is_array($parsed) || empty($parsed['host'])) {
+            return $url;
+        }
+
+        $base = rtrim(self::current_public_url(), '/');
+        if ($base === '') {
+            return $url;
+        }
+
+        $path = (string) ($parsed['path'] ?? '');
+        if ($path === '') {
+            $path = '/';
+        }
+        $query = isset($parsed['query']) && $parsed['query'] !== '' ? ('?' . $parsed['query']) : '';
+        $fragment = isset($parsed['fragment']) && $parsed['fragment'] !== '' ? ('#' . $parsed['fragment']) : '';
+
+        return $base . $path . $query . $fragment;
     }
 
     public static function admin_login_url()

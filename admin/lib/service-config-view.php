@@ -26,6 +26,9 @@ function usk_service_download_url($order, $client)
     }
     $link = trim((string) ($order['link'] ?? ''));
     if ($link !== '' && strpos($link, 'download-config.php') !== false) {
+        if (class_exists('USK_PanelAccess')) {
+            return USK_PanelAccess::normalize_public_url($link);
+        }
         return $link;
     }
     $token = usk_client_meta_string($client, 'download_token');
@@ -123,13 +126,13 @@ function usk_service_portal_url($order, $client)
     if (!$client || !is_array($order)) {
         return '';
     }
-    $link = trim((string) ($order['link'] ?? ''));
-    if ($link !== '' && strpos($link, 'service.php') !== false) {
-        return $link;
-    }
     $token = usk_client_meta_string($client, 'download_token');
     $code = (string) ($order['code'] ?? '');
     if ($token === '' || $code === '') {
+        $link = trim((string) ($order['link'] ?? ''));
+        if ($link !== '' && strpos($link, 'service.php') !== false && class_exists('USK_PanelAccess')) {
+            return USK_PanelAccess::normalize_public_url($link);
+        }
         return '';
     }
     require_once __DIR__ . '/customer-portal.php';
