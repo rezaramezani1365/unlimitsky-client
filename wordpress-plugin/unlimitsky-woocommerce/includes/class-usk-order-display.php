@@ -4,19 +4,40 @@ defined('ABSPATH') || exit;
 
 class USK_Order_Display
 {
+    public static function resolve_portal_url(array $service): string
+    {
+        $portal = trim((string) ($service['portal_url'] ?? ''));
+        if ($portal !== '' && filter_var($portal, FILTER_VALIDATE_URL)) {
+            return esc_url_raw($portal);
+        }
+
+        $sub = trim((string) ($service['subscription_url'] ?? ''));
+        if ($sub !== '' && strpos($sub, 'service.php') !== false && filter_var($sub, FILTER_VALIDATE_URL)) {
+            return esc_url_raw($sub);
+        }
+
+        return '';
+    }
+
     public static function render_service_block(array $service, bool $plain_text = false): void
     {
         $protocol = $service['protocol'] ?? '';
         $expires  = $service['expires_at'] ?? '';
         $qr       = $service['qr_png'] ?? '';
+        $portalUrl = self::resolve_portal_url($service);
 
         if ($plain_text) {
-            echo self::text_block($service);
+            echo self::text_block($service, $portalUrl);
             return;
         }
 
         echo '<div class="usk-vpn-service" style="margin:16px 0;padding:16px;border:1px solid #ddd;border-radius:8px;">';
         echo '<h3 style="margin:0 0 12px;">' . esc_html($service['panel_name']) . '</h3>';
+
+        if ($portalUrl !== '') {
+            self::render_portal_section($portalUrl, false);
+        }
+
         echo '<ul style="margin:0 0 12px;padding-left:18px;">';
         echo '<li><strong>' . esc_html__('Volume', 'unlimitsky-wc') . ':</strong> ' . esc_html($service['volume_gb']) . ' GB</li>';
         echo '<li><strong>' . esc_html__('Duration', 'unlimitsky-wc') . ':</strong> ' . esc_html($service['duration_days']) . ' ' . esc_html__('days', 'unlimitsky-wc') . '</li>';
@@ -37,7 +58,11 @@ class USK_Order_Display
         }
         echo '</ul>';
 
-        if ($qr !== '') {
+        if ($portalUrl !== '') {
+            echo '<p style="font-size:12px;color:#666;margin:0 0 12px;">' . esc_html(usk_wc__('Use your service page for config, QR code, usage stats, and app download links.')) . '</p>';
+        }
+
+        if ($qr !== '' && $portalUrl === '') {
             if ($protocol === 'amnezia') {
                 echo '<p><strong>' . esc_html__('Amnezia VPN QR code', 'unlimitsky-wc') . ':</strong></p>';
                 echo '<p style="text-align:center;"><img src="data:image/png;base64,' . esc_attr($qr) . '" alt="Amnezia QR" style="max-width:220px;height:auto;border:1px solid #eee;padding:8px;background:#fff;" /></p>';
@@ -49,7 +74,7 @@ class USK_Order_Display
             }
         }
         $vpnUri = trim((string) ($service['vpn_uri'] ?? ''));
-        if ($protocol === 'amnezia' && $vpnUri !== '') {
+        if ($protocol === 'amnezia' && $vpnUri !== '' && $portalUrl === '') {
             echo '<p><strong>' . esc_html__('vpn:// key (Amnezia VPN)', 'unlimitsky-wc') . ':</strong></p>';
             echo '<code style="display:block;word-break:break-all;padding:10px;background:#f7f7f7;">' . esc_html($vpnUri) . '</code>';
         }
@@ -68,7 +93,7 @@ class USK_Order_Display
             }
         }
 
-        if ($downloadUrl !== '') {
+        if ($portalUrl === '' && $downloadUrl !== '') {
             if ($protocol === 'amnezia') {
                 $fname = $service['conf_filename'] ?? (($service['service_username'] ?? 'client') . '.conf');
                 echo '<p><strong>' . esc_html__('AmneziaWG profile (.conf)', 'unlimitsky-wc') . ':</strong></p>';
@@ -83,7 +108,7 @@ class USK_Order_Display
                 echo esc_html__('Download .ovpn file', 'unlimitsky-wc');
                 echo '</a></p>';
             }
-        } elseif ($protocol !== 'amnezia' || $vpnUri === '') {
+        } elseif ($portalUrl === '' && ($protocol !== 'amnezia' || $vpnUri === '')) {
             echo '<p><strong>' . esc_html__('Config / subscription', 'unlimitsky-wc') . ':</strong></p>';
             self::render_config($service['subscription_url'] ?? '');
 
@@ -93,6 +118,27 @@ class USK_Order_Display
             }
         }
 
+        echo '</div>';
+    }
+
+    public static function render_portal_section(string $portalUrl, bool $plain_text = false): void
+    {
+        if ($portalUrl === '') {
+            return;
+        }
+
+        if ($plain_text) {
+            echo usk_wc__('Your VPN service page') . ': ' . $portalUrl . "\n";
+            echo usk_wc__('Open this page to view your config, QR code, usage stats, and app download links.') . "\n\n";
+            return;
+        }
+
+        echo '<div class="usk-portal-link" style="margin:0 0 16px;padding:14px;background:#f0f6ff;border:1px solid #c9daf8;border-radius:8px;">';
+        echo '<p style="margin:0 0 10px;"><strong>' . esc_html(usk_wc__('Your VPN service page')) . '</strong></p>';
+        echo '<p style="margin:0 0 10px;"><a class="button" href="' . esc_url($portalUrl) . '" style="background:#2271b1;color:#fff;padding:10px 18px;text-decoration:none;border-radius:4px;display:inline-block;">';
+        echo esc_html(usk_wc__('Open service page'));
+        echo '</a></p>';
+        echo '<p style="margin:0;font-size:12px;word-break:break-all;"><a href="' . esc_url($portalUrl) . '">' . esc_html($portalUrl) . '</a></p>';
         echo '</div>';
     }
 
@@ -109,10 +155,14 @@ class USK_Order_Display
         echo '<pre style="white-space:pre-wrap;font-size:12px;background:#f7f7f7;padding:12px;border-radius:6px;overflow:auto;max-height:320px;">' . esc_html($content) . '</pre>';
     }
 
-    private static function text_block(array $service): string
+    private static function text_block(array $service, string $portalUrl = ''): string
     {
         $lines = [];
         $lines[] = $service['panel_name'];
+        if ($portalUrl !== '') {
+            $lines[] = usk_wc__('Your VPN service page') . ': ' . $portalUrl;
+            $lines[] = usk_wc__('Open this page to view your config, QR code, usage stats, and app download links.');
+        }
         $lines[] = __('Volume', 'unlimitsky-wc') . ': ' . $service['volume_gb'] . ' GB';
         $lines[] = __('Duration', 'unlimitsky-wc') . ': ' . $service['duration_days'] . ' ' . __('days', 'unlimitsky-wc');
         if (!empty($service['protocol'])) {
@@ -125,11 +175,13 @@ class USK_Order_Display
         if (!empty($service['expires_at'])) {
             $lines[] = __('Expires', 'unlimitsky-wc') . ': ' . self::format_expires($service['expires_at']);
         }
-        $dl = $service['download_url'] ?? ($service['subscription_url'] ?? '');
-        if (!empty($service['protocol']) && $service['protocol'] === 'openvpn' && $dl !== '') {
-            $lines[] = __('Download .ovpn file', 'unlimitsky-wc') . ': ' . $dl;
-        } else {
-            $lines[] = __('Config', 'unlimitsky-wc') . ': ' . ($service['subscription_url'] ?? '');
+        if ($portalUrl === '') {
+            $dl = $service['download_url'] ?? ($service['subscription_url'] ?? '');
+            if (!empty($service['protocol']) && $service['protocol'] === 'openvpn' && $dl !== '') {
+                $lines[] = __('Download .ovpn file', 'unlimitsky-wc') . ': ' . $dl;
+            } else {
+                $lines[] = __('Config', 'unlimitsky-wc') . ': ' . ($service['subscription_url'] ?? '');
+            }
         }
         return implode("\n", $lines) . "\n\n";
     }

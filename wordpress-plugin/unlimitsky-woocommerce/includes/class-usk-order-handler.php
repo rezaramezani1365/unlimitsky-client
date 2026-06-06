@@ -104,6 +104,7 @@ class USK_Order_Handler
                 'qr_png'                    => $result['qr_png'] ?? '',
                 'vpn_uri'                   => $result['vpn_uri'] ?? '',
                 'download_url'              => $result['download_url'] ?? '',
+                'portal_url'                => $result['portal_url'] ?? '',
                 'conf_filename'             => $result['conf_filename'] ?? '',
                 'expires_at'                => $result['expires_at'] ?? null,
             ]);
@@ -112,6 +113,9 @@ class USK_Order_Handler
             wc_update_order_item_meta($item_id, '_usk_subscription_url', $result['subscription_url']);
             wc_update_order_item_meta($item_id, '_usk_config_links', $result['config_links'] ?? '');
             wc_update_order_item_meta($item_id, '_usk_service_code', $code);
+            if (!empty($result['portal_url'])) {
+                wc_update_order_item_meta($item_id, '_usk_portal_url', esc_url_raw($result['portal_url']));
+            }
             if (!empty($result['qr_png'])) {
                 wc_update_order_item_meta($item_id, '_usk_qr_png', $result['qr_png']);
             }

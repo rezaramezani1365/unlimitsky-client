@@ -115,6 +115,9 @@ class USK_Activator
         if (!in_array('conf_filename', $cols, true)) {
             $wpdb->query("ALTER TABLE {$table} ADD conf_filename varchar(120) DEFAULT NULL");
         }
+        if (!in_array('portal_url', $cols, true)) {
+            $wpdb->query("ALTER TABLE {$table} ADD portal_url text DEFAULT NULL");
+        }
     }
 
     public static function deactivate(): void

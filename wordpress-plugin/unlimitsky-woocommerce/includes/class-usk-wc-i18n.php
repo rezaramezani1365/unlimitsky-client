@@ -65,6 +65,10 @@ class USK_WC_I18n
             'Volume:' => 'حجم:',
             'Duration:' => 'مدت:',
             'days label' => 'روز',
+            'Your VPN service page' => 'صفحه سرویس VPN شما',
+            'Open service page' => 'باز کردن صفحه سرویس',
+            'Open this page to view your config, QR code, usage stats, and app download links.' => 'از این صفحه کانفیگ، QR، آمار مصرف و لینک اپ‌ها را ببینید.',
+            'Use your service page for config, QR code, usage stats, and app download links.' => 'برای کانفیگ، QR، آمار مصرف و دانلود اپ از صفحه سرویس استفاده کنید.',
         ];
     }
 }
