@@ -13,8 +13,35 @@ class USK_ProtocolLimits
         if (!file_exists($file)) {
             return array();
         }
-        $data = json_decode(file_get_contents($file), true);
-        return is_array($data) ? $data : array();
+        $data = json_decode((string) file_get_contents($file), true);
+        if (!is_array($data)) {
+            return array();
+        }
+        return self::normalize_clients($data);
+    }
+
+    /** Accept legacy list-shaped JSON registries. */
+    private static function normalize_clients(array $data)
+    {
+        if ($data === array()) {
+            return array();
+        }
+        $keys = array_keys($data);
+        if ($keys !== range(0, count($data) - 1)) {
+            return $data;
+        }
+        $out = array();
+        foreach ($data as $rec) {
+            if (!is_array($rec)) {
+                continue;
+            }
+            $username = trim((string) ($rec['username'] ?? ''));
+            if ($username === '') {
+                continue;
+            }
+            $out[$username] = $rec;
+        }
+        return $out;
     }
 
     public static function save_protocol_clients($protocol, array $clients)
@@ -72,12 +99,71 @@ class USK_ProtocolLimits
         return $report;
     }
 
-    /** Admin button — same as enforce_all + persist last-run report. */
+    /** Admin button — prefer CLI worker (no PHP-FPM timeout); fallback to in-process. */
     public static function sync_usage_and_enforce()
     {
+        $report = self::run_limits_via_cli();
+        if (is_array($report)) {
+            return $report;
+        }
+
         $report = self::enforce_all();
         self::save_last_run($report);
         return $report;
+    }
+
+    /**
+     * @return array<string,mixed>|null
+     */
+    private static function run_limits_via_cli()
+    {
+        $script = USK_ROOT . '/cron/native-limits.php';
+        if (!is_file($script)) {
+            return null;
+        }
+
+        $php = self::php_cli_bin();
+        $cmd = 'timeout 240 ' . escapeshellarg($php) . ' ' . escapeshellarg($script) . ' 2>&1';
+        $raw = @shell_exec($cmd);
+        if ($raw === null || trim($raw) === '') {
+            return null;
+        }
+
+        $raw = trim($raw);
+        $report = json_decode($raw, true);
+        if (!is_array($report) && preg_match('/(\{.*\})/s', $raw, $m)) {
+            $report = json_decode($m[1], true);
+        }
+        if (!is_array($report)) {
+            return null;
+        }
+        if (!empty($report['error'])) {
+            return null;
+        }
+
+        if (!isset($report['usage_updated'])) {
+            $report['usage_updated'] = 0;
+        }
+
+        return $report;
+    }
+
+    private static function php_cli_bin()
+    {
+        if (defined('PHP_BINARY') && PHP_BINARY !== '' && stripos(PHP_BINARY, 'fpm') === false) {
+            return PHP_BINARY;
+        }
+        $which = trim((string) @shell_exec('command -v php 2>/dev/null'));
+        return $which !== '' ? $which : 'php';
+    }
+
+    private static function sudo_script_cmd($script, array $args = array())
+    {
+        $parts = array('sudo', '-n', '/bin/bash', escapeshellarg($script));
+        foreach ($args as $arg) {
+            $parts[] = escapeshellarg((string) $arg);
+        }
+        return implode(' ', $parts) . ' 2>&1';
     }
 
     public static function format_last_run_at($iso)
@@ -209,15 +295,15 @@ class USK_ProtocolLimits
             return;
         }
 
-        $cmd = 'sudo bash ' . escapeshellarg($script) . ' ' . escapeshellarg($username);
+        $cmd = self::sudo_script_cmd($script, array($username));
         if ($protocol === 'wireguard') {
-            $cmd .= ' ' . escapeshellarg($m['public_key'] ?? '');
+            $cmd = self::sudo_script_cmd($script, array($username, (string) ($m['public_key'] ?? '')));
         } elseif ($protocol === 'amnezia') {
-            $cmd .= ' ' . escapeshellarg($m['public_key'] ?? '');
+            $cmd = self::sudo_script_cmd($script, array($username, (string) ($m['public_key'] ?? '')));
         } elseif ($protocol === 'xray') {
-            $cmd .= ' ' . escapeshellarg($m['uuid'] ?? '');
+            $cmd = self::sudo_script_cmd($script, array($username, (string) ($m['uuid'] ?? '')));
         }
-        shell_exec($cmd . ' 2>&1');
+        @shell_exec($cmd);
     }
 
     private static function run_enable_script($protocol, $username, array $rec)
@@ -228,20 +314,17 @@ class USK_ProtocolLimits
             return null;
         }
 
-        $cmd = 'sudo bash ' . escapeshellarg($script) . ' ' . escapeshellarg($username);
-        if ($protocol === 'wireguard') {
-            $cmd .= ' ' . escapeshellarg($m['public_key'] ?? '') . ' ' . escapeshellarg($m['client_ip'] ?? '');
-        } elseif ($protocol === 'amnezia') {
-            $cmd .= ' ' . escapeshellarg($m['public_key'] ?? '') . ' ' . escapeshellarg($m['client_ip'] ?? '');
+        $args = array($username);
+        if ($protocol === 'wireguard' || $protocol === 'amnezia') {
+            $args[] = (string) ($m['public_key'] ?? '');
+            $args[] = (string) ($m['client_ip'] ?? '');
         } elseif ($protocol === 'xray') {
-            $cmd .= ' ' . escapeshellarg($m['uuid'] ?? '');
-        } elseif ($protocol === 'l2tp') {
-            $cmd .= ' ' . escapeshellarg($m['password'] ?? '');
-        } elseif ($protocol === 'cisco') {
-            $cmd .= ' ' . escapeshellarg($m['password'] ?? '');
+            $args[] = (string) ($m['uuid'] ?? '');
+        } elseif ($protocol === 'l2tp' || $protocol === 'cisco') {
+            $args[] = (string) ($m['password'] ?? '');
         }
 
-        $out = shell_exec($cmd . ' 2>&1');
+        $out = @shell_exec(self::sudo_script_cmd($script, $args));
         if (($protocol === 'openvpn' || $protocol === 'cisco') && $out && preg_match('/USK_JSON:(.+)$/s', $out, $match)) {
             $data = json_decode(trim($match[1]), true);
             if (is_array($data)) {
@@ -291,11 +374,11 @@ class USK_ProtocolLimits
                 $clients = self::load_protocol_clients($protocol);
                 $uuid = $clients[$username]['meta']['uuid'] ?? ($clients[$username]['uuid'] ?? '');
             }
-            $cmd = 'sudo bash ' . escapeshellarg($script) . ' ' . escapeshellarg($username);
+            $args = array($username);
             if ($protocol === 'xray' && $uuid !== '') {
-                $cmd .= ' ' . escapeshellarg($uuid);
+                $args[] = $uuid;
             }
-            shell_exec($cmd . ' 2>&1');
+            @shell_exec(self::sudo_script_cmd($script, $args));
         }
 
         $clients = self::load_protocol_clients($protocol);

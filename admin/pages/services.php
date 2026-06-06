@@ -11,27 +11,6 @@ $view = (int) ($_GET['view'] ?? 0);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
-    if ($action === 'sync_usage') {
-        @set_time_limit(300);
-        @ini_set('max_execution_time', '300');
-        $report = USK_ProtocolLimits::sync_usage_and_enforce();
-        $updated = (int) ($report['usage_updated'] ?? 0);
-        $checked = (int) ($report['checked'] ?? 0);
-        $disabled = (int) ($report['disabled'] ?? 0);
-        usk_flash(sprintf(__('services_sync_ok'), $updated, $checked, $disabled));
-        $returnFilter = preg_replace('/[^a-z_]/', '', (string) ($_POST['filter'] ?? 'all'));
-        $params = array();
-        if ($returnFilter !== '' && $returnFilter !== 'all') {
-            $params['filter'] = $returnFilter;
-        }
-        $returnView = (int) ($_POST['view'] ?? 0);
-        if ($returnView > 0) {
-            $params['view'] = $returnView;
-        }
-        header('Location: ' . usk_admin_url('services', $params));
-        exit;
-    }
-
     $id = (int) ($_POST['id'] ?? 0);
     $order = $id ? $sql->query("SELECT * FROM `orders` WHERE `row`=$id")->fetch_assoc() : null;
     $native = $order ? USK_ProtocolLimits::find_client_for_order($order) : null;
@@ -94,6 +73,7 @@ if ($filter === 'active') {
 $list = $sql->query("SELECT * FROM `orders` WHERE $where ORDER BY `row` DESC LIMIT 200");
 $list_count = $list ? $list->num_rows : 0;
 $search_base = usk_admin_base() . '/services-search.php';
+$sync_action = usk_admin_base() . '/services-action.php';
 $lastSync = USK_ProtocolLimits::get_last_run();
 ?>
 <?php if (!empty($s)) :
@@ -213,7 +193,7 @@ $lastSync = USK_ProtocolLimits::get_last_run();
     <?php endif; ?>
 
     <div class="mt-4 d-flex gap-2 flex-wrap align-items-center">
-        <form method="post" class="d-inline usk-sync-form" onsubmit="return uskSyncUsageSubmit(this)">
+        <form method="post" action="<?= usk_esc($sync_action) ?>" class="d-inline usk-sync-form" onsubmit="return uskSyncUsageSubmit(this)">
             <input type="hidden" name="action" value="sync_usage">
             <input type="hidden" name="view" value="<?= (int) $s['row'] ?>">
             <button type="submit" class="btn btn-outline-usk usk-sync-btn">
@@ -248,7 +228,7 @@ $lastSync = USK_ProtocolLimits::get_last_run();
                     <p class="text-muted small mb-0 mt-1"><?= __('services_sync_never') ?></p>
                 <?php endif; ?>
             </div>
-            <form method="post" class="mb-0 usk-sync-form" onsubmit="return uskSyncUsageSubmit(this)">
+            <form method="post" action="<?= usk_esc($sync_action) ?>" class="mb-0 usk-sync-form" onsubmit="return uskSyncUsageSubmit(this)">
                 <input type="hidden" name="action" value="sync_usage">
                 <input type="hidden" name="filter" value="<?= usk_esc($filter) ?>">
                 <button type="submit" class="btn btn-usk-primary usk-sync-btn">

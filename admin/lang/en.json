@@ -333,6 +333,7 @@
   "services_sync_btn": "Update all usage",
   "services_sync_running": "Updating…",
   "services_sync_ok": "Done — %d usage record(s) updated, %d service(s) checked, %d disabled (volume/time ended).",
+  "services_sync_failed": "Usage update failed. Run on the server: sudo php /var/www/unlimitsky/cron/native-limits.php — then check PHP error log.",
   "services_sync_last": "Last update: %s — %d usage saved, %d disabled, %d checked.",
   "services_sync_never": "Usage not updated yet — click the button above.",
   "services_usage_synced_at": "Usage saved at: %s",

@@ -333,6 +333,7 @@
   "services_sync_btn": "بروزرسانی مصرف همه",
   "services_sync_running": "در حال بروزرسانی…",
   "services_sync_ok": "انجام شد — %d رکورد مصرف به‌روز شد، %d سرویس بررسی شد، %d قطع شد (حجم/زمان تمام).",
+  "services_sync_failed": "بروزرسانی مصرف ناموفق بود. روی سرور بزنید: sudo php /var/www/unlimitsky/cron/native-limits.php — بعد لاگ PHP را چک کنید.",
   "services_sync_last": "آخرین بروزرسانی: %s — %d مصرف ذخیره شد، %d قطع شد، %d بررسی شد.",
   "services_sync_never": "هنوز مصرف بروزرسانی نشده — دکمه بالا را بزنید.",
   "services_usage_synced_at": "مصرف ذخیره‌شده در: %s",
