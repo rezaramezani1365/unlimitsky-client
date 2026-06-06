@@ -82,6 +82,39 @@ If you already use **Marzban** or **Sanaei**, you can connect them as an **alter
 
 ---
 
+## VPS migration (backup & restore)
+
+Use **Panel → Backup & migration** to export/import panel data (plans, services, protocol settings, DNS, admin user, API keys).
+
+### Migration steps
+
+1. **Old server** → Backup & migration → download `.uskbackup`
+2. **New server** → install unlimitsky (install script)
+3. **New server** → Backup & migration → import file
+4. **Panel → Protocols** → reinstall protocols you had (v1 does not restore live VPN on the OS)
+5. If needed: new **API key** for WooCommerce
+
+### Pro subscription after migration
+
+Pro is bound to **VPS IP** and **server instance ID**. When IP or VPS changes:
+
+| Item | After backup import |
+|------|---------------------|
+| Pro key | **Not lost** — same key as before |
+| Pro status in panel | Temporarily **Free** (license cache is not imported) |
+| Marzban/Sanaei, extra plans | Unavailable until Pro is re-activated |
+
+**Your steps (VPN reseller):**
+
+1. After import, if you had Pro you are redirected to **Pro License** (key pre-filled from backup).
+2. Click **Activate**.
+3. If you see an IP or instance error, contact your **Pro license provider** so they can approve the new VPS on the same key.
+4. Click **Activate** again.
+
+> v1 backup does **not** include `/var/lib/unlimitsky` (WireGuard/Xray keys on the OS) — panel data only. Reinstall protocols on the new server for live VPN.
+
+---
+
 ## Protocols on your VPS
 
 From **Panel → Protocols**, the installer script sets up each protocol **on this server**:

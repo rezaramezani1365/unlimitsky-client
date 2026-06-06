@@ -440,6 +440,26 @@ class USK_Admin_Auth
 
 
 
+    public static function verify_password($password)
+
+    {
+
+        self::boot();
+
+        $data = self::get_data();
+
+        if ($password === '' || empty($data['password'])) {
+
+            return false;
+
+        }
+
+        return password_verify($password, $data['password']);
+
+    }
+
+
+
     public static function create_from_install($username, $password, $language = 'fa', $must_change = false)
 
     {

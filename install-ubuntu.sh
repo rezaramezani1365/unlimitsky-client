@@ -81,7 +81,7 @@ fi
 export DEBIAN_FRONTEND=noninteractive
 echo "[*] Installing packages (nginx, mysql, php)..."
 apt-get update -qq
-apt-get install -y nginx mysql-server php-cli php-fpm php-mysql php-curl php-json php-mbstring php-xml unzip curl sudo rsync openssl git
+apt-get install -y nginx mysql-server php-cli php-fpm php-mysql php-curl php-json php-mbstring php-xml php-zip unzip curl sudo rsync openssl git
 
 echo "[*] Starting MySQL..."
 usk_mysql_ensure
@@ -107,7 +107,7 @@ fi
 chmod +x "$WEB_ROOT"/bin/*.sh "$WEB_ROOT"/bin/*.py 2>/dev/null || true
 chown -R www-data:www-data "$WEB_ROOT"
 chmod -R 755 "$WEB_ROOT"
-mkdir -p "$WEB_ROOT/data/protocols" "$WEB_ROOT/admin/data" "$WEB_ROOT/data/clients"
+mkdir -p "$WEB_ROOT/data/protocols" "$WEB_ROOT/admin/data" "$WEB_ROOT/data/clients" "$WEB_ROOT/data/backups/tmp" "$WEB_ROOT/data/settings"
 chmod -R 775 "$WEB_ROOT/admin/data" "$WEB_ROOT/data" "$WEB_ROOT/install" 2>/dev/null || true
 chown -R www-data:www-data "$WEB_ROOT/data" "$WEB_ROOT/admin/data"
 

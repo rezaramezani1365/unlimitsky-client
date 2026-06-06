@@ -12,10 +12,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $key = isset($_POST['license_key']) ? $_POST['license_key'] : '';
         $res = USK_License::activate($key);
         if (!empty($res['ok'])) {
+            USK_Migration::clear();
             usk_flash(__('license_activated'));
         } else {
             $err = isset($res['error']) ? $res['error'] : 'error';
-            usk_flash(__('license_failed') . ': ' . $err, 'error');
+            usk_flash(__('license_failed') . ': ' . usk_license_error_message($err), 'error');
         }
         header('Location: ' . usk_admin_url('license'));
         exit;
@@ -32,6 +33,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <i class="fa-solid fa-crown"></i>
     <?= __('license_intro') ?>
 </div>
+
+<?php
+$migration = USK_Migration::get_pending();
+$licenseHint = USK_Migration::license_key_hint();
+if (USK_Migration::needs_license_reactivation()) :
+    $fromHost = is_array($migration) ? ($migration['from_hostname'] ?? '') : '';
+?>
+<div class="alert alert-warning mb-4">
+    <h6 class="alert-heading mb-2"><i class="fa-solid fa-server"></i> <?= __('license_migration_title') ?></h6>
+    <p class="small mb-2"><?= __('license_migration_intro') ?><?php if ($fromHost !== '') : ?> <?= __('license_migration_from') ?> <code dir="ltr"><?= usk_esc($fromHost) ?></code><?php endif; ?></p>
+    <ol class="small mb-2 ps-3">
+        <li><?= __('license_migration_step_vendor') ?></li>
+        <li><?= __('license_migration_step_activate') ?></li>
+    </ol>
+    <p class="small mb-0 text-muted"><?= __('license_migration_note') ?></p>
+</div>
+<?php endif; ?>
 
 <div class="row g-3 mb-4">
     <div class="col-md-6">
@@ -70,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <input type="hidden" name="action" value="activate">
             <div class="form-group">
                 <label><?= __('license_key') ?></label>
-                <input class="form-control" name="license_key" required placeholder="USK-XXXXX-XXXXX-XXXXX-XXXXX" dir="ltr">
+                <input class="form-control" name="license_key" required placeholder="USK-XXXXX-XXXXX-XXXXX-XXXXX" dir="ltr" value="<?= usk_esc($licenseHint) ?>">
             </div>
             <button type="submit" class="btn btn-usk-primary"><?= __('license_activate_btn') ?></button>
         </form>

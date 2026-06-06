@@ -17,6 +17,8 @@ require_once __DIR__ . '/protocols/manager.php';
 require_once __DIR__ . '/protocols/limits.php';
 require_once __DIR__ . '/protocols/provisioner.php';
 require_once __DIR__ . '/client-dns.php';
+require_once __DIR__ . '/backup.php';
+require_once __DIR__ . '/migration.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -98,6 +100,7 @@ function usk_admin_nav()
         'services' => array('icon' => 'fa-shield-halved', 'label' => __('nav_services')),
         'users' => array('icon' => 'fa-users', 'label' => __('nav_users')),
         'license' => array('icon' => 'fa-crown', 'label' => __('nav_license')),
+        'backup' => array('icon' => 'fa-database', 'label' => __('nav_backup')),
         'settings' => array('icon' => 'fa-gear', 'label' => __('nav_settings')),
     );
 }
