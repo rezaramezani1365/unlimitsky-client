@@ -7,6 +7,8 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$DIR/provision-common.sh" 2>/dev/null || true
 # shellcheck disable=SC1091
 source "$DIR/xray-common.sh" 2>/dev/null || true
+# shellcheck disable=SC1091
+source "$DIR/openvpn-common.sh" 2>/dev/null || true
 
 OVPN_STATUS_DIR="${OVPN_STATUS_DIR:-/var/log/openvpn}"
 DATA_ROOT="${DATA_ROOT:-${USK_DATA_ROOT:-/var/lib/unlimitsky}}"
@@ -149,44 +151,67 @@ xray_map_json() {
 }
 
 openvpn_map_json() {
-  local files=(
-    "${OVPN_STATUS_DIR}/openvpn-udp-status.log"
-    "${OVPN_STATUS_DIR}/openvpn-tcp-status.log"
-    "${OVPN_STATUS_DIR}/openvpn-status.log"
-    "/run/openvpn-server/status.log"
-  )
-  local args=()
-  local f
-  for f in "${files[@]}"; do
-    [ -r "$f" ] && args+=("$f")
-  done
+  local args=() f
+  while IFS= read -r f; do
+    [ -n "$f" ] && args+=("$f")
+  done < <(usk_openvpn_discover_status_files 2>/dev/null || true)
+
   if [ "${#args[@]}" -eq 0 ]; then
-    echo '{}'
-    return 0
+    for f in \
+      "${OVPN_STATUS_DIR}/openvpn-udp-status.log" \
+      "${OVPN_STATUS_DIR}/openvpn-tcp-status.log" \
+      "${OVPN_STATUS_DIR}/openvpn-status.log" \
+      "/run/openvpn-server/status.log"; do
+      [ -r "$f" ] && args+=("$f")
+    done
   fi
-  awk -F',' '
-    /^CLIENT_LIST,/ {
-      user = $2
-      gsub(/^ +| +$/, "", user)
-      if (user == "" || user == "Common Name") next
-      if (NF >= 7) {
-        bytes = $6 + $7
+
+  local map='{}'
+  if [ "${#args[@]}" -gt 0 ]; then
+    map=$(awk -F',' '
+      /^CLIENT_LIST,/ {
+        user = $2
+        gsub(/^ +| +$/, "", user)
+        if (user == "" || user == "Common Name") next
+        bytes = 0
+        if (NF >= 7) bytes = $5 + $6
+        else if (NF >= 6) bytes = $4 + $5
+        else next
         if (user in t) t[user] += bytes
         else t[user] = bytes
       }
-    }
-    END {
-      printf "{"
-      first = 1
-      for (u in t) {
-        if (!first) printf ","
-        first = 0
-        gsub(/"/, "\\\"", u)
-        printf "\"%s\":%d", u, t[u]
-      }
-      printf "}"
-    }' "${args[@]}" 2>/dev/null || echo '{}'
+      END {
+        printf "{"
+        first = 1
+        for (u in t) {
+          if (!first) printf ","
+          first = 0
+          gsub(/"/, "\\\"", u)
+          printf "\"%s\":%d", u, t[u]
+        }
+        printf "}"
+      }' "${args[@]}" 2>/dev/null || echo '{}')
+  fi
+
+  if command -v jq >/dev/null 2>&1; then
+    local panel_cfg f
+    panel_cfg="$(dirname "$DIR")/data/clients/openvpn.json"
+    for f in "${DATA_ROOT}/openvpn/clients.json" "$panel_cfg"; do
+      [ -f "$f" ] || continue
+      while IFS= read -r user; do
+        [ -z "$user" ] && continue
+        map=$(echo "$map" | jq -c --arg u "$user" '. + {($u): (.[$u] // 0)}' 2>/dev/null || echo "$map")
+      done < <(jq -r 'if type == "object" and (keys | length) > 0 and (.[] | type) == "object" then keys[] elif type == "array" then .[]?.username else empty end' "$f" 2>/dev/null || true)
+    done
+  fi
+
+  echo "$map"
 }
+
+OVPN_STATUS_FILES=0
+while IFS= read -r _ovpn_f; do
+  [ -n "$_ovpn_f" ] && OVPN_STATUS_FILES=$((OVPN_STATUS_FILES + 1))
+done < <(usk_openvpn_discover_status_files 2>/dev/null || true)
 
 WG_JSON=$(wg_map_json wg0 wg)
 AWG_JSON=$(wg_map_json awg0 awg)
@@ -213,6 +238,7 @@ if command -v jq >/dev/null 2>&1; then
     --argjson awg_peers "$(count_json_keys "$AWG_JSON")" \
     --argjson xray_users "$(count_json_keys "$XRAY_JSON")" \
     --argjson ovpn_users "$(count_json_keys "$OVPN_JSON")" \
+    --argjson ovpn_status_files "$OVPN_STATUS_FILES" \
     --argjson xray_cfg_clients "$XRAY_CFG_EMAILS" \
     --argjson xray_api_ok "$XRAY_API_OK" \
     '{
@@ -227,6 +253,7 @@ if command -v jq >/dev/null 2>&1; then
         awg_peers: $awg_peers,
         xray_users: $xray_users,
         ovpn_users: $ovpn_users,
+        ovpn_status_files: $ovpn_status_files,
         xray_cfg_clients: $xray_cfg_clients,
         xray_api_ok: ($xray_api_ok == 1)
       }

@@ -26,5 +26,11 @@ elif [ -f /etc/openvpn/server.conf ]; then
   systemctl restart openvpn@server 2>/dev/null || true
 fi
 
+if usk_openvpn_verify_status_logs; then
+  echo "USK_META:udp_port=${UDP_PORT};tcp_port=${TCP_PORT};port=${UDP_PORT};ovpn_status=ok"
+else
+  echo "USK_WARN: run sudo bash bin/openvpn-fix-status.sh for usage metering" >&2
+fi
+
 echo "USK_META:udp_port=${UDP_PORT};tcp_port=${TCP_PORT};port=${UDP_PORT}"
 usk_ok

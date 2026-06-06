@@ -337,6 +337,7 @@
   "services_sync_diag_synced": "(%d سرویس با مصرف ۰ گیج هم ثبت شد.)",
   "services_sync_diag_no_sudo": "هشدار: sudo برای جمع‌آوری ترافیک فعال نیست — روی سرور: sudo bash install/lib.sh یا خط sudoers را اضافه کنید.",
   "services_sync_diag_xray_stats": "هشدار: Xray API بدون آمار کاربر — یک‌بار: sudo bash bin/xray-fix-stats-api.sh",
+  "services_sync_diag_openvpn_status": "هشدار: لاگ وضعیت OpenVPN فعال نیست — sudo bash bin/openvpn-fix-status.sh",
   "services_sync_failed": "بروزرسانی مصرف ناموفق بود. روی سرور بزنید: sudo php /var/www/unlimitsky/cron/native-limits.php — بعد لاگ PHP را چک کنید.",
   "services_sync_last": "آخرین بروزرسانی: %s — %d مصرف ذخیره شد، %d قطع شد، %d بررسی شد.",
   "services_sync_never": "هنوز مصرف بروزرسانی نشده — دکمه بالا را بزنید.",

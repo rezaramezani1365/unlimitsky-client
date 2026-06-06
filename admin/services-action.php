@@ -32,6 +32,11 @@ function usk_services_sync_diag(array $report)
     if ($xrayCfg > 0 && $xrayUsers === 0) {
         $parts[] = __('services_sync_diag_xray_stats');
     }
+    $ovpnStatusFiles = (int) ($meta['ovpn_status_files'] ?? 0);
+    $ovpnUsers = (int) ($meta['ovpn_users'] ?? ($meta['map_counts']['openvpn'] ?? 0));
+    if ($ovpnStatusFiles === 0 && $ovpnUsers === 0 && (int) ($report['checked'] ?? 0) > 0) {
+        $parts[] = __('services_sync_diag_openvpn_status');
+    }
     if ($parts === array()) {
         return '';
     }

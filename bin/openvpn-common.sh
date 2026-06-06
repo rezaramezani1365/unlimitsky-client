@@ -150,3 +150,37 @@ usk_openvpn_enable_service() {
   systemctl enable "openvpn@${name}" 2>/dev/null || true
   systemctl restart "openvpn@${name}" 2>/dev/null || systemctl start "openvpn@${name}" 2>/dev/null || return 1
 }
+
+usk_openvpn_discover_status_files() {
+  local cfg f seen=""
+  for cfg in /etc/openvpn/server-udp.conf /etc/openvpn/server-tcp.conf /etc/openvpn/server.conf /etc/openvpn/*.conf; do
+    [ -f "$cfg" ] || continue
+    f=$(awk '/^status[[:space:]]+/ { print $2; exit }' "$cfg" 2>/dev/null || true)
+    [ -n "$f" ] || continue
+    case " $seen " in
+      *" $f "*) continue ;;
+    esac
+    seen="${seen} ${f}"
+    [ -r "$f" ] && echo "$f"
+  done
+  for f in \
+    "$(usk_openvpn_status_log_path server-udp)" \
+    "$(usk_openvpn_status_log_path server-tcp)" \
+    "$(usk_openvpn_status_log_path server)" \
+    "/run/openvpn-server/status.log"; do
+    case " $seen " in
+      *" $f "*) continue ;;
+    esac
+    seen="${seen} ${f}"
+    [ -r "$f" ] && echo "$f"
+  done
+}
+
+usk_openvpn_verify_status_logs() {
+  local n=0 f
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    n=$((n + 1))
+  done < <(usk_openvpn_discover_status_files)
+  [ "$n" -gt 0 ]
+}

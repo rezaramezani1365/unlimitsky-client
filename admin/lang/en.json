@@ -337,6 +337,7 @@
   "services_sync_diag_synced": "(%d service(s) recorded at 0 GB usage.)",
   "services_sync_diag_no_sudo": "Warning: sudo for traffic collection is missing — on server run install sudoers or: sudo bash install/lib.sh",
   "services_sync_diag_xray_stats": "Warning: Xray API returned no user stats — run once: sudo bash bin/xray-fix-stats-api.sh",
+  "services_sync_diag_openvpn_status": "Warning: OpenVPN status logs missing — run: sudo bash bin/openvpn-fix-status.sh",
   "services_sync_failed": "Usage update failed. Run on the server: sudo php /var/www/unlimitsky/cron/native-limits.php — then check PHP error log.",
   "services_sync_last": "Last update: %s — %d usage saved, %d disabled, %d checked.",
   "services_sync_never": "Usage not updated yet — click the button above.",

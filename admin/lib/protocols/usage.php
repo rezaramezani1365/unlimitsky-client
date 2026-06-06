@@ -106,6 +106,30 @@ class USK_ProtocolUsage
                 if (!is_array($rec)) {
                     continue;
                 }
+                if ($protocol === 'openvpn') {
+                    $ovpn = self::sync_openvpn_client($username, $rec, $maps['openvpn'] ?? array());
+                    if ($ovpn === null) {
+                        continue;
+                    }
+                    $prev = (int) ($rec['usage_bytes'] ?? 0);
+                    $hadSync = !empty($rec['usage_synced_at']);
+                    $newBytes = (int) $ovpn['usage_bytes'];
+                    $clients[$username]['usage_bytes'] = $newBytes;
+                    $clients[$username]['ovpn_session_bytes'] = (int) $ovpn['ovpn_session_bytes'];
+                    if ($newBytes !== $prev) {
+                        $clients[$username]['usage_synced_at'] = date('c');
+                        $changed = true;
+                        $updated++;
+                        $synced++;
+                    } elseif (!$hadSync) {
+                        $clients[$username]['usage_synced_at'] = date('c');
+                        $changed = true;
+                        $synced++;
+                    } else {
+                        $changed = true;
+                    }
+                    continue;
+                }
                 $bytes = self::bytes_from_maps($protocol, $username, $rec, $maps);
                 if ($bytes === null) {
                     continue;
@@ -239,7 +263,7 @@ class USK_ProtocolUsage
         }
         if ($protocol === 'openvpn') {
             foreach (self::usage_name_candidates($username, $rec) as $name) {
-                if (isset($maps['openvpn'][$name])) {
+                if (array_key_exists($name, $maps['openvpn'])) {
                     return (int) $maps['openvpn'][$name];
                 }
             }
@@ -272,6 +296,139 @@ class USK_ProtocolUsage
             }
         }
         return $out;
+    }
+
+    /**
+     * @param array<string,int> $ovpnMap
+     * @return array{usage_bytes:int,ovpn_session_bytes:int}|null
+     */
+    private static function sync_openvpn_client($username, array $rec, array $ovpnMap)
+    {
+        if ($ovpnMap === array() && !self::openvpn_status_available()) {
+            return null;
+        }
+
+        $sessionBytes = null;
+        foreach (self::usage_name_candidates($username, $rec) as $name) {
+            if (array_key_exists($name, $ovpnMap)) {
+                $sessionBytes = (int) $ovpnMap[$name];
+                break;
+            }
+        }
+        if ($sessionBytes === null) {
+            $sessionBytes = 0;
+        }
+
+        $lastSession = (int) ($rec['ovpn_session_bytes'] ?? 0);
+        $total = (int) ($rec['usage_bytes'] ?? 0);
+
+        if ($sessionBytes === 0 && $lastSession > 0) {
+            $total += $lastSession;
+            $lastSession = 0;
+        } elseif ($sessionBytes > 0) {
+            if ($sessionBytes < $lastSession) {
+                $total += $lastSession;
+                $lastSession = 0;
+            }
+            $total += max(0, $sessionBytes - $lastSession);
+            $lastSession = $sessionBytes;
+        }
+
+        return array(
+            'usage_bytes' => $total,
+            'ovpn_session_bytes' => $lastSession,
+        );
+    }
+
+    /** @return string[] */
+    private static function openvpn_status_files()
+    {
+        static $cache = null;
+        if ($cache !== null) {
+            return $cache;
+        }
+
+        $files = array();
+        $configs = glob('/etc/openvpn/*.conf') ?: array();
+        foreach ($configs as $cfg) {
+            $lines = @file($cfg, FILE_IGNORE_NEW_LINES);
+            if (!$lines) {
+                continue;
+            }
+            foreach ($lines as $line) {
+                if (preg_match('/^status\s+(\S+)/', $line, $m)) {
+                    $files[] = $m[1];
+                }
+            }
+        }
+
+        foreach (array(
+            '/var/log/openvpn/openvpn-udp-status.log',
+            '/var/log/openvpn/openvpn-tcp-status.log',
+            '/var/log/openvpn/openvpn-status.log',
+            '/var/log/openvpn/status.log',
+            '/run/openvpn-server/status.log',
+            USK_ROOT . '/data/openvpn/status.log',
+        ) as $file) {
+            $files[] = $file;
+        }
+
+        $files = array_values(array_unique(array_filter($files, function ($f) {
+            return is_string($f) && $f !== '' && is_readable($f);
+        })));
+        $cache = $files;
+        return $cache;
+    }
+
+    private static function openvpn_status_available()
+    {
+        return count(self::openvpn_status_files()) > 0;
+    }
+
+    /** @return int|null */
+    private static function openvpn_client_list_bytes(array $parts)
+    {
+        if (count($parts) < 6) {
+            return null;
+        }
+        if (trim($parts[1]) === 'Common Name') {
+            return null;
+        }
+        if (count($parts) >= 7) {
+            return (int) $parts[4] + (int) $parts[5];
+        }
+
+        return (int) $parts[3] + (int) $parts[4];
+    }
+
+    /** @return array<string,int> */
+    private static function parse_openvpn_status_map($file)
+    {
+        $map = array();
+        $lines = @file($file, FILE_IGNORE_NEW_LINES);
+        if (!$lines) {
+            return $map;
+        }
+        foreach ($lines as $line) {
+            if (strpos($line, 'CLIENT_LIST') !== 0) {
+                continue;
+            }
+            $parts = explode(',', $line);
+            $bytes = self::openvpn_client_list_bytes($parts);
+            if ($bytes === null) {
+                continue;
+            }
+            $user = trim($parts[1]);
+            if ($user === '') {
+                continue;
+            }
+            if (!isset($map[$user])) {
+                $map[$user] = 0;
+            }
+            $map[$user] += $bytes;
+        }
+
+        return $map;
     }
 
     private static function xray_email_for_uuid($uuid)
@@ -438,40 +595,19 @@ class USK_ProtocolUsage
     private static function batch_openvpn_user_bytes()
     {
         $map = array();
-        $files = array(
-            '/var/log/openvpn/openvpn-udp-status.log',
-            '/var/log/openvpn/openvpn-tcp-status.log',
-            '/var/log/openvpn/openvpn-status.log',
-            '/var/log/openvpn/status.log',
-            '/run/openvpn-server/status.log',
-            USK_ROOT . '/data/openvpn/status.log',
-        );
-
-        foreach ($files as $file) {
-            if (!is_readable($file)) {
-                continue;
-            }
-            $lines = @file($file, FILE_IGNORE_NEW_LINES);
-            if (!$lines) {
-                continue;
-            }
-            foreach ($lines as $line) {
-                if (strpos($line, 'CLIENT_LIST') !== 0) {
-                    continue;
-                }
-                $parts = explode(',', $line);
-                if (count($parts) < 7) {
-                    continue;
-                }
-                $user = trim($parts[1]);
-                if ($user === '') {
-                    continue;
-                }
-                $bytes = (int) $parts[5] + (int) $parts[6];
+        foreach (self::openvpn_status_files() as $file) {
+            foreach (self::parse_openvpn_status_map($file) as $user => $bytes) {
                 if (!isset($map[$user])) {
                     $map[$user] = 0;
                 }
-                $map[$user] += $bytes;
+                $map[$user] += (int) $bytes;
+            }
+        }
+
+        $registry = USK_ProtocolLimits::load_registry_clients('openvpn');
+        foreach ($registry as $username => $rec) {
+            if (!array_key_exists($username, $map)) {
+                $map[$username] = 0;
             }
         }
 
@@ -513,59 +649,25 @@ class USK_ProtocolUsage
 
     public static function openvpn_usage_bytes(array $rec)
     {
-        $username = trim((string) ($rec['username'] ?? ''));
-        if ($username === '') {
-            return null;
+        if (isset($rec['usage_bytes'])) {
+            return (int) $rec['usage_bytes'];
         }
 
         $maps = self::batch_usage_maps();
-        if (isset($maps['openvpn'][$username])) {
-            return (int) $maps['openvpn'][$username];
-        }
-
-        $files = array(
-            '/var/log/openvpn/openvpn-udp-status.log',
-            '/var/log/openvpn/openvpn-tcp-status.log',
-            '/var/log/openvpn/openvpn-status.log',
-            '/var/log/openvpn/status.log',
-            '/run/openvpn-server/status.log',
-            USK_ROOT . '/data/openvpn/status.log',
-        );
-
-        $total = null;
-        foreach ($files as $file) {
-            if (!is_readable($file)) {
-                continue;
-            }
-            $bytes = self::parse_openvpn_status_file($file, $username);
-            if ($bytes !== null) {
-                $total = ($total ?? 0) + $bytes;
+        foreach (self::usage_name_candidates((string) ($rec['username'] ?? ''), $rec) as $name) {
+            if (isset($maps['openvpn'][$name])) {
+                return (int) $maps['openvpn'][$name];
             }
         }
 
-        return $total;
+        return null;
     }
 
     private static function parse_openvpn_status_file($file, $username)
     {
-        $lines = @file($file, FILE_IGNORE_NEW_LINES);
-        if (!$lines) {
-            return null;
-        }
-
-        foreach ($lines as $line) {
-            if (strpos($line, 'CLIENT_LIST') !== 0) {
-                continue;
-            }
-            $parts = explode(',', $line);
-            if (count($parts) < 6) {
-                continue;
-            }
-            if (trim($parts[1]) !== $username) {
-                continue;
-            }
-            if (count($parts) >= 7) {
-                return (int) $parts[5] + (int) $parts[6];
+        foreach (self::parse_openvpn_status_map($file) as $user => $bytes) {
+            if ($user === $username) {
+                return (int) $bytes;
             }
         }
 
