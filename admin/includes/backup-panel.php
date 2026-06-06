@@ -19,6 +19,8 @@ $zipStale = !$zipOk && (
 );
 $zipCanInstall = !$zipOk && !$zipInstalling && !$zipStale && USK_PhpZip::can_install_from_web();
 $zipFailed = ($zipStatus['state'] ?? '') === 'failed' && !$zipOk;
+$zipDiag = !$zipOk ? USK_PhpZip::diagnostics() : null;
+$zipSuggested = !$zipOk ? USK_PhpZip::suggested_zip_package() : '';
 $tables = USK_PanelBackup::tables();
 $dataPaths = USK_PanelBackup::data_paths();
 ?>
@@ -36,9 +38,18 @@ $dataPaths = USK_PanelBackup::data_paths();
             <input type="hidden" name="return_page" value="<?= usk_esc($backupReturnPage) ?>">
             <button type="submit" class="btn btn-outline-secondary btn-sm"><?= __('backup_zip_install_cancel') ?></button>
         </form>
-        <?php elseif ($zipStale) : ?>
+        <?php elseif ($zipStale || ($zipFailed && ($zipStatus['message'] ?? '') === 'stale_timeout')) : ?>
         <p class="small text-danger mb-0 mt-2"><?= __('backup_zip_install_stale') ?></p>
-        <pre class="small mt-2 mb-0 p-2 bg-dark text-light" style="white-space:pre-wrap;direction:ltr"><?= usk_esc(__('backup_zip_ssh_fix')) ?></pre>
+        <pre class="small mt-2 mb-0 p-2 bg-dark text-light" style="white-space:pre-wrap;direction:ltr"><?= usk_esc(sprintf(
+            "sudo apt update\nsudo apt install -y %s\nsudo systemctl restart php*-fpm\nphp -r \"var_dump(class_exists('ZipArchive'));\"\nsudo rm -f /var/www/unlimitsky/data/settings/php-zip-install.json",
+            $zipSuggested
+        )) ?></pre>
+        <?php if ($zipDiag) : ?>
+        <p class="small text-muted mb-0 mt-2" dir="ltr">PHP: <?= usk_esc($zipDiag['php_version']) ?>
+        <?php if (!empty($zipDiag['fpm_packages'])) : ?> | FPM: <?= usk_esc(implode(', ', $zipDiag['fpm_packages'])) ?><?php endif; ?>
+        <?php if (!empty($zipDiag['zip_packages'])) : ?> | apt zip: <?= usk_esc(implode(', ', $zipDiag['zip_packages'])) ?><?php endif; ?>
+        </p>
+        <?php endif; ?>
         <?php elseif ($zipCanInstall) : ?>
         <form method="post" action="<?= usk_esc(usk_admin_base()) ?>/backup-action.php" class="mt-3 mb-0">
             <input type="hidden" name="action" value="install_zip">
@@ -51,7 +62,7 @@ $dataPaths = USK_PanelBackup::data_paths();
         <?php else : ?>
         <p class="small mb-0 mt-2"><?= __('backup_zip_install_manual') ?></p>
         <?php endif; ?>
-        <?php if ($zipFailed && !empty($zipStatus['message'])) : ?>
+        <?php if ($zipFailed && !empty($zipStatus['message']) && ($zipStatus['message'] ?? '') !== 'stale_timeout') : ?>
         <pre class="small mt-2 mb-0 p-2 bg-dark text-light" style="white-space:pre-wrap;direction:ltr"><?= usk_esc($zipStatus['message']) ?></pre>
         <?php endif; ?>
     </div>

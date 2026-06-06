@@ -375,7 +375,7 @@
   "backup_zip_install_cancel": "لغو / توقف نمایش",
   "backup_zip_install_cancelled": "وضعیت نصب ریست شد. اگر apt روی سرور گیر کرده از SSH دستور زیر را بزن.",
   "backup_zip_install_stale": "نصب بیش از ۵ دقیقه طول کشید — احتمالاً apt روی سرور گیر کرده. از پنل هاست VPS ریبوت کن یا SSH:",
-  "backup_zip_ssh_fix": "sudo killall apt apt-get 2>/dev/null; sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock*\nsudo dpkg --configure -a\nsudo apt install -y php8.1-zip\nsudo systemctl restart php8.1-fpm\nsudo rm -f /var/www/unlimitsky/data/settings/php-zip-install.json /var/www/unlimitsky/data/settings/php-zip-install.lock",
+  "backup_zip_ssh_fix": "sudo apt update\nsudo apt install -y PHP_ZIP_PKG\nsudo systemctl restart php*-fpm\nphp -r \"var_dump(class_exists('ZipArchive'));\"",
   "backup_zip_install_manual": "اسکریپت نصب پیدا نشد. از SSH: sudo bash /var/www/unlimitsky/bin/install-php-zip.sh",
   "backup_zip_installed": "ZipArchive نصب شد — می‌توانی بکاپ بگیری.",
   "backup_zip_install_failed": "نصب ZipArchive ناموفق بود",

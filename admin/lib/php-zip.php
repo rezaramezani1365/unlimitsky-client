@@ -111,6 +111,43 @@ class USK_PhpZip
         @unlink(self::lock_file());
     }
 
+    /** @return array{php_version:string,zip_packages:array,fpm_packages:array} */
+    public static function diagnostics()
+    {
+        $phpVer = trim((string) shell_exec('php -v 2>/dev/null | head -1'));
+        $zipPkgs = array();
+        $fpmPkgs = array();
+        exec('apt-cache search --names-only ' . escapeshellarg('^php[0-9.]+-zip$') . ' 2>/dev/null | awk \'{print $1}\'', $zipPkgs);
+        exec('dpkg -l 2>/dev/null | awk \'/^ii/ && /php/ && /-(fpm|cli)$/ {print $2}\'', $fpmPkgs);
+        return array(
+            'php_version' => $phpVer !== '' ? $phpVer : '?',
+            'zip_packages' => array_values(array_filter($zipPkgs)),
+            'fpm_packages' => array_values(array_filter($fpmPkgs)),
+        );
+    }
+
+    public static function suggested_zip_package()
+    {
+        $diag = self::diagnostics();
+        if (!empty($diag['zip_packages'])) {
+            foreach ($diag['fpm_packages'] as $fpm) {
+                if (preg_match('/^php([0-9.]+)-fpm$/', $fpm, $m)) {
+                    $want = 'php' . $m[1] . '-zip';
+                    if (in_array($want, $diag['zip_packages'], true)) {
+                        return $want;
+                    }
+                }
+            }
+            return $diag['zip_packages'][0];
+        }
+        foreach ($diag['fpm_packages'] as $fpm) {
+            if (preg_match('/^php([0-9.]+)-fpm$/', $fpm, $m)) {
+                return 'php' . $m[1] . '-zip';
+            }
+        }
+        return 'php-zip';
+    }
+
     public static function poll_install_status()
     {
         if (self::available_cli()) {
