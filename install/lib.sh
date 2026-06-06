@@ -388,6 +388,9 @@ usk_ensure_web_update_sudoers() {
     if ! grep -qF 'install-php-zip.sh' "$sudoers" 2>/dev/null; then
         echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/install-php-zip.sh *" >> "$sudoers"
     fi
+    if ! grep -qF 'apply-panel-access.sh' "$sudoers" 2>/dev/null; then
+        echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/apply-panel-access.sh *" >> "$sudoers"
+    fi
     chmod 440 "$sudoers" 2>/dev/null || true
 }
 

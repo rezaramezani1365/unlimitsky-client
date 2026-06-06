@@ -12,6 +12,13 @@ $spam = $sql->query("SELECT * FROM `spam_setting` LIMIT 1")->fetch_assoc();
 $clientDns = USK_ClientDns::get();
 $connectHostCfg = USK_ConnectHost::get();
 $detectedServerIp = USK_ConnectHost::detect_ip();
+$panelAccessCfg = USK_PanelAccess::get();
+$panelAccessCfg['panel_port'] = (int) ($panelAccessCfg['panel_port'] ?? USK_PanelAccess::detect_port());
+if ($panelAccessCfg['panel_port'] < 1024) {
+    $panelAccessCfg['panel_port'] = USK_PanelAccess::detect_port();
+}
+$panelCurrentUrl = USK_PanelAccess::current_public_url();
+$panelAdminUrl = USK_PanelAccess::admin_login_url();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $section = $_POST['section'] ?? '';
@@ -59,6 +66,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ));
         usk_flash(__('settings_saved'));
     }
+    if ($section === 'panel_access') {
+        $saved = USK_PanelAccess::save(array(
+            'domain_enabled' => !empty($_POST['panel_domain_enabled']),
+            'panel_domain' => $_POST['panel_domain'] ?? '',
+            'panel_port' => $_POST['panel_port'] ?? 8082,
+            'hint' => $_POST['panel_access_hint'] ?? '',
+        ));
+        $applied = USK_PanelAccess::apply($saved);
+        if (!empty($applied['ok'])) {
+            $msg = __('settings_panel_access_applied') . ': ' . ($applied['admin_url'] ?? '');
+            usk_flash($msg);
+        } else {
+            usk_flash(USK_PanelAccess::error_label($applied['error'] ?? 'apply_failed'), 'error');
+        }
+    }
     if ($section === 'client_dns') {
         USK_ClientDns::save(array(
             'enabled' => !empty($_POST['dns_enabled']),
@@ -71,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ));
         usk_flash(__('settings_saved'));
     }
-    header('Location: ' . usk_admin_url('settings') . ($section === 'connect_host' ? '#connect-host' : ($section === 'client_dns' ? '#client-dns' : '')));
+    header('Location: ' . usk_admin_url('settings') . ($section === 'connect_host' ? '#connect-host' : ($section === 'client_dns' ? '#client-dns' : ($section === 'panel_access' ? '#panel-access' : ''))));
     exit;
 }
 
@@ -115,6 +137,51 @@ $panels = $sql->query("SELECT `code`,`name` FROM `panels`");
                 </div>
             </div>
             <button type="submit" class="btn btn-usk-primary"><?= __('save') ?></button>
+        </form>
+    </div>
+</div>
+
+<div class="usk-card mb-4" id="panel-access">
+    <div class="usk-card-header"><i class="fa-solid fa-link"></i> <?= __('settings_panel_access') ?></div>
+    <div class="p-3">
+        <p class="text-muted small mb-3"><?= __('settings_panel_access_desc') ?></p>
+        <p class="alert alert-usk-info small py-2 mb-3">
+            <?= __('settings_panel_access_current') ?>:
+            <code dir="ltr"><?= usk_esc($panelAdminUrl) ?></code>
+        </p>
+        <?php if (!empty($panelAccessCfg['last_apply_error'])) : ?>
+            <p class="alert alert-danger small py-2"><?= usk_esc(USK_PanelAccess::error_label($panelAccessCfg['last_apply_error'])) ?></p>
+        <?php endif; ?>
+        <form method="post">
+            <input type="hidden" name="section" value="panel_access">
+            <div class="form-group mb-3">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="panel_domain_enabled" id="panel-domain-enabled" value="1" <?= !empty($panelAccessCfg['domain_enabled']) ? 'checked' : '' ?>>
+                    <label class="form-check-label" for="panel-domain-enabled"><?= __('settings_panel_access_domain_enable') ?></label>
+                </div>
+            </div>
+            <div class="form-group mb-3">
+                <label><?= __('settings_panel_access_domain') ?></label>
+                <input class="form-control" name="panel_domain" dir="ltr" style="text-align:left;" value="<?= usk_esc($panelAccessCfg['panel_domain'] ?? '') ?>" placeholder="<?= __('settings_panel_access_domain_ph') ?>">
+                <p class="text-muted small mt-1 mb-0"><?= __('settings_panel_access_domain_hint') ?></p>
+            </div>
+            <div class="form-group mb-3">
+                <label><?= __('settings_panel_access_port') ?></label>
+                <input class="form-control" type="number" name="panel_port" min="1024" max="65535" dir="ltr" style="text-align:left;" value="<?= (int) ($panelAccessCfg['panel_port'] ?? 8082) ?>">
+                <p class="text-muted small mt-1 mb-0"><?= __('settings_panel_access_port_hint') ?></p>
+            </div>
+            <div class="form-group mb-3">
+                <label><?= __('settings_panel_access_hint_label') ?></label>
+                <input class="form-control" name="panel_access_hint" value="<?= usk_esc($panelAccessCfg['hint'] ?? '') ?>" placeholder="<?= __('settings_panel_access_hint_ph') ?>">
+            </div>
+            <div class="alert alert-warning small py-2 mb-3">
+                <i class="fa-solid fa-triangle-exclamation"></i> <?= __('settings_panel_access_warn') ?>
+            </div>
+            <?php if (!USK_PanelAccess::can_apply_from_web()) : ?>
+                <p class="text-danger small"><?= __('settings_panel_access_err_script') ?></p>
+            <?php else : ?>
+                <button type="submit" class="btn btn-usk-primary"><?= __('settings_panel_access_apply') ?></button>
+            <?php endif; ?>
         </form>
     </div>
 </div>
