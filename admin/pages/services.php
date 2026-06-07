@@ -73,7 +73,6 @@ if ($filter === 'active') {
 $list = $sql->query("SELECT * FROM `orders` WHERE $where ORDER BY `row` DESC LIMIT 200");
 $list_count = $list ? $list->num_rows : 0;
 $search_base = usk_admin_base() . '/services-search.php';
-$stats_base = usk_admin_base() . '/service-stats.php';
 $sync_action = usk_admin_base() . '/services-action.php';
 $lastSync = USK_ProtocolLimits::get_last_run();
 ?>
@@ -304,8 +303,8 @@ $lastSync = USK_ProtocolLimits::get_last_run();
         <div class="usk-service-search-results d-none" id="uskServiceSearchResults" aria-live="polite"></div>
     </div>
 
-    <div class="table-responsive" id="usk-services-live" data-stats-endpoint="<?= usk_esc($stats_base) ?>">
-        <p class="text-muted small mb-2"><i class="fa-solid fa-signal"></i> <?= __('stats_live_hint') ?></p>
+    <div class="table-responsive" id="usk-services-live">
+        <p class="text-muted small mb-2"><i class="fa-solid fa-clock"></i> <?= __('stats_live_hint') ?></p>
         <table class="table table-sm">
             <thead>
                 <tr>
@@ -516,123 +515,4 @@ function uskSyncUsageSubmit(form) {
     }
     return true;
 }
-
-(function () {
-    var root = document.getElementById('usk-services-live');
-    var detailCode = <?= json_encode(!empty($s) && !empty($usageStats) && (int) ($s['volume'] ?? 0) > 0 ? (string) ($s['code'] ?? '') : '') ?>;
-    var endpoint = root ? root.getAttribute('data-stats-endpoint') : <?= json_encode($stats_base, JSON_UNESCAPED_UNICODE) ?>;
-    if (!endpoint) return;
-
-    var POLL_MS = 30000;
-    var i18n = {
-        pending: <?= json_encode(__('services_usage_pending'), JSON_UNESCAPED_UNICODE) ?>,
-        left: <?= json_encode(__('portal_left'), JSON_UNESCAPED_UNICODE) ?>,
-        synced: <?= json_encode(__('services_usage_synced_at'), JSON_UNESCAPED_UNICODE) ?>,
-    };
-
-    function esc(s) {
-        var d = document.createElement('div');
-        d.textContent = s == null ? '' : String(s);
-        return d.innerHTML;
-    }
-
-    function progressBar(percent) {
-        var p = Math.min(100, Math.max(0, Number(percent) || 0));
-        var barCls = p >= 90 ? ' bg-danger' : (p >= 70 ? ' bg-warning' : '');
-        return '<div class="progress usk-usage-progress mt-1" role="progressbar" aria-valuenow="' + p + '">'
-            + '<div class="progress-bar' + barCls + '" style="width:' + p + '%"></div></div>';
-    }
-
-    function renderConnectionsCell(item) {
-        if (!item.connections_display) {
-            return '<span class="text-muted">—</span>';
-        }
-        var cls = 'small usk-connections-cell';
-        if (item.connections_near_limit) cls += ' text-danger fw-semibold';
-        else if (item.connections_warning) cls += ' text-warning';
-        return '<span class="' + cls + '">' + esc(item.connections_display) + '</span>';
-    }
-
-    function renderUsageCell(item) {
-        if (item.usage_needs_sync) {
-            return '<span class="small text-warning">' + esc(i18n.pending) + '</span>';
-        }
-        if (item.usage_percent == null) {
-            return '<span class="text-muted">—</span>';
-        }
-        return '<div class="usk-usage-cell"><span class="small">' + esc(item.usage_display) + '</span>' + progressBar(item.usage_percent) + '</div>';
-    }
-
-    function formatSyncedAt(iso) {
-        if (!iso) return '';
-        try {
-            var d = new Date(iso);
-            if (isNaN(d.getTime())) return iso;
-            return d.toLocaleString();
-        } catch (e) {
-            return iso;
-        }
-    }
-
-    function applyItem(code, item) {
-        var cell = document.querySelector('.usk-live-usage[data-usk-code="' + code + '"]');
-        if (cell && item) {
-            cell.innerHTML = renderUsageCell(item);
-        }
-        var connCell = document.querySelector('.usk-live-connections[data-usk-code="' + code + '"]');
-        if (connCell && item) {
-            connCell.innerHTML = renderConnectionsCell(item);
-        }
-        if (detailCode && detailCode === code && item) {
-            var txt = document.getElementById('usk-detail-usage-text');
-            if (txt && !item.usage_needs_sync && item.used_gb != null) {
-                txt.textContent = item.used_gb + ' GB / ' + item.limit_gb + ' GB (' + i18n.left + ': ' + (item.remaining_gb != null ? item.remaining_gb : '0') + ' GB)';
-            }
-            var connTxt = document.getElementById('usk-detail-connections-text');
-            if (connTxt && item.connections_display) {
-                connTxt.textContent = item.connections_display + ' ' + <?= json_encode(__('plan_connections_unit'), JSON_UNESCAPED_UNICODE) ?>;
-                connTxt.className = item.connections_near_limit ? 'text-danger fw-semibold' : (item.connections_warning ? 'text-warning' : '');
-            }
-            var synced = document.getElementById('usk-detail-synced-at');
-            if (synced && item.synced_at) {
-                synced.textContent = i18n.synced.replace('%s', formatSyncedAt(item.synced_at));
-            }
-        }
-    }
-
-    function collectCodes() {
-        var codes = [];
-        if (detailCode) codes.push(detailCode);
-        if (root) {
-            root.querySelectorAll('tr[data-usk-code]').forEach(function (tr) {
-                var c = tr.getAttribute('data-usk-code');
-                if (c && codes.indexOf(c) === -1) codes.push(c);
-            });
-        }
-        return codes;
-    }
-
-    function refreshStats() {
-        var codes = collectCodes();
-        if (!codes.length) return;
-        fetch(endpoint + '?codes=' + encodeURIComponent(codes.join(',')), {
-            credentials: 'same-origin',
-            headers: { 'Accept': 'application/json' },
-        })
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                if (!data || !data.ok || !data.items) return;
-                Object.keys(data.items).forEach(function (code) {
-                    applyItem(code, data.items[code]);
-                });
-            })
-            .catch(function () {});
-    }
-
-    refreshStats();
-    setInterval(refreshStats, POLL_MS);
-    document.addEventListener('visibilitychange', function () {
-        if (!document.hidden) refreshStats();
-    });
-})();
 </script>

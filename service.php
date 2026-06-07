@@ -124,7 +124,7 @@ function portal_esc($s)
                 <?php if (($view['volume_gb'] ?? 0) > 0) : ?>
                 <div class="portal-progress"><div class="portal-progress-bar" id="portal-usage-bar" style="width:<?= min(100, (float) ($usage['percent'] ?? 0)) ?>%"></div></div>
                 <div class="small text-muted mt-1" id="portal-usage-text"><?= portal_esc(__('portal_used')) ?>: <?= portal_esc((string) ($usage['used_gb'] ?? 0)) ?> GB · <?= portal_esc(__('portal_left')) ?>: <?= portal_esc((string) ($usage['remaining_gb'] ?? 0)) ?> GB</div>
-                <div class="small text-muted mt-1" id="portal-usage-live-hint"><i class="fa-solid fa-signal"></i> <?= portal_esc(__('portal_stats_live')) ?></div>
+                <div class="small text-muted mt-1"><i class="fa-solid fa-clock"></i> <?= portal_esc(__('portal_stats_live')) ?></div>
                 <?php endif; ?>
             </div>
             <div class="portal-stat" id="portal-connections-block"
@@ -142,7 +142,7 @@ function portal_esc($s)
                     }
                 ?></div>
                 <?php if (!empty($usage['connections_tracked'])) : ?>
-                <div class="small text-muted mt-1"><i class="fa-solid fa-signal"></i> <?= portal_esc(__('portal_connections_live')) ?></div>
+                <div class="small text-muted mt-1"><i class="fa-solid fa-clock"></i> <?= portal_esc(__('portal_connections_live')) ?></div>
                 <?php endif; ?>
             </div>
             <div class="portal-stat">
@@ -322,53 +322,6 @@ function portal_esc($s)
     var linkEl = document.getElementById('portal-primary-link');
     if (qrCanvas && linkEl && typeof QRCode !== 'undefined') {
         QRCode.toCanvas(qrCanvas, linkEl.value, { width: 220, margin: 2 }, function () {});
-    }
-
-    var usageLive = document.getElementById('portal-usage-block');
-    var connBlock = document.getElementById('portal-connections-block');
-    if (usageLive || connBlock) {
-        var statsUrl = usageLive ? usageLive.getAttribute('data-stats-url') : connBlock.getAttribute('data-stats-url');
-        var pCode = (usageLive || connBlock).getAttribute('data-code');
-        var pToken = (usageLive || connBlock).getAttribute('data-token');
-        var bar = document.getElementById('portal-usage-bar');
-        var usageText = document.getElementById('portal-usage-text');
-        var connValue = document.getElementById('portal-connections-value');
-        var usedLbl = <?= json_encode(__('portal_used'), JSON_UNESCAPED_UNICODE) ?>;
-        var leftLbl = <?= json_encode(__('portal_left'), JSON_UNESCAPED_UNICODE) ?>;
-        var connUnit = <?= json_encode(__('plan_connections_unit'), JSON_UNESCAPED_UNICODE) ?>;
-        var POLL_MS = 30000;
-
-        function applyPortalStats(data) {
-            if (!data || !data.ok) return;
-            if (data.needs_sync) return;
-            if (bar && data.percent != null) {
-                bar.style.width = Math.min(100, Math.max(0, Number(data.percent) || 0)) + '%';
-            }
-            if (usageText && data.used_gb != null) {
-                usageText.textContent = usedLbl + ': ' + data.used_gb + ' GB · ' + leftLbl + ': ' + (data.remaining_gb != null ? data.remaining_gb : '0') + ' GB';
-            }
-            if (connValue && data.connections_display) {
-                connValue.textContent = data.connections_display + ' ' + connUnit;
-                connValue.className = 'value' + (data.connections_near_limit ? ' text-danger' : (data.connections_warning ? ' text-warning' : ''));
-            }
-        }
-
-        function refreshPortalStats() {
-            if (!statsUrl || !pCode || !pToken) return;
-            fetch(statsUrl + '?code=' + encodeURIComponent(pCode) + '&t=' + encodeURIComponent(pToken), {
-                headers: { 'Accept': 'application/json' },
-                credentials: 'same-origin',
-            })
-                .then(function (r) { return r.json(); })
-                .then(applyPortalStats)
-                .catch(function () {});
-        }
-
-        refreshPortalStats();
-        setInterval(refreshPortalStats, POLL_MS);
-        document.addEventListener('visibilitychange', function () {
-            if (!document.hidden) refreshPortalStats();
-        });
     }
 })();
 </script>

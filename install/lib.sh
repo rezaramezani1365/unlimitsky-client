@@ -418,7 +418,7 @@ usk_ensure_web_update_sudoers() {
     chmod 440 "$sudoers" 2>/dev/null || true
 }
 
-# Auto usage/limit sync — no manual cron setup for resellers.
+# Auto usage/limit sync — single cron job every 5 minutes with flock (no overlap, no daemon).
 usk_ensure_usage_cron() {
     local web_root="$1"
     local php_bin
@@ -426,35 +426,22 @@ usk_ensure_usage_cron() {
     [ -n "$php_bin" ] || return 0
     [ -f "${web_root}/cron/native-limits.php" ] || return 0
 
+    local lock_file="/var/run/unlimitsky-limits.lock"
     local cron_file="/etc/cron.d/unlimitsky-limits"
     cat > "$cron_file" <<EOF
-# unlimitsky — usage sync & limit enforcement once per minute (light on CPU/RAM)
+# unlimitsky — usage + connection sync every 5 min (one-shot, flock prevents pile-up)
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
-* * * * * root ${php_bin} ${web_root}/cron/native-limits.php >> /var/log/unlimitsky-limits.log 2>&1
+*/5 * * * * root flock -n ${lock_file} timeout 120 ${php_bin} ${web_root}/cron/native-limits.php >> /var/log/unlimitsky-limits.log 2>&1
 EOF
     chmod 644 "$cron_file" 2>/dev/null || true
     touch /var/log/unlimitsky-limits.log 2>/dev/null || true
     chmod 644 /var/log/unlimitsky-limits.log 2>/dev/null || true
 }
 
-usk_ensure_connections_cron() {
-    local web_root="$1"
-    local php_bin
-    php_bin="$(command -v php 2>/dev/null || true)"
-    [ -n "$php_bin" ] || return 0
-    [ -f "${web_root}/cron/enforce-connections.php" ] || return 0
-
-    local cron_file="/etc/cron.d/unlimitsky-connections"
-    cat > "$cron_file" <<EOF
-# unlimitsky — enforce max concurrent VPN connections once per minute
-SHELL=/bin/bash
-PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
-* * * * * root ${php_bin} ${web_root}/cron/enforce-connections.php >> /var/log/unlimitsky-connections.log 2>&1
-EOF
-    chmod 644 "$cron_file" 2>/dev/null || true
-    touch /var/log/unlimitsky-connections.log 2>/dev/null || true
-    chmod 644 /var/log/unlimitsky-connections.log 2>/dev/null || true
+# Removed: separate connections cron (merged into native-limits.php).
+usk_remove_connections_cron() {
+    rm -f /etc/cron.d/unlimitsky-connections 2>/dev/null || true
 }
 
 # Configure Fail2ban IP-limit jail when Xray is present (3x-ui style). Installs fail2ban if missing.
@@ -472,16 +459,22 @@ usk_ensure_fail2ban_iplimit() {
     bash "$script" 30 >> /var/log/unlimitsky-fail2ban-install.log 2>&1 || true
 }
 
-# Stop the heavy live-stats daemon (5s collect loop) — it overloads small VPS hosts.
+# Stop daemon and kill orphan sync processes that pile up on small VPS.
 usk_disable_live_stats_daemon() {
     local web_root="$1"
 
     systemctl stop unlimitsky-live-stats.service 2>/dev/null || true
     systemctl disable unlimitsky-live-stats.service 2>/dev/null || true
+    rm -f /etc/systemd/system/unlimitsky-live-stats.service 2>/dev/null || true
+    systemctl daemon-reload 2>/dev/null || true
+
     pkill -f 'live-stats-daemon.sh' 2>/dev/null || true
     pkill -f 'live-stats-worker.php' 2>/dev/null || true
+    pkill -f 'cron/native-limits.php' 2>/dev/null || true
+    pkill -f 'collect-usage-stats.sh' 2>/dev/null || true
 
     rm -f "${web_root}/data/live/worker.lock" "${web_root}/data/live/sync.lock" 2>/dev/null || true
+    rm -f /var/run/unlimitsky-limits.lock 2>/dev/null || true
 }
 
 usk_write_deploy_stamp() {

@@ -64,8 +64,8 @@ fi
 if declare -F usk_ensure_usage_cron >/dev/null 2>&1; then
     usk_ensure_usage_cron "$WEB_ROOT"
 fi
-if declare -F usk_ensure_connections_cron >/dev/null 2>&1; then
-    usk_ensure_connections_cron "$WEB_ROOT"
+if declare -F usk_remove_connections_cron >/dev/null 2>&1; then
+    usk_remove_connections_cron
 fi
 if declare -F usk_ensure_fail2ban_iplimit >/dev/null 2>&1; then
     usk_ensure_fail2ban_iplimit "$WEB_ROOT"
