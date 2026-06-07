@@ -149,9 +149,13 @@ BIN_LIST=(
   usk-common.sh
   provision-common.sh
   xray-common.sh
+  xray-stats-state.sh
   openvpn-common.sh
   collect-usage-stats.sh
   enforce-connection-limits.sh
+  remove-user-xray.sh
+  remove-user-wireguard.sh
+  remove-user-openvpn.sh
   add-user-xray.sh
   disable-user-xray.sh
   enable-user-xray.sh

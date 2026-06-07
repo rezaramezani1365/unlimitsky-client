@@ -216,7 +216,7 @@ usk_xray_write_config() {
     --arg priv "$REALITY_PRIVATE_KEY" \
     --argjson shortIds "$short_ids_json" \
     '{
-      log: { loglevel: "warning" },
+      log: { loglevel: "warning", access: "/var/lib/unlimitsky/xray/access.log" },
       stats: {},
       api: {
         tag: "api",
@@ -523,7 +523,7 @@ usk_xray_build_client_json() {
     --arg fp "$fp" \
     --argjson dnsServers "$dns_json" \
     '{
-      log: { loglevel: "warning" },
+      log: { loglevel: "warning", access: "/var/lib/unlimitsky/xray/access.log" },
       dns: (
         if ($dnsServers | length) > 0 then
           { servers: $dnsServers, queryStrategy: "UseIPv4" }
@@ -828,10 +828,32 @@ usk_xray_strip_bad_routing() {
   usk_xray_fix_perms "$cfg"
 }
 
+usk_xray_ensure_access_log() {
+  local cfg="$1"
+  [ -f "$cfg" ] || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+  local root="${DATA_ROOT:-${USK_DATA_ROOT:-/var/lib/unlimitsky}}"
+  local log_path="${root}/xray/access.log"
+  mkdir -p "$(dirname "$log_path")" 2>/dev/null || true
+  touch "$log_path" 2>/dev/null || true
+  local tmp
+  tmp=$(mktemp)
+  if ! jq --arg ap "$log_path" '
+    .log = ((.log // {loglevel:"warning"}) + {loglevel: ((.log.loglevel // "warning") | tostring), access: $ap})
+  ' "$cfg" > "$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  mv "$tmp" "$cfg"
+  usk_xray_fix_perms "$cfg"
+  usk_xray_fix_perms "$log_path" 2>/dev/null || true
+}
+
 usk_xray_ensure_stats_policy() {
   local cfg="$1"
   [ -f "$cfg" ] || return 1
   command -v jq >/dev/null 2>&1 || return 1
+  usk_xray_ensure_access_log "$cfg" 2>/dev/null || true
   local tmp vless_tag
   vless_tag=$(jq -r '(.inbounds[]? | select(.protocol=="vless") | .tag) // "vless-reality-in"' "$cfg" 2>/dev/null | head -1)
   [ -n "$vless_tag" ] || vless_tag="vless-reality-in"

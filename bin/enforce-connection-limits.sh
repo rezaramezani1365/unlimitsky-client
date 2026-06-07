@@ -9,6 +9,8 @@ source "$DIR/provision-common.sh" 2>/dev/null || true
 # shellcheck disable=SC1091
 source "$DIR/xray-common.sh" 2>/dev/null || true
 # shellcheck disable=SC1091
+source "$DIR/xray-stats-state.sh" 2>/dev/null || true
+# shellcheck disable=SC1091
 source "$DIR/openvpn-common.sh" 2>/dev/null || true
 
 PANEL_ROOT="${PANEL_ROOT:-$(dirname "$DIR")}"
@@ -109,7 +111,20 @@ for protocol in xray openvpn; do
         kicked=$(openvpn_enforce_user "$username" "$max")
         ;;
       xray)
-        online=$(usk_xray_user_online_count "$username")
+        online=$(usk_xray_access_log_ip_counts_for_email "$username")
+        if [ "${online:-0}" -eq 0 ] 2>/dev/null; then
+          if [ -f "$(usk_xray_stats_state_path 2>/dev/null)" ] && command -v jq >/dev/null 2>&1; then
+            now_ms=$(($(date +%s) * 1000))
+            grace="${USK_XRAY_ONLINE_GRACE_MS:-180000}"
+            online=$(jq -r --arg u "$username" --argjson now "$now_ms" --argjson grace "$grace" '
+              (.last_traffic_ms[$u] // 0 | tonumber) as $ts |
+              if $ts > 0 and ($now - $ts) <= grace then 1 else 0 end
+            ' "$(usk_xray_stats_state_path)" 2>/dev/null || echo 0)
+          fi
+        fi
+        if [ "${online:-0}" -eq 0 ] 2>/dev/null; then
+          online=$(usk_xray_user_online_count "$username")
+        fi
         online=${online:-0}
         mapfile -t _ips < <(usk_xray_online_ips_for_email "$username" 2>/dev/null || true)
         if [ "${#_ips[@]}" -gt 0 ]; then

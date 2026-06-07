@@ -171,7 +171,7 @@ class USK_ProtocolUsage
 
                 $prev = self::record_usage_bytes($rec);
                 if ($bytes !== null) {
-                    $newBytes = max($prev, (int) $bytes);
+                    $newBytes = self::merge_usage_bytes($protocol, $prev, (int) $bytes);
                     if (self::should_persist_usage($rec, $newBytes, $prev)) {
                         $clients[$username]['usage_bytes'] = $newBytes;
                         $clients[$username]['usage_synced_at'] = date('c');
@@ -468,6 +468,26 @@ class USK_ProtocolUsage
     private static function record_usage_bytes(array $rec)
     {
         return self::record_has_usage_bytes($rec) ? (int) $rec['usage_bytes'] : 0;
+    }
+
+    /** @return int */
+    private static function merge_usage_bytes($protocol, $prevBytes, $incomingBytes)
+    {
+        $prevBytes = (int) $prevBytes;
+        $incomingBytes = (int) $incomingBytes;
+        if ($protocol === 'xray' && self::xray_traffic_mode_is_delta()) {
+            if ($incomingBytes <= 0) {
+                return $prevBytes;
+            }
+            return $prevBytes + $incomingBytes;
+        }
+        return max($prevBytes, $incomingBytes);
+    }
+
+    private static function xray_traffic_mode_is_delta()
+    {
+        $mode = trim((string) (self::$lastCollectMeta['xray_traffic_mode'] ?? ''));
+        return $mode === 'delta';
     }
 
     private static function should_persist_usage(array $rec, $newBytes, $prevBytes)
