@@ -194,7 +194,7 @@ function usk_service_list_row(array $order)
             $usageDisplay = (string) ($usage['used_gb'] ?? 0) . ' / ' . $volumeGb . ' GB';
             $usagePercent = $usage['percent'];
         }
-    } elseif ($volumeGb > 0 && in_array((string) ($order['protocol'] ?? ''), array('wireguard', 'openvpn', 'xray', 'amnezia'), true)) {
+    } elseif ($volumeGb > 0 && in_array((string) ($order['protocol'] ?? ''), array('wireguard', 'openvpn', 'xray'), true)) {
         $usageDisplay = __('services_usage_pending');
         $usageNeedsSync = true;
     }

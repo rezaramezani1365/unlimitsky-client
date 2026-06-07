@@ -324,10 +324,6 @@ $panels = $sql->query("SELECT `code`,`name` FROM `panels`");
                         <input class="form-control" name="xray_dns" dir="ltr" style="text-align:left;" value="<?= usk_esc($clientDns['xray_dns'] ?? '') ?>" placeholder="<?= __('settings_client_dns_optional') ?>">
                     </div>
                     <div class="form-group col-md-6">
-                        <label>Amnezia</label>
-                        <input class="form-control" name="amnezia_dns" dir="ltr" style="text-align:left;" value="<?= usk_esc($clientDns['amnezia_dns'] ?? '') ?>" placeholder="<?= __('settings_client_dns_optional') ?>">
-                    </div>
-                    <div class="form-group col-md-6">
                         <label>OpenVPN</label>
                         <input class="form-control" name="openvpn_dns" dir="ltr" style="text-align:left;" value="<?= usk_esc($clientDns['openvpn_dns'] ?? '') ?>" placeholder="<?= __('settings_client_dns_optional') ?>">
                     </div>

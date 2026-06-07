@@ -41,13 +41,6 @@ case "$PROTO" in
     [ -f /etc/ocserv/ocserv.conf ] && usk_mark_installed cisco "$USK_ROOT" && usk_ok
     usk_fail "cisco_not_installed"
     ;;
-  amnezia)
-    if [ -f /etc/amnezia/amneziawg/awg0.conf ] || [ -x /root/awg/manage_amneziawg.sh ] || command -v awg >/dev/null 2>&1; then
-      usk_mark_installed amnezia "$USK_ROOT"
-      usk_ok
-    fi
-    usk_fail "amnezia_not_installed"
-    ;;
   *)
     usk_fail "invalid_protocol"
     ;;

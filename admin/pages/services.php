@@ -166,9 +166,6 @@ $lastSync = USK_ProtocolLimits::get_last_run();
         <p class="mt-3"><strong><?= __('xray_vless_link') ?>:</strong></p>
         <code class="d-block p-3" style="white-space:pre-wrap;word-break:break-all;direction:ltr;text-align:left;"><?= usk_esc($primaryConfig) ?></code>
         <p class="text-muted small"><?= __('xray_vless_hint') ?></p>
-    <?php elseif ($protocol === 'amnezia' && $primaryConfig !== '') : ?>
-        <p class="mt-3"><strong><?= __('config_label') ?>:</strong></p>
-        <code class="d-block p-3" style="white-space:pre-wrap;word-break:break-all;direction:ltr;text-align:left;"><?= usk_esc($primaryConfig) ?></code>
     <?php elseif ($primaryConfig !== '') : ?>
         <p class="mt-3"><strong><?= __('config_label') ?>:</strong></p>
         <code class="d-block p-3" style="white-space:pre-wrap;word-break:break-all;direction:ltr;text-align:left;"><?= usk_esc($primaryConfig) ?></code>

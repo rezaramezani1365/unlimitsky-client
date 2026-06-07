@@ -87,9 +87,6 @@ class USK_ProtocolProvisioner
         } elseif ($protocol === 'xray') {
             $scriptArgs[] = $clientDns;
             $scriptArgs[] = $connectHost;
-        } elseif ($protocol === 'amnezia') {
-            $scriptArgs[] = $clientDns;
-            $scriptArgs[] = $connectHost;
         } elseif ($protocol !== 'openvpn') {
             $scriptArgs[] = $connectHost;
         }

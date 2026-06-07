@@ -25,7 +25,6 @@ $clientDnsForJs = array(
     'default' => $clientDnsPanel['default_dns'] ?? '',
     'by_protocol' => array(
         'xray' => USK_ClientDns::resolve('', 'xray'),
-        'amnezia' => USK_ClientDns::resolve('', 'amnezia'),
         'openvpn' => USK_ClientDns::resolve('', 'openvpn'),
         'wireguard' => USK_ClientDns::resolve('', 'wireguard'),
     ),
@@ -127,7 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $result['portal_url'] = $portalUrl;
                         $result['download_url'] = $fileDownloadUrl;
                         $result['max_connections'] = $max_connections;
-                        $result['ovpn_filename'] = $raw['ovpn_filename'] ?? ($raw['json_filename'] ?? ($raw['conf_filename'] ?? ($username . ($protocol === 'amnezia' ? '.conf' : ($protocol === 'xray' ? '.json' : '.ovpn')))));
+                        $result['ovpn_filename'] = $raw['ovpn_filename'] ?? ($raw['json_filename'] ?? ($raw['conf_filename'] ?? ($username . ($protocol === 'xray' ? '.json' : '.ovpn'))));
                         $result['client_dns'] = $raw['client_dns'] ?? ($provisionMeta['client_dns'] ?? '');
                         $result['vless'] = $raw['vless'] ?? ($created['subscription'] ?? '');
                         $result['openvpn_proto'] = $raw['proto'] ?? ($provisionMeta['openvpn_proto'] ?? 'tcp');
@@ -292,9 +291,6 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
                     </select>
                     <p class="text-muted small mt-1 mb-0"><?= __('create_wireguard_transport_hint') ?></p>
                 </div>
-                <div id="create-amnezia-hint" class="alert alert-info small py-2 px-3 mb-0 mt-2" style="display:none;">
-                    <i class="fa-solid fa-circle-info"></i> <?= __('protocol_amnezia_note') ?>
-                </div>
                 <div id="create-l2tp-warning" class="alert alert-warning small py-2 px-3 mb-0 mt-2" style="display:none;">
                     <i class="fa-solid fa-triangle-exclamation"></i> <?= __('protocol_l2tp_iran_note') ?>
                 </div>
@@ -347,7 +343,6 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         var openvpnProto = document.getElementById('create-openvpn-proto');
         var wgTransport = document.getElementById('create-wireguard-transport');
         var l2tpWarn = document.getElementById('create-l2tp-warning');
-        var amneziaHint = document.getElementById('create-amnezia-hint');
         var xrayHint = document.getElementById('create-xray-hint');
         var dnsWrap = document.getElementById('create-client-dns-wrap');
         if (!wrap || !proto || !protocolPorts[proto]) {
@@ -355,7 +350,6 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
             if (openvpnProto) openvpnProto.style.display = 'none';
             if (wgTransport) wgTransport.style.display = 'none';
             if (l2tpWarn) l2tpWarn.style.display = 'none';
-            if (amneziaHint) amneziaHint.style.display = 'none';
             if (xrayHint) xrayHint.style.display = 'none';
             if (dnsWrap) dnsWrap.style.display = 'none';
             return;
@@ -367,7 +361,6 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         if (openvpnProto) openvpnProto.style.display = 'none';
         if (wgTransport) wgTransport.style.display = 'none';
         if (l2tpWarn) l2tpWarn.style.display = 'none';
-        if (amneziaHint) amneziaHint.style.display = 'none';
         if (xrayHint) xrayHint.style.display = 'none';
         if (dnsWrap) dnsWrap.style.display = 'none';
         var cfg = protocolPorts[proto];
@@ -394,11 +387,6 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
             fixed.style.display = '';
             if (l2tpWarn) l2tpWarn.style.display = '';
             document.getElementById('create-port-fixed-text').textContent = cfg.fixed_ports || '500, 4500, 1701 (UDP)';
-        } else if (proto === 'amnezia') {
-            single.style.display = '';
-            if (amneziaHint) amneziaHint.style.display = '';
-            if (dnsWrap) { dnsWrap.style.display = ''; applyPanelDnsPlaceholder(proto); }
-            document.getElementById('custom-port').value = cfg.port || 443;
         } else if (cfg.fixed_ports) {
             fixed.style.display = '';
             document.getElementById('create-port-fixed-text').textContent = cfg.fixed_ports;
@@ -438,11 +426,7 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         <p><strong><?= __('expires_at') ?>:</strong> <?= usk_esc($result['expires_at']) ?></p>
     <?php endif; ?>
     <?php if (!empty($result['qr_png'])) : ?>
-        <?php if (($result['protocol'] ?? '') === 'amnezia') : ?>
-        <p class="mt-2"><strong><?= __('amnezia_qr') ?>:</strong></p>
-        <p><img src="data:image/png;base64,<?= usk_esc($result['qr_png']) ?>" alt="Amnezia QR" style="max-width:220px;border:1px solid #333;padding:8px;background:#fff;" /></p>
-        <p class="text-muted small"><?= __('amnezia_qr_hint') ?></p>
-        <?php elseif (($result['protocol'] ?? '') === 'xray') : ?>
+        <?php if (($result['protocol'] ?? '') === 'xray') : ?>
         <p class="mt-2"><strong><?= __('portal_qr_hint') ?>:</strong></p>
         <p><img src="data:image/png;base64,<?= usk_esc($result['qr_png']) ?>" alt="VLESS QR" style="max-width:220px;border:1px solid #333;padding:8px;background:#fff;" /></p>
         <?php else : ?>
@@ -450,11 +434,6 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         <p><img src="data:image/png;base64,<?= usk_esc($result['qr_png']) ?>" alt="QR" style="max-width:220px;border:1px solid #333;padding:8px;background:#fff;" /></p>
         <p class="text-muted small"><?= __('wireguard_qr_hint') ?></p>
         <?php endif; ?>
-    <?php endif; ?>
-    <?php if (!empty($result['vpn_uri'])) : ?>
-        <p class="mt-2"><strong><?= __('amnezia_import_link') ?>:</strong></p>
-        <code class="d-block p-3" style="white-space:pre-wrap;word-break:break-all;direction:ltr;text-align:left;"><?= usk_esc($result['vpn_uri']) ?></code>
-        <p class="text-muted small"><?= __('amnezia_import_link_hint') ?></p>
     <?php endif; ?>
     <?php if (!empty($result['panel_name'])) : ?>
         <p><strong><?= __('create_panel_select') ?>:</strong> <?= usk_esc($result['panel_name']) ?> (<?= usk_esc($result['panel_type'] ?? '') ?>)</p>
@@ -488,10 +467,8 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
     <?php if (!empty($result['download_url'])) : ?>
         <p class="mt-2">
             <a class="btn btn-usk-primary" href="<?= usk_esc($result['download_url']) ?>" download="<?= usk_esc($result['ovpn_filename'] ?? 'client.conf') ?>">
-                <i class="fa-solid fa-download"></i> <?php
-                if (($result['protocol'] ?? '') === 'amnezia') {
-                    echo __('download_amnezia_conf');
-                } elseif (($result['protocol'] ?? '') === 'xray') {
+                <i class="fa-solid fa-download"></i>                 <?php
+                if (($result['protocol'] ?? '') === 'xray') {
                     echo __('download_xray_json');
                 } else {
                     echo __('download_ovpn');
@@ -500,25 +477,18 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
             </a>
         </p>
     <?php endif; ?>
-    <?php if (!empty($result['wg_conf']) && ($result['protocol'] ?? '') === 'amnezia') : ?>
-        <p class="mt-2"><strong><?= __('amnezia_wg_conf') ?>:</strong></p>
-        <code class="d-block p-3" style="white-space:pre-wrap;direction:ltr;text-align:left;"><?= usk_esc($result['wg_conf']) ?></code>
-        <p class="text-muted small"><?= __('amnezia_wg_conf_hint') ?></p>
-    <?php endif; ?>
     <?php
     $resultProto = (string) ($result['protocol'] ?? '');
     $configPreview = '';
     if ($resultProto === 'xray') {
         $configPreview = (string) ($result['vless'] ?? ($result['subscription'] ?? ''));
-    } elseif ($resultProto === 'amnezia') {
-        $configPreview = (string) ($result['vpn_uri'] ?? ($result['subscription'] ?? ''));
     } else {
         $configPreview = (string) ($result['subscription'] ?? ($result['links'] ?? ''));
     }
     $linksExtra = (string) ($result['links'] ?? '');
     $subscriptionText = (string) ($result['subscription'] ?? '');
     ?>
-    <?php if ($configPreview !== '' && !($resultProto === 'xray' && !empty($result['vless'])) && !($resultProto === 'amnezia' && !empty($result['vpn_uri']))) : ?>
+    <?php if ($configPreview !== '' && !($resultProto === 'xray' && !empty($result['vless']))) : ?>
         <p class="mt-2"><strong><?= __('config_label') ?>:</strong></p>
         <code class="d-block p-3" style="white-space:pre-wrap;direction:ltr;text-align:left;"><?= usk_esc($configPreview) ?></code>
     <?php endif; ?>

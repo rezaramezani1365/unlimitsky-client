@@ -48,15 +48,6 @@ class USK_ProtocolManager
                 ),
                 'note_key' => 'protocol_xray_iran_note',
             ),
-            'amnezia' => array(
-                'name' => 'Amnezia (AmneziaWG)',
-                'port' => 443,
-                'icon' => 'fa-user-shield',
-                'port_fields' => array(
-                    array('key' => 'port', 'label' => 'Listen port (UDP, max 9999)', 'default' => 443),
-                ),
-                'note_key' => 'protocol_amnezia_note',
-            ),
         );
     }
 
@@ -269,7 +260,7 @@ class USK_ProtocolManager
 
     public static function async_install_protocols()
     {
-        return array('amnezia');
+        return array();
     }
 
     public static function uses_async_install($proto)
@@ -367,13 +358,6 @@ class USK_ProtocolManager
             $status['tcp_port'] = (int) $m[2];
             $status['port'] = (int) $m[1];
             $status['firewall_note'] = 'Open UDP ' . $m[1] . ' and TCP ' . $m[2] . ' in your VPS cloud firewall.';
-        } elseif ($proto === 'amnezia' && preg_match('/USK_META:port=(\d+)(?:;mode=(\w+))?/', $out, $m)) {
-            $status['port'] = (int) $m[1];
-            if (!empty($m[2])) {
-                $status['amnezia_mode'] = $m[2];
-            }
-            $modeNote = (!empty($m[2]) && $m[2] === 'userspace') ? ' (userspace, no kernel module)' : '';
-            $status['firewall_note'] = 'Open UDP ' . $m[1] . ' (AmneziaWG) in your VPS cloud firewall. Clients need the Amnezia VPN app.' . $modeNote;
         } elseif ($proto === 'wireguard' && preg_match('/USK_META:port=(\d+);tcp_port=(\d+)/', $out, $m)) {
             $status['port'] = (int) $m[1];
             $requestedTcp = (int) $m[2];

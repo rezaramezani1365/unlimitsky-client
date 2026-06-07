@@ -178,7 +178,6 @@ class USK_WooCommerce
                 'openvpn'   => 'OpenVPN',
                 'xray'      => 'Xray (VLESS Reality)',
                 'l2tp'      => 'L2TP/IPsec',
-                'amnezia'   => 'Amnezia (AmneziaWG)',
             ],
             'wrapper_class' => 'usk-native-protocol-field',
             'desc_tip'    => true,

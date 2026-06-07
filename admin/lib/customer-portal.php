@@ -69,8 +69,6 @@ class USK_CustomerPortal
             $liveVless = USK_XrayLinks::live_uri_for_client($meta, (string) ($native['username'] ?? ''));
             $storedVless = usk_client_meta_string($meta, 'vless');
             $primaryLink = $liveVless !== '' ? $liveVless : ($storedVless ?: $primaryLink);
-        } elseif ($protocol === 'amnezia') {
-            $primaryLink = usk_client_meta_string($meta, 'vpn_uri') ?: $primaryLink;
         } elseif ($protocol === 'wireguard') {
             $primaryLink = usk_client_meta_string($meta, 'config') ?: $primaryLink;
         }
@@ -107,10 +105,10 @@ class USK_CustomerPortal
             'credentials' => self::credentials($protocol, $meta),
             'wg_conf' => usk_client_meta_string($meta, 'wg_conf'),
             'apps' => self::app_links($protocol),
-            'show_qr' => in_array($protocol, array('xray', 'wireguard', 'amnezia'), true)
+            'show_qr' => in_array($protocol, array('xray', 'wireguard'), true)
                 && ($primaryLink !== '' || $qrB64 !== ''),
-            'show_copy_link' => in_array($protocol, array('xray', 'amnezia', 'wireguard'), true) && $primaryLink !== '',
-            'show_download' => in_array($protocol, array('openvpn', 'amnezia', 'xray', 'wireguard'), true),
+            'show_copy_link' => in_array($protocol, array('xray', 'wireguard'), true) && $primaryLink !== '',
+            'show_download' => in_array($protocol, array('openvpn', 'xray', 'wireguard'), true),
             'renew_plans' => $renewPlans,
             'renew_enabled' => !empty($renewPlans),
         );
@@ -254,12 +252,6 @@ class USK_CustomerPortal
                 array_merge($mac, array('url' => 'https://openvpn.net/client/')),
                 array_merge($ios, array('url' => 'https://apps.apple.com/app/openvpn-connect/id590379981')),
                 array_merge($android, array('url' => 'https://play.google.com/store/apps/details?id=net.openvpn.openvpn')),
-            ),
-            'amnezia' => array(
-                array_merge($windows, array('url' => 'https://amnezia.org/downloads')),
-                array_merge($mac, array('url' => 'https://amnezia.org/downloads')),
-                array_merge($ios, array('url' => 'https://apps.apple.com/app/amneziavpn/id1600529900')),
-                array_merge($android, array('url' => 'https://play.google.com/store/apps/details?id=org.amnezia.vpn')),
             ),
             'l2tp' => array(
                 array_merge($windows, array('url' => 'https://support.microsoft.com/windows')),

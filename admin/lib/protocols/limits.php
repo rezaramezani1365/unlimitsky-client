@@ -126,7 +126,7 @@ class USK_ProtocolLimits
             'details' => array(),
         );
 
-        foreach (array('wireguard', 'openvpn', 'xray', 'l2tp', 'cisco', 'amnezia') as $protocol) {
+        foreach (array('wireguard', 'openvpn', 'xray', 'l2tp', 'cisco') as $protocol) {
             $clients = self::load_protocol_clients($protocol);
             foreach ($clients as $username => $rec) {
                 if (!is_array($rec) || !self::is_active_status($rec['status'] ?? 'active')) {

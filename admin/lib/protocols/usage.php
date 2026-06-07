@@ -67,7 +67,7 @@ class USK_ProtocolUsage
         $usedGb = round($usedBytes / 1073741824, 2);
         $remainingGb = $volumeGb > 0 ? max(0, round($volumeGb - $usedGb, 2)) : null;
         $percent = ($volumeGb > 0) ? min(100, round(($usedGb / $volumeGb) * 100, 1)) : null;
-        $metered = in_array($protocol, array('wireguard', 'openvpn', 'xray', 'amnezia'), true);
+        $metered = in_array($protocol, array('wireguard', 'openvpn', 'xray'), true);
         $syncedAt = trim((string) ($rec['usage_synced_at'] ?? ($rec['meta']['usage_synced_at'] ?? '')));
 
         return array(
@@ -99,7 +99,7 @@ class USK_ProtocolUsage
 
         $updated = 0;
         $synced = 0;
-        foreach (array('wireguard', 'openvpn', 'xray', 'l2tp', 'cisco', 'amnezia') as $protocol) {
+        foreach (array('wireguard', 'openvpn', 'xray', 'l2tp', 'cisco') as $protocol) {
             $clients = USK_ProtocolLimits::load_protocol_clients($protocol);
             $changed = false;
             foreach ($clients as $username => $rec) {
