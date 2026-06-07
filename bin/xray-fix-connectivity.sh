@@ -50,6 +50,9 @@ if ! usk_xray_service_restart; then
   exit 1
 fi
 
+source "$DIR/provision-common.sh" 2>/dev/null || true
+usk_xray_refresh_stored_links "$PANEL_ROOT" 2>/dev/null || true
+
 n=$(jq '[.inbounds[]?|select(.protocol=="vless")|.settings.clients[]?]|length' "$XRAY_CFG" 2>/dev/null || echo 0)
 p=$(jq -r '(.inbounds[]?|select(.protocol=="vless")|.port)//443' "$XRAY_CFG" 2>/dev/null | head -1)
 echo "USK_OK: xray_connectivity_fixed port=${p} clients=${n}"

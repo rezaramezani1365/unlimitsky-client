@@ -296,6 +296,40 @@ usk_xray_migrate_legacy_config() {
   usk_xray_write_config "$cfg" "$clients" "$port"
 }
 
+usk_xray_resolve_connect_host() {
+  local panel_root="${1:-${PANEL_ROOT:-}}"
+  local host=""
+  if [ -n "$panel_root" ] && [ -f "${panel_root}/data/settings/connect-host.json" ] && command -v jq >/dev/null 2>&1; then
+    host=$(jq -r 'if (.enabled // false) and ((.connect_host // "") != "") then .connect_host else empty end' \
+      "${panel_root}/data/settings/connect-host.json" 2>/dev/null || true)
+  fi
+  if [ -n "$host" ]; then
+    echo "$host"
+    return 0
+  fi
+  if [ -n "${USK_CONNECT_HOST_ARG:-}" ]; then
+    echo "$USK_CONNECT_HOST_ARG"
+    return 0
+  fi
+  if [ -n "${USK_SERVER_IP:-}" ]; then
+    echo "$USK_SERVER_IP"
+    return 0
+  fi
+  if declare -F usk_server_ip >/dev/null 2>&1; then
+    host=$(usk_server_ip 2>/dev/null || true)
+    [ -n "$host" ] && echo "$host" && return 0
+  fi
+  host=$(hostname -I 2>/dev/null | awk '{print $1}')
+  [ -n "$host" ] && echo "$host"
+}
+
+usk_xray_uri_encode() {
+  local raw="$1"
+  python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe='-_.~'))" "$raw" 2>/dev/null \
+    || jq -nr --arg s "$raw" '$s|@uri' 2>/dev/null \
+    || echo "$raw" | sed 's/[#?&]/_/g'
+}
+
 usk_xray_build_vless_uri() {
   local uuid="$1"
   local host="$2"
@@ -305,9 +339,145 @@ usk_xray_build_vless_uri() {
   local sni="$6"
   local sid="$7"
   local fp="${8:-chrome}"
-  name=$(echo "$name" | sed 's/[#?&]/_/g')
-  printf 'vless://%s@%s:%s?encryption=none&flow=xtls-rprx-vision&security=reality&sni=%s&fp=%s&pbk=%s&sid=%s&type=tcp&headerType=none#%s' \
+  name=$(usk_xray_uri_encode "$(echo "$name" | sed 's/[#?&]/_/g')")
+  sni=$(usk_xray_uri_encode "$sni")
+  pub=$(usk_xray_uri_encode "$pub")
+  sid=$(usk_xray_uri_encode "$sid")
+  fp=$(usk_xray_uri_encode "$fp")
+  printf 'vless://%s@%s:%s?encryption=none&flow=xtls-rprx-vision&security=reality&sni=%s&fp=%s&pbk=%s&sid=%s&spx=%%2F&type=tcp#%s' \
     "$uuid" "$host" "$port" "$sni" "$fp" "$pub" "$sid" "$name"
+}
+
+usk_xray_collect_all_clients_json() {
+  local cfg="${1:-$XRAY_CFG}"
+  local panel_root="${2:-${PANEL_ROOT:-}}"
+  [ -n "$panel_root" ] || panel_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd || echo /var/www/unlimitsky)"
+  command -v jq >/dev/null 2>&1 || { usk_xray_load_clients "$cfg"; return; }
+
+  local data_root="${DATA_ROOT:-${USK_DATA_ROOT:-/var/lib/unlimitsky}}"
+  local panel_file="${panel_root}/data/clients/xray.json"
+  local reg_file="${data_root}/xray/clients.json"
+  local cfg_json panel_json reg_json
+  cfg_json=$(usk_xray_load_clients "$cfg")
+  panel_json='[]'
+  reg_json='[]'
+  [ -f "$panel_file" ] && panel_json=$(jq -c '
+    to_entries | map({
+      id: (.value.uuid // .value.id // .value.meta.uuid // ""),
+      email: (.value.username // .key // "user"),
+      flow: "xtls-rprx-vision",
+      level: 0,
+      status: (.value.status // "active")
+    }) | map(select(.id != ""))
+  ' "$panel_file" 2>/dev/null || echo '[]')
+  [ -f "$reg_file" ] && reg_json=$(jq -c '
+    if type == "array" then
+      map(select(.uuid? // .id? // "") != "") | map({
+        id: (.uuid // .id // ""),
+        email: (.username // .email // "user"),
+        flow: "xtls-rprx-vision",
+        level: 0,
+        status: (.status // "active")
+      })
+    elif type == "object" then
+      to_entries | map(select(.value.uuid? // .value.id? // "") != "") | {
+        id: (.value.uuid // .value.id // ""),
+        email: (.key),
+        flow: "xtls-rprx-vision",
+        level: 0,
+        status: (.value.status // "active")
+      }
+    else [] end
+  ' "$reg_file" 2>/dev/null || echo '[]')
+
+  jq -s '
+    def by_id: reduce .[] as $c ({}; if ($c.id // "") != "" then . + {($c.id): $c} else . end);
+    (.[0] | by_id) as $cfg | (.[1] | by_id) as $panel | (.[2] | by_id) as $reg |
+    ($cfg + $panel + $reg) | to_entries | map(.value)
+    | map(select(.status? // "active" == "active"))
+    | map({id, email, flow: "xtls-rprx-vision", level: 0})
+    | unique_by(.id)
+  ' <(echo "$cfg_json") <(echo "$panel_json") <(echo "$reg_json") 2>/dev/null || echo "$cfg_json"
+}
+
+usk_xray_link_for_uuid() {
+  local uuid="$1"
+  local label="${2:-user-vless}"
+  local host="${3:-}"
+  usk_xray_load_reality || return 1
+  local port sid fp
+  port=$(usk_xray_vless_port_from_config "$XRAY_CFG" 2>/dev/null || echo 443)
+  sid=$(usk_xray_reality_short_id_for_client)
+  fp="${REALITY_FINGERPRINT:-chrome}"
+  if [ -z "$host" ]; then
+    host=$(usk_xray_resolve_connect_host "${PANEL_ROOT:-}") || true
+  fi
+  [ -n "$host" ] || return 1
+  usk_xray_build_vless_uri "$uuid" "$host" "$port" "$label" \
+    "$REALITY_PUBLIC_KEY" "$REALITY_SNI" "$sid" "$fp"
+}
+
+usk_xray_refresh_stored_links() {
+  local panel_root="${1:-${PANEL_ROOT:-}}"
+  local data_root="${DATA_ROOT:-${USK_DATA_ROOT:-/var/lib/unlimitsky}}"
+  [ -n "$panel_root" ] || panel_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd || echo /var/www/unlimitsky)"
+  command -v jq >/dev/null 2>&1 || return 1
+  usk_xray_load_reality || return 1
+
+  local host
+  host=$(usk_xray_resolve_connect_host "$panel_root") || true
+  [ -n "$host" ] || return 1
+
+  local panel_file="${panel_root}/data/clients/xray.json"
+  local reg_file="${data_root}/xray/clients.json"
+  local updated=0
+
+  while IFS=$'\t' read -r username uuid; do
+    [ -n "$uuid" ] || continue
+    [ -n "$username" ] || username="user"
+    local link
+    link=$(usk_xray_link_for_uuid "$uuid" "${username}-vless" "$host") || continue
+    updated=$((updated + 1))
+
+    if [ -f "$panel_file" ]; then
+      local tmp2
+      tmp2=$(mktemp)
+      if jq --arg u "$username" --arg l "$link" '
+        if .[$u] then
+          .[$u].vless = $l |
+          .[$u].links = $l |
+          .[$u].subscription_url = $l |
+          (if .[$u].meta then .[$u].meta.vless = $l else . end)
+        else . end
+      ' "$panel_file" > "$tmp2" 2>/dev/null; then
+        mv "$tmp2" "$panel_file"
+      else
+        rm -f "$tmp2"
+      fi
+    fi
+
+    if [ -f "$reg_file" ]; then
+      local tmp3
+      tmp3=$(mktemp)
+      if jq --arg u "$username" --arg l "$link" '
+        if type == "array" then
+          map(if (.username // "") == $u then . + {vless: $l} else . end)
+        elif type == "object" then
+          if .[$u] then .[$u].vless = $l else . end
+        else . end
+      ' "$reg_file" > "$tmp3" 2>/dev/null; then
+        mv "$tmp3" "$reg_file"
+      else
+        rm -f "$tmp3"
+      fi
+    fi
+  done < <(
+    usk_xray_collect_all_clients_json "$XRAY_CFG" "$panel_root" 2>/dev/null \
+      | jq -r '.[] | "\(.email // "user")\t\(.id // "")"' 2>/dev/null
+  )
+
+  echo "$updated"
+  return 0
 }
 
 usk_xray_parse_client_dns() {

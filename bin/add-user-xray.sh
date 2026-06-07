@@ -37,7 +37,9 @@ usk_xray_ports_from_config "$XRAY_CFG"
 VLESS_PORT="$USK_XRAY_VLESS_PORT"
 
 UUID=$(cat /proc/sys/kernel/random/uuid)
-SERVER_IP=$(usk_server_ip)
+PANEL_ROOT="${PANEL_ROOT:-$(dirname "$DIR")}"
+SERVER_IP=$(usk_xray_resolve_connect_host "$PANEL_ROOT" 2>/dev/null || true)
+[ -n "$SERVER_IP" ] || SERVER_IP=$(usk_server_ip)
 
 CFG_BAK=$(mktemp)
 cp "$XRAY_CFG" "$CFG_BAK"

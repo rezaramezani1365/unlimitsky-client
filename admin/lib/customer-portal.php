@@ -3,6 +3,7 @@
 require_once __DIR__ . '/config-download.php';
 require_once __DIR__ . '/service-config-view.php';
 require_once __DIR__ . '/protocols/usage.php';
+require_once __DIR__ . '/protocols/xray-links.php';
 require_once __DIR__ . '/customer-renewal.php';
 
 function usk_customer_portal_url($code, $token)
@@ -65,7 +66,9 @@ class USK_CustomerPortal
             $primaryLink = '';
         }
         if ($protocol === 'xray') {
-            $primaryLink = usk_client_meta_string($meta, 'vless') ?: $primaryLink;
+            $liveVless = USK_XrayLinks::live_uri_for_client($meta, (string) ($native['username'] ?? ''));
+            $storedVless = usk_client_meta_string($meta, 'vless');
+            $primaryLink = $liveVless !== '' ? $liveVless : ($storedVless ?: $primaryLink);
         } elseif ($protocol === 'amnezia') {
             $primaryLink = usk_client_meta_string($meta, 'vpn_uri') ?: $primaryLink;
         } elseif ($protocol === 'wireguard') {

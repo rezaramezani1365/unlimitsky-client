@@ -12,7 +12,18 @@ VLESS_PORT="${1:-${USK_XRAY_VLESS_PORT:-443}}"
 VLESS_PORT=$(echo "$VLESS_PORT" | tr -dc '0-9')
 [ -n "$VLESS_PORT" ] && [ "$VLESS_PORT" -ge 1 ] && [ "$VLESS_PORT" -le 65535 ] 2>/dev/null || VLESS_PORT=443
 
-VLESS_PORT=$(usk_xray_pick_free_port "$VLESS_PORT")
+PANEL_ROOT="${PANEL_ROOT:-$(dirname "$DIR")}"
+if [ -f "$XRAY_CFG" ]; then
+  EXISTING_PORT=$(usk_xray_vless_port_from_config "$XRAY_CFG" 2>/dev/null || true)
+  if [ -n "$EXISTING_PORT" ] && [ "$EXISTING_PORT" -ge 1 ] 2>/dev/null && [ "$EXISTING_PORT" -le 65535 ] 2>/dev/null; then
+    VLESS_PORT="$EXISTING_PORT"
+    echo "USK_INFO: xray_reinstall_preserve_port=${VLESS_PORT}"
+  else
+    VLESS_PORT=$(usk_xray_pick_free_port "$VLESS_PORT")
+  fi
+else
+  VLESS_PORT=$(usk_xray_pick_free_port "$VLESS_PORT")
+fi
 export USK_XRAY_VLESS_PORT="$VLESS_PORT"
 
 NEED_APT=0
@@ -39,8 +50,8 @@ fi
 
 usk_xray_migrate_legacy_config "$XRAY_CFG" 2>/dev/null || true
 
-EXISTING_VLESS=$(usk_xray_load_clients "$XRAY_CFG")
-if [ "$EXISTING_VLESS" = "[]" ] || [ "$EXISTING_VLESS" = "null" ]; then
+EXISTING_VLESS=$(usk_xray_collect_all_clients_json "$XRAY_CFG" "$PANEL_ROOT" 2>/dev/null || usk_xray_load_clients "$XRAY_CFG")
+if [ "$EXISTING_VLESS" = "[]" ] || [ "$EXISTING_VLESS" = "null" ] || [ -z "$EXISTING_VLESS" ]; then
   EXISTING_VLESS="[{\"id\":\"$UUID\",\"email\":\"bootstrap\",\"flow\":\"xtls-rprx-vision\"}]"
 fi
 
@@ -74,6 +85,11 @@ if ! usk_xray_verify_or_fail "$XRAY_CFG"; then
     usk_fail "xray_config_test_failed"
   fi
 fi
+
+usk_xray_rebuild_clients_in_config "$XRAY_CFG" "$PANEL_ROOT" 2>/dev/null || true
+source "$DIR/provision-common.sh" 2>/dev/null || true
+REFRESHED=$(usk_xray_refresh_stored_links "$PANEL_ROOT" 2>/dev/null || echo 0)
+echo "USK_INFO: xray_links_refreshed=${REFRESHED:-0}"
 
 # shellcheck disable=SC1090
 . "$USK_XRAY_REALITY_FILE"
