@@ -1,7 +1,7 @@
 #!/bin/bash
 # 3x-ui-style Xray stats: delta traffic + grace-period online + access-log IP counts.
 # Sourced by collect-usage-stats.sh (not run directly).
-set -uo pipefail
+# Do not change shell options here — collect uses many echo|jq pipelines.
 
 USK_XRAY_ONLINE_GRACE_MS="${USK_XRAY_ONLINE_GRACE_MS:-90000}"
 USK_XRAY_ACCESS_TAIL_LINES="${USK_XRAY_ACCESS_TAIL_LINES:-8000}"
@@ -151,7 +151,7 @@ usk_xray_apply_traffic_deltas() {
 
   local state='{"last_counters":{},"last_traffic_ms":{}}'
   if [ -f "$state_file" ]; then
-    state=$(cat "$state_file" 2>/dev/null || echo "$state")
+    state=$(jq -c 'if type == "object" then . else {} end' "$state_file" 2>/dev/null || echo "$state")
   fi
 
   local tmp_out
