@@ -4,19 +4,33 @@
 
 > **English:** [README.md](README.md)
 
-پنل مدیریتی برای **فروشندگان VPN** — روی VPS اوبونتو خودت نصب می‌کنی، پلن می‌سازی و از طریق **فروشگاه ووکامرس** به مشتریانت می‌فروشی.
+پنل مدیریتی برای **فروشندگان VPN**. روی VPS اوبونتو نصب می‌کنی، پلن می‌سازی، از **ووکامرس** می‌فروشی و در صورت نیاز **Marzban / Sanaei** را وصل می‌کنی (Pro).
 
 **ریپازیتوری:** [github.com/rezaramezani1365/unlimitsky-client](https://github.com/rezaramezani1365/unlimitsky-client)
 
-### نصب روی اوبونتو (یک دستور)
+---
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/rezaramezani1365/unlimitsky-client/main/scripts/install.sh | sudo bash -s -- \
-  --port 8082 --admin-pass 'Pass123' --open-firewall
-```
+## فهرست
 
-بعد `http://YOUR_SERVER_IP:8082/admin/login.php` — ورود: **admin** / **Pass123**.  
-راهنمای کامل: [راهنمای نصب](#راهنمای-نصب--از-صفر-تا-صد) پایین صفحه.
+1. [این پنل چیست؟](#این-پنل-چیست)
+2. [نصب با یک دستور](#نصب-با-یک-دستور)
+3. [امکانات](#امکانات)
+4. [پروتکل‌های VPN](#پروتکل‌های-vpn)
+5. [Free در مقابل Pro](#free-در-مقابل-pro)
+6. [پیش‌نیازها](#پیش‌نیازها)
+7. [بعد از نصب — اولین قدم‌ها](#بعد-از-نصب--اولین-قدم‌ها)
+8. [فروشگاه ووکامرس](#فروشگاه-ووکامرس)
+9. [مصرف، محدودیت و تعداد اتصال](#مصرف-محدودیت-و-تعداد-اتصال)
+10. [به‌روزرسانی و مهاجرت VPS](#به‌روزرسانی-و-مهاجرت-vps)
+11. [اختیاری: Marzban / Sanaei (Pro)](#اختیاری-marzban--sanaei-pro)
+12. [اختیاری: Node — VPS دوم (Pro)](#اختیاری-node--vps-دوم-pro)
+13. [عیب‌یابی](#عیب‌یابی)
+14. [امنیت](#امنیت)
+15. [ساختار پروژه](#ساختار-پروژه)
+
+---
+
+## این پنل چیست؟
 
 ```
 شما (فروشنده VPN)
@@ -26,215 +40,42 @@ curl -fsSL https://raw.githubusercontent.com/rezaramezani1365/unlimitsky-client/
                     مشتری پرداخت می‌کند → کانفیگ خودکار تحویل
 ```
 
----
-
-## این پنل چه کار می‌کند؟
-
-### پروتکل‌های داخلی روی VPS شما (ویژگی اصلی)
-
-unlimitsky **پروتکل‌های VPN را مستقیم روی VPS اوبونتو شما نصب و اجرا می‌کند** — بدون نیاز به پنل شخص ثالث:
-
-| پروتکل | کاربرد |
-|--------|--------|
-| **WireGuard** | VPN سریع برای موبایل و دسکتاپ |
-| **OpenVPN** | سازگاری با اکثر دستگاه‌ها |
-| **Xray (VLESS/VMess)** | مسیریابی پیشرفته، پورت 443 |
-| **L2TP/IPsec** | روتر و VPN داخلی ویندوز |
-
-از **پنل → پروتکل‌ها** با یک کلیک نصب کن. اسکریپت کانفیگ سرور، فایروال و سرویس systemd را خودش انجام می‌دهد.
-
-**محدودیت‌ها و مصرف:** پیش‌فرض — **پنل → سرویس‌ها → بروزرسانی مصرف همه** را بزن. اختیاری: [cron را فعال کن](#بروزرسانی-خودکار-مصرف-cron--اختیاری) تا مصرف خودکار sync شود. cron اکانت تمام‌شده را هم **غیرفعال** می‌کند (اتصال قطع). رکورد در **پنل → سرویس‌ها** می‌ماند — تمدید یا حذف دستی.
-
-**ساخت دستی:** **پنل → ساخت کانفیگ** — حجم و روز را مستقیم وارد کن (بدون نیاز به پلن).
-
-**QR وایرگارد:** بعد از خرید، QR Code در ایمیل و صفحه سفارش نمایش داده می‌شود.
-
-### اختیاری: Marzban / Sanaei (3x-ui)
-
-اگر از قبل **Marzban** یا **Sanaei** داری، می‌توانی به‌عنوان **روش جایگزین** وصل کنی — برای **فروش خودکار ووکامرس** (VLESS/VMess). **راهنمای اتصال:** [Marzban و Sanaei](#راهنمای-اتصال-پنل-marzban-و-sanaei-3x-ui) · نیاز به **Pro**.
-
-### سایر امکانات
-
-- ساخت **پلن فروش** (حجم، مدت، قیمت)
-- **پلاگین ووکامرس** — فروش کانفیگ به مشتری (تحویل خودکار Marzban/Sanaei الان فعال است)
-- پنل فارسی/انگلیسی، تم روشن/تاریک
-
----
-
-## داده‌ها کجا ذخیره می‌شوند؟
-
-**همه‌چیز روی سرور خودت** — هیچ داده‌ای به سرور شخص ثالث فرستاده نمی‌شود (به‌جز فعال‌سازی لایسنس Pro در صورت استفاده).
+unlimitsky یک **پنل فروشنده self-hosted** است. داده‌ها روی **VPS خودت** می‌ماند (MySQL + فایل). برای WireGuard، OpenVPN، Xray و L2TP نیازی به پنل شخص ثالث نیست — اسکریپت‌ها VPN را مستقیم روی سرور نصب می‌کنند.
 
 | داده | محل |
 |------|-----|
-| کاربران، پلن‌ها، سفارش‌ها | **MySQL** روی VPS |
-| تنظیمات پنل، لایسنس | فایل‌های `admin/data/` روی VPS |
+| پلن‌ها، سرویس‌ها، ادمین | **MySQL** روی VPS |
+| تنظیمات پنل، لایسنس | `admin/data/` روی VPS |
 | وضعیت پروتکل‌ها | `data/protocols/` روی VPS |
-| سفارشات ووکامرس | دیتابیس **وردپرس** روی هاست فروشگاه |
+| سفارش ووکامرس | دیتابیس وردپرس روی هاست فروشگاه |
 
 ---
 
-## مهاجرت VPS (بکاپ و انتقال)
+## نصب با یک دستور
 
-از **پنل → بکاپ و مهاجرت** می‌توانی داده‌های پنل را export/import کنی (پلن‌ها، سرویس‌ها، تنظیمات پروتکل، DNS، یوزر ادمین، کلید API).
-
-### مراحل مهاجرت
-
-1. **سرور قدیم** → بکاپ و مهاجرت → دانلود فایل `.uskbackup`
-2. **سرور جدید** → نصب unlimitsky (اسکریپت install)
-3. **سرور جدید** → بکاپ و مهاجرت → Import فایل
-4. **پنل → پروتکل‌ها** → نصب مجدد پروتکل‌هایی که داشتی (v1 خودکار VPN را روی سیستم‌عامل restore نمی‌کند)
-5. در صورت نیاز: **کلید API** جدید برای ووکامرس
-
-**به‌روزرسانی فایل‌های پنل** (بدون دست زدن به دیتابیس):
-
-### به‌روزرسانی فایل‌های پنل
-
-```bash
-# نصب با curl (repo unlimitsky-client — ریشه در /opt/unlimitsky):
-curl -fsSL https://raw.githubusercontent.com/rezaramezani1365/unlimitsky-client/main/scripts/install.sh | sudo bash -s -- \
-  --port 8082 --admin-pass 'YOUR_PASS' --open-firewall
-
-# یا فقط rsync (همان منبع):
-sudo bash /opt/unlimitsky/scripts/update-panel.sh /var/www/unlimitsky /opt/unlimitsky
-
-# به‌روزرسانی از GitHub (پیشنهادی — منوی Node و امکانات جدید):
-sudo bash /var/www/unlimitsky/scripts/panel-self-update.sh
-
-# monorepo (پوشه client داخل repo):
-sudo bash /opt/unlimitsky/client/scripts/update-panel.sh /var/www/unlimitsky /opt/unlimitsky/client
-```
-
-بعد از به‌روزرسانی: **تنظیمات** (پایین صفحه) یا منوی **بکاپ و مهاجرت**.  
-تست: `http://IP:8082/admin/check.php` — باید `nav backup item: YES` و همه فایل‌های backup «OK» باشند.
-
-اگر منو نیست ولی GitHub به‌روز است، معمولاً nginx از مسیر دیگری سرو می‌دهد یا `/opt/unlimitsky` قدیمی مانده — `grep root /etc/nginx/sites-enabled/*` و `grep backup /var/www/unlimitsky/admin/lib/init.php` را روی VPS چک کن.
-
-### اشتراک Pro بعد از مهاجرت
-
-لایسنس Pro به **IP VPS** و **شناسه یکتای همان سرور** (`instance_id`) وابسته است. با عوض شدن IP یا VPS:
-
-| مورد | بعد از import بکاپ |
-|------|---------------------|
-| کلید Pro | **از بین نمی‌رود** — همان کلید قبلی |
-| وضعیت Pro در پنل | موقتاً **Free** (کش لایسنس import نمی‌شود) |
-| Marzban/Sanaei، پلن‌های اضافه | تا فعال‌سازی مجدد Pro در دسترس نیست |
-
-**کار تو (فروشنده VPN):**
-
-1. بعد از import، اگر Pro داشته باشی به **لایسنس Pro** هدایت می‌شوی (کلید از بکاپ پیش‌پر می‌شود).
-2. **فعال‌سازی** را بزن.
-3. اگر خطای IP یا instance دیدی، با **ارائه‌دهنده لایسنس Pro** تماس بگیر تا VPS جدید را روی همان کلید تأیید کند.
-4. دوباره **فعال‌سازی** را بزن.
-
-> v1 بکاپ شامل `/var/lib/unlimitsky` (کلید WireGuard/Xray روی سیستم) **نیست** — فقط داده‌های پنل. برای VPN زنده روی سرور جدید پروتکل‌ها را دوباره نصب کن.
-
----
-
-## پروتکل‌ها روی VPS شما
-
-از **پنل → پروتکل‌ها**، اسکریپت نصب هر پروتکل را **روی همین سرور** راه می‌اندازد:
-
-| پروتکل | پورت پیش‌فرض | مناسب برای |
-|--------|--------------|------------|
-| **WireGuard** | 51820 | موبایل و دسکتاپ — سریع و سبک |
-| **OpenVPN** | 1194 | سازگاری بالا با همه دستگاه‌ها |
-| **Xray (VLESS/VMess)** | 443 | عبور از فیلترینگ، پشت CDN |
-| **L2TP/IPsec** | 1701 | روتر و ویندوز بدون نرم‌افزار اضافه |
-
-**الان چه کار می‌کند:** **نصب کامل سرور** + **ساخت کانفیگ per-customer** (ادمین + ووکامرس از طریق API).
-
-سنجش حجم (WireGuard، OpenVPN، Xray، Amnezia) از **پنل → سرویس‌ها** در دسترس است. اگر نمی‌خواهی هر بار دستی «بروزرسانی مصرف همه» بزنی، [بروزرسانی خودکار با cron](#بروزرسانی-خودکار-مصرف-cron--اختیاری) را ببین.
-
----
-
-## پروتکل native در مقابل Marzban / Sanaei
-
-| | پروتکل native (داخلی) | Marzban / Sanaei (اختیاری) |
-|---|------------------------|----------------------------|
-| نصب توسط | unlimitsky روی VPS شما | پنل جدا (شاید از قبل داشته باشید) |
-| راه‌اندازی سرور | ✅ پنل → پروتکل‌ها | خودتان Marzban/Sanaei را مدیریت می‌کنید |
-| ساخت دستی کانفیگ در پنل | ✅ پنل → ساخت کانفیگ | ✅ پنل → ساخت کانفیگ |
-| تحویل خودکار ووکامرس | ✅ پنل → کلید API + پلاگین | ✅ الان فعال است |
-
-**پیشنهاد:** **WireGuard** را از **پنل → پروتکل‌ها** نصب کن، **کلید API** بساز، در ووکامرس پنل نوع **unlimitsky (native)** اضافه کن.
-
----
-
-## نسخه رایگان (Free) vs Pro
-
-| امکان | Free | Pro |
-|-------|------|-----|
-| نصب پروتکل‌ها | ✅ همه | ✅ همه |
-| تعداد پلن فروش | **۱ پلن** | نامحدود (یا طبق لایسنس) |
-| پنل ادمین | ✅ | ✅ |
-| پلاگین ووکامرس | ✅ | ✅ |
-| **پنل Marzban / Sanaei** | — | ✅ **پنل → پنل‌ها / سرور** |
-| **Node / سرور دوم** (VPN روی VPS دیگر) | — | ✅ **پنل → Node / سرور دوم** |
-| فعال‌سازی Pro | — | کلید `USK-...` از فروشنده پنل |
-
-**فعال‌سازی Pro:** بعد از نصب → **پنل → لایسنس Pro** → کلید `USK-XXXX-...` را وارد کن.
-
----
-
-## پیش‌نیازها
-
-### VPS (پنل VPN)
-- Ubuntu 20.04 / 22.04 / 24.04
-- حداقل 1 GB RAM (2 GB پیشنهادی)
-- دسترسی root (`sudo`)
-- پورت **8082** (یا دلخواه) باز در فایروال
-
-### هاست فروشگاه (ووکامرس)
-- WordPress 5.8+
-- WooCommerce 5.0+
-- PHP 7.4+ با cURL
-- SSL (HTTPS) پیشنهادی
-
-### Node / سرور دوم (اختیاری — Pro)
-
-| سرور | پیش‌نیاز |
-|------|----------|
-| **Hub (همان VPS پنل)** | لایسنس **Pro** · `apt install sshpass` · پورت پنل (مثلاً 8082) از Node قابل دسترس باشد |
-| **Node (VPS دوم)** | Ubuntu 20.04+ · SSH با **یوزر/پسورد** (root پیشنهادی) · پورت SSH (معمولاً 22) از Hub باز باشد · دسترسی خروجی HTTP به Hub برای دانلود اسکریپت |
-
-> **کجا در پنل؟** منوی کناری → **Node / سرور دوم** (بین «پنل‌ها / سرور» و «راهنمای اتصال»). اگر نمی‌بینی: [راهنمای Node](#node--سرور-دوم--راهنمای-hub-و-node) · [به‌روزرسانی پنل](#به‌روزرسانی-فایل‌های-پنل) · لایسنس Pro. آدرس مستقیم: `http://IP:8082/admin/index.php?page=nodes`
-
----
-
-# راهنمای نصب — از صفر تا صد
-
-## شروع سریع — یک دستور
-
-روی **VPS اوبونتو خام** (۲۲.۰۴ یا ۲۴.۰۴) با SSH وصل شو و اجرا کن:
+روی **VPS اوبونتو خام** (۲۲.۰۴ یا ۲۴.۰۴) با SSH و root اجرا کن:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/rezaramezani1365/unlimitsky-client/main/scripts/install.sh | sudo bash -s -- \
   --port 8082 --admin-pass 'Pass123' --open-firewall
 ```
 
-اسکریپت خودش **nginx، MySQL، PHP** را نصب می‌کند، دیتابیس و اکانت admin را می‌سازد و فایروال را باز می‌کند — **هیچ کار دستی لازم نیست**.
+اسکریپت **nginx، MySQL، PHP** را نصب می‌کند، دیتابیس و اکانت admin را می‌سازد و فایروال را باز می‌کند.
 
-**بعد از اتمام نصب:**
-
-| | |
-|---|---|
-| **پنل** | `http://YOUR_SERVER_IP:8082/admin/login.php` |
+| بعد از نصب | مقدار |
+|------------|--------|
+| **آدرس پنل** | `http://IP-سرور:8082/admin/login.php` |
 | **نام کاربری** | `admin` |
-| **رمز** | `Pass123` (یا همان چیزی که در `--admin-pass` دادی) |
+| **رمز** | همان `--admin-pass` (حداقل ۶ کاراکتر) |
 | **ذخیره روی سرور** | `sudo cat /root/unlimitsky-client.credentials` |
-
-به‌جای `Pass123` رمز دلخواه بگذار (حداقل ۶ کاراکتر). اگر `--admin-pass` ندهی، ورود `admin` / `admin` است و **در اولین ورود باید رمز را عوض کنی**.
 
 | فلگ | معنی |
 |-----|------|
 | `--port 8082` | پورت وب پنل |
-| `--admin-pass 'Pass123'` | رمز مدیر |
-| `--open-firewall` | باز کردن پورت در ufw (اگر فعال باشد) |
+| `--admin-pass '...'` | رمز مدیر (بدون آن = `admin` / `admin` + تغییر اجباری در اولین ورود) |
+| `--open-firewall` | باز کردن پورت در ufw |
 
-### اختیاری — لایسنس Pro (از vendor)
-
-اگر **لایسنس Pro** از صاحب پل unlimitsky داری، این فلگ‌ها را اضافه کن:
+**اختیاری — لایسنس Pro از vendor:**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/rezaramezani1365/unlimitsky-client/main/scripts/install.sh | sudo bash -s -- \
@@ -243,9 +84,7 @@ curl -fsSL https://raw.githubusercontent.com/rezaramezani1365/unlimitsky-client/
   --license-token 'SECRET'
 ```
 
-دیتابیس MySQL با **رمز تصادفی** فقط روی `localhost` ساخته می‌شود — از اینترنت در دسترس نیست.
-
-### یا clone + نصب
+**روش دیگر — clone و نصب:**
 
 ```bash
 sudo git clone https://github.com/rezaramezani1365/unlimitsky-client.git /opt/unlimitsky
@@ -253,198 +92,322 @@ cd /opt/unlimitsky
 sudo bash install-ubuntu.sh --auto --port 8082 --admin-pass 'Pass123' --open-firewall
 ```
 
+**نصب از مرورگر** (بدون `--auto`): `install-ubuntu.sh` را بدون `--auto` اجرا کن، بعد `http://IP:8082/install/index.php` — فیلد دیتابیس خودکار است.
+
+پورت **808۲** را در پنل هاست ابری (Hetzner، DigitalOcean و …) هم باز کن.
+
 ---
 
-## مرحله ۱ — نصب پنل روی VPS
+## امکانات
 
-### روش A: نصب خودکار (پیشنهادی)
-
-همان [شروع سریع](#شروع-سریع--یک-دستور) بالا.
-
-| گزینه | توضیح |
+| امکان | توضیح |
 |-------|--------|
-| `--port 8082` | پورت وب |
-| `--admin-pass '...'` | رمز دلخواه (بدون آن = admin/admin + تغییر اجباری) |
-| `--open-firewall` | باز کردن پورت در ufw |
-
-### روش B: نصب از مرورگر
-
-```bash
-sudo git clone https://github.com/rezaramezani1365/unlimitsky-client.git /opt/unlimitsky
-cd /opt/unlimitsky
-sudo bash install-ubuntu.sh --port 8082 --open-firewall
-```
-
-سپس: `http://YOUR_SERVER_IP:8082/install/index.php` → زبان → (اختیاری) رمز مدیر → نصب
-
-**دیتابیس خودکار ساخته شده** — فیلد DB در فرم نیست.
+| **VPN native روی VPS** | WireGuard، OpenVPN، Xray، L2TP — از **پنل → پروتکل‌ها** |
+| **پلن فروش** | حجم (GB)، مدت (روز)، قیمت نمایشی |
+| **ساخت دستی کانفیگ** | **پنل → ساخت کانفیگ** بدون پلن |
+| **پلاگین ووکامرس** | تحویل خودکار بعد از پرداخت (native یا Marzban/Sanaei) |
+| **QR وایرگارد** | QR در ایمیل و صفحه سفارش |
+| **sync مصرف** | ثبت گیگ مصرف‌شده؛ غیرفعال‌سازی سرویس تمام‌شده |
+| **تعداد اتصال (slot)** | محدودیت دستگاه همزمان (تک‌کاربره / ۲ کاربره) — هنگام اتصال اعمال می‌شود |
+| **فاصله sync مصرف** | **پنل → تنظیمات** — ۱ تا ۱۲۰ دقیقه (پیش‌فرض ۵) بر اساس قدرت VPS |
+| **بکاپ و مهاجرت** | export/import فایل `.uskbackup` بین سرورها |
+| **پنل فارسی/انگلیسی** | تم روشن/تاریک |
+| **Pro** | پلن نامحدود، Marzban/Sanaei، Node (Xray روی VPS دوم) |
 
 ---
 
-## امنیت (خودکار)
+## پروتکل‌های VPN
 
-| لایه | محافظت |
-|------|--------|
-| MySQL | فقط `localhost` + رمز تصادفی ۲۰ کاراکteri |
-| nginx | مسدود: `/sql/`، `/admin/data/`، `config.php` |
-| پنل ادمین | رمز در جدول `panel_admin` (دیتابیس) |
-| ورود | ۵ تلاش ناموفق → قفل ۱۵ دقیقه‌ای |
-| نصب | بعد از نصب، `/install/` غیرفعال می‌شود |
+از **پنل → پروتکل‌ها** نصب کن. هر پروتکل **روی همین VPS** اجرا می‌شود.
 
-**توصیه:** HTTPS (Let's Encrypt) + تغییر رمز `admin` در اولین ورود.
+| پروتکل | پورت پیش‌فرض | مناسب برای |
+|--------|--------------|------------|
+| **WireGuard** | 51820 | موبایل و دسکتاپ — سریع و سبک |
+| **OpenVPN** | 1194 | سازگاری با اکثر دستگاه‌ها |
+| **Xray (VLESS/VMess)** | 443 | عبور از فیلتر، پشت CDN |
+| **L2TP/IPsec** | 1701 | روتر و VPN داخلی ویندوز |
 
----
+**پیشنهاد برای تازه‌کار:** اول **WireGuard**، یک پلن، بعد ووکامرس.
 
-## نصب phpMyAdmin روی اوبونتو
+### native در مقابل Marzban / Sanaei
 
-phpMyAdmin رابط وب برای مدیریت MySQL است — برای ساخت دیتابیس، بررسی جداول و عیب‌یابی مفید است.
-
-### پیش‌نیازها
-
-- Ubuntu 20.04 / 22.04 / 24.04 با دسترسی `sudo`
-- MySQL یا MariaDB در حال اجرا (با `install-ubuntu.sh` خودکار نصب می‌شود)
-- پسوندهای PHP: `php-mbstring`, `php-zip`, `php-gd`, `php-json`, `php-curl`
-
-```bash
-sudo apt update
-```
-
-### نصب وب‌سرور و PHP (در صورت نیاز)
-
-**Apache:**
-
-```bash
-sudo apt install apache2 mysql-server php php-mbstring php-zip php-gd php-json php-curl -y
-```
-
-**Nginx (LEMP — همان پشته unlimitsky):**
-
-```bash
-sudo apt install nginx mysql-server php-fpm php-mysql php-mbstring php-zip php-gd php-json php-curl -y
-```
-
-### نصب phpMyAdmin
-
-#### گزینه A: Apache
-
-```bash
-sudo apt install phpmyadmin -y
-```
-
-در حین نصب:
-- وب‌سرور: با Space گزینه **apache2** را انتخاب کن → Ok
-- dbconfig-common: **Yes** → رمز برای کاربر phpmyadmin در MySQL تعیین کن
-
-```bash
-sudo phpenmod mbstring
-sudo systemctl restart apache2
-```
-
-#### گزینه B: Nginx (پیشنهادی اگر پنل unlimitsky روی Nginx است)
-
-```bash
-sudo apt install phpmyadmin -y
-```
-
-در حین نصب:
-- وب‌سرور: **None** (Nginx در لیست نیست) → Ok
-- dbconfig-common: **Yes** → رمز phpmyadmin را تعیین کن
-
-```bash
-sudo ln -s /etc/phpmyadmin/apache.conf /etc/nginx/conf.d/phpmyadmin.conf
-sudo nano /etc/nginx/conf.d/phpmyadmin.conf
-```
-
-محتوا را با این جایگزین کن (نسخه PHP را با `ls /var/run/php/` پیدا کن):
-
-```nginx
-location /phpmyadmin {
-    root /usr/share/;
-    index index.php index.html index.htm;
-    location ~ ^/phpmyadmin/(.+\.php)$ {
-        try_files $uri =404;
-        root /usr/share/;
-        fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;
-        fastcgi_index index.php;
-        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-        include fastcgi_params;
-    }
-    location ~* ^/phpmyadmin/(.+\.(jpg|jpeg|gif|css|png|js|ico|html|xml|txt))$ {
-        root /usr/share/;
-    }
-}
-
-location /phpMyAdmin {
-    rewrite ^/* /phpmyadmin last;
-}
-```
-
-```bash
-sudo systemctl restart nginx
-```
-
-### امن‌سازی
-
-```bash
-sudo mysql -u root -p
-```
-
-```sql
-CREATE USER 'pma_user'@'localhost' IDENTIFIED BY 'یک_رمز_قوی';
-GRANT ALL PRIVILEGES ON *.* TO 'pma_user'@'localhost' WITH GRANT OPTION;
-FLUSH PRIVILEGES;
-EXIT;
-```
-
-- از **HTTPS** (مثلاً Let's Encrypt) استفاده کن
-- phpMyAdmin را فقط از IPهای مورد اعتماد در دسترس بگذار
-
-### دسترسی
-
-```
-http://YOUR_SERVER_IP/phpmyadmin
-```
-
-با کاربر MySQL (مثلاً `root` یا `pma_user`) وارد شو.
-
-### عیب‌یابی phpMyAdmin
-
-| مشکل | راه‌حل |
-|------|--------|
-| `mbstring extension is missing` | `sudo phpenmod mbstring` و ریستارت وب‌سرور |
-| Forbidden / 404 | مسیر nginx/apache و دسترسی فایل‌ها را بررسی کن |
-| صفحه باز نمی‌شود | `sudo ufw allow 80/tcp && sudo ufw allow 443/tcp && sudo ufw reload` |
+| | native (داخلی) | Marzban / Sanaei (اختیاری، Pro) |
+|---|----------------|----------------------------------|
+| راه‌اندازی | **پنل → پروتکل‌ها** | Marzban یا 3x-ui جداگانه |
+| پروتکل‌ها | WireGuard، OpenVPN، Xray، L2TP | فقط VLESS / VMess |
+| ووکامرس | ✅ کلید API + پنل unlimitsky | ✅ از API unlimitsky یا مستقیم در WP |
 
 ---
 
-### فایروال VPS
+## Free در مقابل Pro
 
-```bash
-sudo ufw allow 8082/tcp
-sudo ufw reload
-```
+| امکان | Free | Pro |
+|-------|------|-----|
+| همه پروتکل‌های native | ✅ | ✅ |
+| پلن فروش | **۱ پلن** | نامحدود (طبق لایسنس) |
+| پنل + پلاگین ووکامرس | ✅ | ✅ |
+| Marzban / Sanaei | — | ✅ **پنل → پنل‌ها / سرور** |
+| Node (Xray روی VPS دیگر) | — | ✅ **پنل → Node / سرور دوم** |
+| فعال‌سازی | — | **پنل → لایسنس Pro** → کلید `USK-...` |
 
-در پنل هاست ابری (Hetzner، DigitalOcean و …) هم پورت را باز کن.
+پیام `License server not configured` در نصب برای **Free عادی** است — پنل بدون لایسنس vendor کار می‌کند.
 
 ---
 
-### sudo برای اسکریپت‌های VPN (الزامی)
+## پیش‌نیازها
 
-پنل با کاربر **`www-data`** اجرا می‌شود، ولی نصب پروتکل و ساخت/غیرفعال‌کردن کاربر VPN نیاز به **root** دارد. بعد از قرار دادن فایل‌ها روی VPS، یک‌بار اجازه اجرای فقط همین اسکریپت‌ها را بده.
+| بخش | حداقل |
+|-----|--------|
+| **VPS پنل** | Ubuntu 20.04 / 22.04 / 24.04 · 1 GB RAM (2 GB بهتر) · root/sudo · پورت 8082 باز |
+| **فروشگاه (ووکامرس)** | WordPress 5.8+ · WooCommerce 5.0+ · PHP 7.4+ با cURL · HTTPS پیشنهادی |
+| **Node (Pro، اختیاری)** | VPS دوم اوبونتو · SSH با پسورد از Hub · `sshpass` روی Hub |
 
-**اگر از `install-ubuntu.sh` یا نصب یک‌دستوری استفاده کردی:** معمولاً خودکار در `/etc/sudoers.d/unlimitsky` تنظیم می‌شود. بررسی:
+---
+
+## بعد از نصب — اولین قدم‌ها
+
+اگر تازه‌کار هستی، به این ترتیب برو:
+
+1. **ورود** — `http://IP:8082/admin/login.php` · رمز پیش‌فرض را عوض کن.
+2. **پنل → پروتکل‌ها** — **WireGuard** را نصب کن. تا وضعیت active شود صبر کن.
+3. **پنل → پلن‌ها** — یک پلن (حجم + روز). Free فقط ۱ پلن.
+4. **پنل → ساخت کانفیگ** — قبل از فروش یک کانفیگ تست بساز.
+5. **پنل → کلید API** — برای ووکامرس (فقط یک‌بار نمایش داده می‌شود — کپی کن).
+6. **پنل → تنظیمات** — فاصله sync مصرف (مثلاً ۵ دقیقه برای VPS کوچک، ۱۵–۳۰ برای سرور ضعیف).
+7. **پلاگین ووکامرس** را آپلود کن (پایین).
+
+**sudo برای اسکریپت VPN:** با اسکریپت نصب معمولاً `/etc/sudoers.d/unlimitsky` خودکار ساخته می‌شود. بدون آن نصب پروتکل و ساخت کانفیگ fail می‌شود:
 
 ```bash
 sudo cat /etc/sudoers.d/unlimitsky
 ```
 
-**اگر فایل‌ها را دستی کپی کردی** (بدون اسکریپت نصب)، یا نصب پروتکل / ساخت کانفیگ با خطای permission fail می‌شود، این خطوط را یک‌بار اضافه کن:
+اگر نبود، بخش [امنیت](#امنیت) را ببین.
+
+---
+
+## فروشگاه ووکامرس
+
+فروشگاه روی **هاست وردپرس** است (می‌تواند جدا از VPS باشد).
+
+### ۱. نصب پلاگین
+
+پوشه `wordpress-plugin/unlimitsky-woocommerce/` را در `wp-content/plugins/` کپی کن (یا ZIP از **افزونه‌ها → افزودن**). فعال کن و یک‌بار **تنظیمات → پیوندهای یکتا → ذخیره**.
+
+### ۲. اتصال پنل (native — پیشنهادی)
+
+1. روی VPS: **پنل → کلید API** — آدرس API و کلید را کپی کن.
+2. **وردپرس → unlimitsky → پنل‌ها → افزودن** — نوع **unlimitsky (native)** · آدرس `http://IP_VPS:8082` · کلید · **تست اتصال**.
+3. **محصولات → محصول VPN** — تیک VPN · پنل unlimitsky · حجم، روز، قیمت.
+4. مشتری پرداخت می‌کند → کانفیگ در سفارش، ایمیل و **حساب کاربری → سرویس‌های VPN**.
+
+### ۳. Marzban / Sanaei از ووکامرس (Pro)
+
+اول پنل را روی VPS وصل کن (**پنل → پنل‌ها / سرور**)، در محصول **محل ساخت: Marzban / Sanaei** را انتخاب کن. جزئیات: [اختیاری: Marzban / Sanaei](#اختیاری-marzban--sanaei-pro).
+
+راهنمای تکمیلی: [docs/RESELLER-GUIDE.md](docs/RESELLER-GUIDE.md)
+
+---
+
+## مصرف، محدودیت و تعداد اتصال
+
+### مصرف ترافیک (GB)
+
+- **دستی:** **پنل → سرویس‌ها → بروزرسانی مصرف همه**
+- **خودکار:** نصب تازه cron دارد (`usage-sync-gate.php` هر دقیقه). sync سنگین فقط وقتی فاصله **پنل → تنظیمات** رسیده اجرا می‌شود (پیش‌فرض **۵ دقیقه**، بازه ۱–۱۲۰).
+- سرویس تمام‌شده روی سرور **غیرفعال** می‌شود. رکورد در **پنل → سرویس‌ها** می‌ماند — تمدید یا حذف دستی.
+
+لاگ cron:
+
+```bash
+sudo tail -20 /var/log/unlimitsky-limits.log
+```
+
+تست دستی:
+
+```bash
+sudo -u www-data php /var/www/unlimitsky/cron/native-limits.php
+```
+
+### تعداد اتصال (پلن چندکاربره)
+
+پلن می‌تواند **۱، ۲، … N دستگاه همزمان** (IP متفاوت) داشته باشد. محدودیت **هنگام اتصال** اعمال می‌شود — نه با polling. در پورتال مشتری برچسب «تک‌کاربره» یا «۲ کاربره» دیده می‌شود.
+
+روی **OpenVPN** و **Xray** native (هوک‌ها با به‌روزرسانی پنل خودکار نصب می‌شوند).
+
+---
+
+## به‌روزرسانی و مهاجرت VPS
+
+### به‌روزرسانی فایل‌ها (بدون حذف دیتابیس)
+
+```bash
+sudo bash /var/www/unlimitsky/scripts/panel-self-update.sh
+```
+
+یا همان `curl install.sh` (امن — فایل‌ها را به‌روز می‌کند).
+
+### انتقال به VPS جدید
+
+1. **سرور قدیم** → **پنل → بکاپ و مهاجرت** → دانلود `.uskbackup`
+2. **سرور جدید** → نصب unlimitsky (یک دستور بالا)
+3. **سرور جدید** → import بکاپ
+4. **پنل → پروتکل‌ها** → نصب مجدد (کلید VPN سطح OS در بکاپ نیست)
+5. در صورت نیاز **کلید API** جدید برای ووکامرس
+6. اگر **Pro** داشتی: بعد از import موقتاً Free است → **پنل → لایسنس Pro → فعال‌سازی** (اگر IP عوض شد با فروشنده لایسنس هماهنگ کن)
+
+---
+
+## اختیاری: Marzban / Sanaei (Pro)
+
+نیاز به **Pro** و نصب قبلی **Marzban** یا **Sanaei (3x-ui)**. فقط **VLESS / VMess** — نه WireGuard یا OpenVPN.
+
+1. **پنل → لایسنس Pro** → کلید `USK-...`
+2. **پنل → پنل‌ها / سرور** → افزودن → **ذخیره و تست اتصال**
+3. **پنل → راهنمای اتصال** — توضیح فیلدها در خود پنل
+
+| پنل | نمونه URL | فیلدهای اضافه |
+|-----|-----------|----------------|
+| **Marzban** | `https://IP:8000` | پروتکل‌ها `vless\|vmess\|`، تگ inbound |
+| **Sanaei** | `http://IP:2053` | Inbound ID، قالب لینک (`%s1` UUID، `%s2` host:port، `%s3` remark) |
+
+**ووکامرس:** پنل unlimitsky (native) + کلید API؛ در محصول **Marzban / Sanaei** را به‌عنوان محل ساخت انتخاب کن.
+
+**تست API:**
+
+```bash
+curl -s -H "Authorization: Bearer USK-API-کلید-شما" \
+  "http://IP_VPS:8082/api/v1.php?action=panels"
+```
+
+---
+
+## اختیاری: Node — VPS دوم (Pro)
+
+**Xray روی VPS دوم**؛ پنل روی Hub می‌ماند. Hub با **SSH** وصل می‌شود (یک **رمز ثبت** مشترک از پنل — نه توکن جدا برای هر Node).
+
+| محل | مسیر |
+|-----|------|
+| منو | **Node / سرور دوم** (بعد از پنل‌ها / سرور) |
+| URL مستقیم | `http://IP:8082/admin/index.php?page=nodes` |
+
+**پیش‌نیاز Hub:**
+
+```bash
+sudo apt install -y sshpass
+sudo bash /var/www/unlimitsky/scripts/panel-self-update.sh
+```
+
+**روی VPS Node:**
+
+```bash
+curl -fsSL http://IP_HUB:8082/bin/install-node.sh | sudo bash -s
+```
+
+IP Hub، پورت 8082، رمز ثبت از **پنل → Node**، یوزر/پسورد SSH Node را وارد کن. بعد **تست SSH** و ساخت Xray با **سرور ساخت کانفیگ → Node**.
+
+| مشکل | راه‌حل |
+|------|--------|
+| منوی Node نیست | `panel-self-update.sh` · Pro · refresh مرورگر |
+| تست SSH fail | پسورد SSH · پورت 22 Hub→Node · `sshpass` |
+| ساخت کانفیگ fail | روی Node: `sudo bash /opt/unlimitsky-node/bin/repair-xray.sh` |
+
+---
+
+## عیب‌یابی
+
+### نصب کامل نشد؟
+
+خطا معمولاً در `[*] Running CLI install (database + admin)...` دیده می‌شود.
+
+**مرحله ۱ — آخرین نسخه**
+
+در لاگ باید commit جدید باشد (مثلاً `fba58e7` یا بالاتر):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/rezaramezani1365/unlimitsky-client/main/scripts/install.sh | sudo bash -s -- \
+  --port 8082 --admin-pass 'رمز-شما' --open-firewall
+```
+
+یا اگر قبلاً نصب کردی:
+
+```bash
+sudo bash /var/www/unlimitsky/scripts/panel-self-update.sh
+```
+
+**مرحله ۲ — پاک کردن lock نصب** (فقط اگر نصب موفق نشده):
+
+```bash
+sudo rm -f /var/www/unlimitsky/install/unlimitsky.install
+```
+
+بعد دوباره `curl install.sh` را اجرا کن.
+
+**مرحله ۳ — دیتابیس نیمه‌کاره**
+
+```bash
+sudo mysql -e "DROP DATABASE IF EXISTS usk_client;"
+sudo rm -f /var/www/unlimitsky/install/unlimitsky.install
+# بعد curl install دوباره
+```
+
+**مرحله ۴ — فقط repair اسکیما** (`config.php` پر است، جداول ناقص):
+
+```bash
+sudo php /var/www/unlimitsky/install/repair-schema.php
+```
+
+| پیام خطا | علت | راه‌حل |
+|----------|-----|--------|
+| `Duplicate column name 'connections'` | نسخه قدیمی یا نصب نیمه‌کاره | به‌روزرسانی + مراحل ۲–۳ |
+| `Undefined constant "USK_ROOT"` | نسخه قبل از fix لایسنس | `panel-self-update.sh` یا curl install |
+| `Database setup failed: ...` | MySQL / دسترسی | `systemctl status mysql` · `/root/unlimitsky-client.credentials` |
+| HTTP 500 در نصب | host اشتباه DB | host باید `localhost` باشد |
+
+**بررسی نصب موفق:**
+
+```bash
+sudo cat /root/unlimitsky-client.credentials
+ls -la /var/www/unlimitsky/install/unlimitsky.install
+curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8082/admin/login.php
+```
+
+آخرین دستور باید `200` برگرداند.
+
+---
+
+### مشکلات پنل و VPN
+
+| مشکل | راه‌حل |
+|------|--------|
+| صفحه باز نمی‌شود | پورت 8082 در ufw + پنل ابری |
+| نصب پروتکل fail | `/etc/sudoers.d/unlimitsky` |
+| ساخت کانفیگ / ووکامرس permission | خط `add-user-*.sh` در sudoers — [امنیت](#امنیت) |
+| مصرف همیشه ۰ GB | یک‌بار **بروزرسانی مصرف همه** · لاگ cron · `xray-fix-stats-api.sh`، `openvpn-fix-status.sh` |
+| ووکامرس کانفیگ نمی‌دهد | تست پنل در WP · وضعیت Completed · کلید API |
+| پلن دوم نمی‌سازم | **Pro** فعال کن |
+| لیست پنل خارجی خالی | Marzban/Sanaei + Pro + کلید API |
+| `panels_pro_required` | Pro روی VPS فعال نیست |
+| خطای cURL پلاگین | cURL در PHP هاست |
+
+---
+
+## امنیت
+
+| لایه | محافظت |
+|------|--------|
+| MySQL | فقط `localhost` · رمز تصادفی |
+| nginx | مسدود: `/sql/`، `/admin/data/`، `config.php` |
+| ورود admin | ۵ تلاش ناموفق → قفل ۱۵ دقیقه |
+| ویزارد نصب | بعد از نصب غیرفعال (`unlimitsky.install`) |
+
+**توصیه:** HTTPS · تغییر رمز `admin` در اولین ورود.
+
+**sudo برای www-data** (کپی دستی بدون اسکریپت نصب):
 
 ```bash
 sudo visudo -f /etc/sudoers.d/unlimitsky
 ```
-
-این‌ها را paste کن (اگر مسیر پنل `/var/www/unlimitsky` نیست عوض کن — مسیر دقیق در **پنل → پروتکل‌ها** هست):
 
 ```
 www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/install-*.sh *
@@ -455,548 +418,33 @@ www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/remove-user-*.sh
 www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/collect-usage-stats.sh
 ```
 
-ذخیره و خروج. سپس:
-
 ```bash
 sudo chmod 440 /etc/sudoers.d/unlimitsky
 ```
 
-| اسکریپت | کاربرد |
-|---------|--------|
-| `install-*.sh` | **پنل → پروتکل‌ها** — نصب WireGuard، OpenVPN و … |
-| `add-user-*.sh` | ساخت کانفیگ (ادمین، API ووکامرس، فروش دستی) |
-| `disable-user-*.sh` | cron — قطع اتصال وقتی مدت تمام شد یا حجم پر شد |
-| `enable-user-*.sh` | **سرویس‌ها → تمدید** — فعال‌سازی دوباره |
-| `remove-user-*.sh` | **سرویس‌ها → حذف از سرور** — حذف دستی |
-| `collect-usage-stats.sh` | خواندن ترافیک زنده (WireGuard، OpenVPN، Xray، Amnezia) برای sync مصرف |
-
-بدون `add-user-*.sh` ساخت کانفیگ از پنل یا ووکامرس کار نمی‌کند. بدون `disable-user-*.sh` اکانت منقضی تا حذف دستی وصل می‌ماند. بدون `collect-usage-stats.sh` در sudoers، sync مصرف از پنل یا cron ممکن است برای همه سرویس‌ها **۰ GB** نشان دهد.
-
 ---
 
-## بروزرسانی خودکار مصرف (cron — اختیاری)
-
-پیش‌فرض: **مصرف حجمی live نیست**. در **پنل → سرویس‌ها** دکمه **بروزرسانی مصرف همه** را بزن تا:
-
-- ترافیک زنده **WireGuard**، **OpenVPN**، **Xray** و **Amnezia** خوانده شود
-- **گیگابایت مصرف‌شده** ذخیره شود
-- سرویس‌های **تمام‌شده (حجم/زمان)** غیرفعال شوند
-
-اگر نمی‌خواهی هر بار دستی این دکمه را بزنی، همان کار را با **cron** زمان‌بندی کن (برای production پیشنهاد می‌شود).
-
-### ۱. اول دستی تست کن
-
-اگر مسیر پنل `/var/www/unlimitsky` نیست عوض کن (**پنل → پروتکل‌ها**):
-
-```bash
-sudo -u www-data php /var/www/unlimitsky/cron/native-limits.php
-```
-
-باید JSON با `usage_updated`، `checked` و `disabled` ببینی. بعد **پنل → سرویس‌ها** را refresh کن — ستون **ترافیک مصرف‌شده** باید عدد نشان دهد نه «بروزرسانی مصرف همه را بزنید».
-
-### ۲. فعال‌سازی cron (هر ۱۵ دقیقه)
-
-```bash
-sudo tee /etc/cron.d/unlimitsky-limits <<'EOF'
-SHELL=/bin/bash
-PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
-
-*/15 * * * * www-data timeout 240 /usr/bin/php /var/www/unlimitsky/cron/native-limits.php >> /var/log/unlimitsky-limits.log 2>&1
-EOF
-sudo chmod 644 /etc/cron.d/unlimitsky-limits
-```
-
-| بازه | معنی |
-|------|------|
-| `*/15 * * * *` | هر **۱۵ دقیقه** (پیش‌فرض مناسب) |
-| `*/5 * * * *` | هر **۵ دقیقه** (فروشگاه شلوغ‌تر) |
-| `*/30 * * * *` | هر **۳۰ دقیقه** (سرور کوچک) |
-
-> سریع‌تر از هر **۵ دقیقه** تنظیم نکن مگر دلیل مشخص — هر اجرا آمار VPN را از سرور می‌خواند.
-
-### ۳. مطمئن شو cron اجرا می‌شود
-
-```bash
-# تا ربع ساعت بعد صبر کن، بعد:
-sudo tail -20 /var/log/unlimitsky-limits.log
-```
-
-در پنل، بعد از اجرای موفق، **پنل → سرویس‌ها** زمان آخرین sync را نشان می‌دهد.
-
-### ۴. خاموش کردن sync خودکار
-
-```bash
-sudo rm -f /etc/cron.d/unlimitsky-limits
-```
-
-همچنان می‌توانی هر وقت خواستی **بروزرسانی مصرف همه** را در پنل بزنی.
-
-### نکات
-
-- **نصب تازه** (`install-ubuntu.sh` / نصب یک‌دستوری): مسیرهای metering و sudoers خودکار تنظیم می‌شوند.
-- **سرور قدیمی** که از نسخه قبل upgrade شده: اگر مصرف ۰ ماند، یک‌بار اجرا کن:
-  ```bash
-  sudo bash /var/www/unlimitsky/bin/xray-fix-stats-api.sh
-  sudo bash /var/www/unlimitsky/bin/openvpn-fix-status.sh
-  ```
-- **OpenVPN:** بایت‌ها از **status log** سرور هنگام اتصال خوانده می‌شوند؛ بعد از قطع، آخرین مجموع sync‌شده در پنل می‌ماند.
-
----
-
-## مرحله ۲ — راه‌اندازی پنل ادمین
-
-### ۱. نصب پروتکل‌ها (از همینجا شروع کن)
-
-**پنل → پروتکل‌ها**
-
-- اول **WireGuard** را نصب کن (ساده‌ترین)
-- بعد OpenVPN، Xray یا L2TP در صورت نیاز
-- هر کدام **روی همین VPS** اجرا می‌شود — اسکریپت پکیج، کانفیگ، پورت فایروال و سرویس را خودش انجام می‌دهد
-
-این **روش اصلی** طراحی unlimitsky است: **VPS شما = سرور VPN شما**.
-
-### ۲. ساخت پلن فروش
-
-**پنل → پلن‌ها**
-
-| فیلد | توضیح |
-|------|--------|
-| نام | مثلاً «پلن ۳۰ روزه ۵۰ گیگ» |
-| حجم (GB) | سقف ترافیک |
-| مدت (روز) | اعتبار سرویس |
-| قیمت | برای نمایش — پرداخت واقعی در ووکامرس |
-
-- **Free:** فقط ۱ پلن
-- **Pro:** پلن نامحدود — **پنل → لایسنس Pro** → کلید `USK-...`
-
-### ۳. کلید API برای ووکامرس (پروتکل native)
-
-**پنل → کلید API**
-
-- یک کلید API بساز (فقط یک‌بار نمایش داده می‌شود — کپی کن)
-- **آدرس API** را یادداشت کن (مثلاً `http://IP:8082/api/v1.php`)
-- در پلاگین وردپرس: پنل نوع **unlimitsky (native)** با آدرس API + کلید
-
-### ۴. Marzban / Sanaei (اختیاری — نیاز به Pro)
-
-**راهنمای کامل:** [راهنمای اتصال Marzban و Sanaei](#راهنمای-اتصال-پنل-marzban-و-sanaei-3x-ui) — **حتماً قبل از اتصال بخوانید.**
-
-خلاصه: **پنل → لایسنس Pro** → **پنل → پنل‌ها / سرور** → افزودن Marzban یا Sanaei → تست اتصال.
-
-### ۵. Node / سرور دوم (Pro — Xray)
-
-با **Node** کانفیگ Xray روی **VPS دوم** ساخته می‌شود؛ پنل اصلی (Hub) از **SSH** به Node وصل می‌شود — **توکن جدا برای هر Node لازم نیست**.
-
-**مسیر در پنل:** منوی کناری → **Node / سرور دوم** — بین «پنل‌ها / سرور» و «راهنمای اتصال».  
-اگر این منو را **نمی‌بینی** → لایسنس Pro + [به‌روزرسانی پنل](#به‌روزرسانی-فایل‌های-پنل) (`panel-self-update.sh`).  
-آدرس مستقیم: `http://YOUR_IP:8082/admin/index.php?page=nodes`  
-راهنمای کامل: [Node / سرور دوم — Hub و Node](#node--سرور-دوم--راهنمای-hub-و-node)
-
----
-
-## مرحله ۳ — نصب پلاگین ووکامرس
-
-فروشگاه روی **هاست وردپرس** است (می‌تواند جدا از VPS باشد).
-
-### ۱. آماده‌سازی وردپرس
-
-- WordPress + WooCommerce نصب و فعال
-- یک درگاه پرداخت (زرین‌پال، کارت به کارت و …) در ووکامرس
-
-### ۲. آپلود پلاگین
-
-از ریپازیتوری پوشه زیر را کپی کن:
-
-```
-wordpress-plugin/unlimitsky-woocommerce/
-```
-
-به:
-
-```
-wp-content/plugins/unlimitsky-woocommerce/
-```
-
-یا ZIP کن و از **افزونه‌ها → افزودن → آپلود** نصب کن.
-
-### ۳. فعال‌سازی
-
-- **افزونه‌ها → unlimitsky - WooCommerce** → فعال
-- **تنظیمات → پیوندهای یکتا → ذخیره** (یک بار)
-
----
-
-> اگر **فقط پروتکل native** (WireGuard، OpenVPN، Xray روی VPS) می‌فروشی، اتصال Marzban/Sanaei روی VPS لازم نیست — فقط کلید API کافی است.
-
----
-
-## مرحله ۴ — اتصال ووکامرس به پنل VPN
-
-### گزینه‌های تحویل خودکار
-
-| روش | راه‌اندازی |
-|-----|-----------|
-| **پروتکل native** | پنل → کلید API → وردپرس: پنل unlimitsky |
-| **Marzban / Sanaei** | وردپرس: افزودن پنل Marzban/Sanaei |
-
-### الف. پروتکل native (پیشنهادی)
-
-1. **پنل → کلید API** — کلید بساز، آدرس API را کپی کن
-2. **وردپرس → unlimitsky → پنل‌ها** — نوع: **unlimitsky (native)**
-   - آدرس API: `http://IP_VPS:8082`
-   - کلید API: `USK-API-...`
-   - پروتکل پیش‌فرض: WireGuard / OpenVPN / Xray / L2TP
-3. **محصولات → محصول VPN** — پنل unlimitsky، حجم و مدت
-4. مشتری پرداخت می‌کند → کانفیگ خودکار تحویل
-
-### ب. Marzban / Sanaei (Pro + پنل خارجی)
-
-**راهنمای گام‌به‌گام:** [راهنمای اتصال Marzban و Sanaei](#راهنمای-اتصال-پنل-marzban-و-sanaei-3x-ui).
-
-چک‌لیست کوتاه:
-
-1. **VPS:** لایسنس Pro → **پنل → پنل‌ها / سرور** → اتصال Marzban یا Sanaei → تست موفق  
-2. **VPS:** **پنل → کلید API** → ساخت کلید  
-3. **وردپرس:** پنل نوع **unlimitsky (native)** + آدرس API + کلید  
-4. **محصول:** محل ساخت = **پنل Marzban / Sanaei** → انتخاب پنل از لیست VPS  
-5. مشتری پرداخت می‌کند → لینک VLESS/VMess خودکار تحویل  
-
-روش جایگزین: افزودن Marzban/Sanaei **مستقیم در وردپرس** (روش ب در راهنمای بالا).
-
----
-
-## خلاصه معماری
-
-```
-┌──────────────────── VPS (Ubuntu) ────────────────────┐
-│  unlimitsky Panel :8082                              │
-│  ├── MySQL (پلن‌ها، کاربران، سفارش‌ها)               │
-│  ├── ★ WireGuard / OpenVPN / Xray / L2TP (داخلی)   │
-│  └── Marzban یا Sanaei (اختیاری — WC خودکار امروز)  │
-└──────────────────────────────────────────────────────┘
-                          ↑ API (Marzban/Sanaei فعلاً)
-┌──────────────── WordPress Host ──────────────────────┐
-│  WooCommerce + پلاگین unlimitsky                     │
-│  └── خرید مشتری → تحویل خودکار کانفیگ              │
-└──────────────────────────────────────────────────────┘
-```
-
----
-
-## عیب‌یابی
-
-| مشکل | راه‌حل |
-|------|--------|
-| صفحه باز نمی‌شود | پورت 8082 در ufw + پنل ابری |
-| HTTP 500 در نصب | DB host باید `localhost` باشد — نه اسم دیتابیس |
-| `License server not configured` | فقط برای Pro — Free بدون لایسنس کار می‌کند |
-| نمی‌توانم پلن دوم بسازم | Pro را در **پنل → لایسنس** فعال کن |
-| نصب پروتکل fail | `/etc/sudoers.d/unlimitsky` را چک کن — بخش **sudo برای اسکریپت‌های VPN** |
-| ساخت کانفیگ / ووکامرس (permission) | خط `add-user-*.sh` را در sudoers اضافه کن |
-| ووکامرس کانفیگ نمی‌دهد | تست اتصال پنل در وردپرس + وضعیت سفارش Completed |
-| لیست پنل خارجی در محصول خالی است | Marzban/Sanaei را روی VPS (Pro) وصل کن + کلید API معتبر |
-| خطای API `panels_pro_required` | لایسنس Pro روی VPS فعال نیست |
-| منوی **Node / سرور دوم** در پنل نیست | `sudo bash /var/www/unlimitsky/scripts/panel-self-update.sh` · کش مرورگر · Pro فعال · [راهنمای Node](#node--سرور-دوم--راهنمای-hub-و-node) |
-| ثبت Node خطا می‌دهد | پورت پنل از VPS دوم باز · رمز ثبت درست · Pro · `sshpass` روی Hub |
-| تست SSH Node ناموفق | پسورد SSH · پورت 22 Hub→Node · `apt install sshpass` |
-| پلاگین خطای cURL | cURL را در PHP هاست فعال کن |
-
-**بررسی نصب:**
-
-```bash
-sudo cat /root/unlimitsky-client.credentials
-ls -la /var/www/unlimitsky/install/unlimitsky.install
-```
-
----
-
-## ساختار پوشه‌ها
+## ساختار پروژه
 
 ```
 unlimitsky-client/
-├── admin/              پنل مدیریت وب
-├── install/            ویزارد نصب + create-db.sh + finish-install.sh
-├── bin/                اسکریپت نصب پروتکل‌ها
-├── data/               وضعیت پروتکل‌ها
+├── admin/              پنل وب
+├── api/                REST API (ووکامرس)
+├── bin/                اسکریپت پروتکل و کاربر
+├── cron/               sync مصرف، لایسنس
+├── install/            نصب CLI و وب
+├── scripts/            install.sh، panel-self-update.sh
+├── sql/                اسکیما دیتابیس
 ├── wordpress-plugin/   پلاگین ووکامرس
-├── config.php          تنظیمات (بعد از نصب)
-└── install-ubuntu.sh   نصب روی اوبونتو
+└── install-ubuntu.sh   نصب اوبونتو
 ```
 
-فایل‌های اجرایی پنل بعد از نصب در `/var/www/unlimitsky` قرار می‌گیرند.
+مسیر اجرای پنل بعد از نصب: **`/var/www/unlimitsky`**
 
 ---
 
 ## پشتیبانی
 
-- مشکل **لایسنس Pro** → با فروشنده پنل تماس بگیر
-- مشکل **فنی نصب** → بخش عیب‌یابی بالا
-
-راهنمای تکمیلی: [docs/RESELLER-GUIDE.md](docs/RESELLER-GUIDE.md)
-
----
-
-# Node / سرور دوم — راهنمای Hub و Node
-
-> **Hub** = VPS پنل unlimitsky (سرور اصلی). **Node** = VPS دوم که Xray روی آن اجرا می‌شود. Hub از **SSH** (با یوزر/پسورد SSH همان Node) کانفیگ می‌سازد — **توکن per-node ندارید**؛ فقط یک **رمز ثبت** مشترک هنگام نصب از پنل کپی می‌شود.
-
-## کجا در پنل ادمین؟
-
-| محل | مسیر |
-|-----|------|
-| **منوی کناری** | **Node / سرور دوم** — دقیقاً **بعد از** «پنل‌ها / سرور» و **قبل از** «راهنمای اتصال» |
-| **داشبورد** | دسترسی سریع → **Node / سرور دوم** |
-| **ساخت کانفیگ** | فیلد **سرور ساخت کانفیگ** → انتخاب Node (فقط Xray) |
-| **URL مستقیم** | `http://YOUR_IP:8082/admin/index.php?page=nodes` |
-
-اگر منو را نمی‌بینی: پنل قدیمی است → [به‌روزرسانی](#به‌روزرسانی-فایل‌های-پنل) + لایسنس **Pro**.
-
-## پیش‌نیاز Hub (سرور پنل)
-
-```bash
-# لایسنس Pro در پنل → لایسنس Pro
-sudo apt update && sudo apt install -y sshpass
-sudo bash /var/www/unlimitsky/scripts/panel-self-update.sh
-```
-
-- پورت پنل (مثلاً **8082**) از VPS Node برای `curl` و API ثبت باز باشد
-- فایروال Hub: SSH خروجی به Node (پورت 22 یا دلخواه)
-
-## پیش‌نیاز Node (VPS دوم)
-
-- Ubuntu 20.04 / 22.04 / 24.04
-- SSH با **password** (root پیشنهادی) — Hub با `sshpass` وصل می‌شود
-- پورت SSH از **Hub به Node** باز باشد
-- دسترسی خروجی HTTP/HTTPS به Hub (دانلود `install-node.sh` و اسکریپت‌ها)
-
-## مرحله ۱ — در پنل Hub
-
-1. **پنل → Node / سرور دوم**
-2. **رمز ثبت Node** را کپی کن
-3. **دستور نصب** را از همان صفحه بردار (شبیه زیر):
-
-```bash
-curl -fsSL http://HUB_IP:8082/bin/install-node.sh | sudo bash -s
-```
-
-## مرحله ۲ — روی VPS دوم (Node)
-
-### نصب تعاملی (پیشنهادی)
-
-```bash
-curl -fsSL http://HUB_IP:8082/bin/install-node.sh | sudo bash -s
-```
-
-| سؤال اسکریپت | مقدار نمونه |
-|--------------|-------------|
-| IP/دامنه Hub | `185.x.x.x` |
-| پورت Hub | `8082` |
-| رمز ثبت | از پنل → Node |
-| یوزر SSH | `root` (روی **همین** VPS) |
-| پسورد SSH | پسورد root سرور دوم |
-| نام Node | `germany-1` |
-| آدرس اتصال | IP یا دامنه در لینک VLESS خریدار |
-
-### نصب غیرتعاملی
-
-```bash
-curl -fsSL http://HUB_IP:8082/bin/install-node.sh -o /tmp/install-node.sh
-sudo bash /tmp/install-node.sh \
-  --hub-ip 1.2.3.4 \
-  --hub-port 8082 \
-  --register-secret 'رمز_از_پنل' \
-  --ssh-user root \
-  --ssh-pass 'پسورد_SSH_سرور_دوم' \
-  --name germany-1 \
-  --connect-host 185.x.x.x
-```
-
-اسکریپت در `/opt/unlimitsky-node/` اسکریپت‌های worker را از Hub دانلود می‌کند، sudoers را برای provisioning تنظیم می‌کند و در صورت نیاز **Xray** را نصب می‌کند.
-
-## مرحله ۳ — بعد از ثبت
-
-1. **پنل → Node / سرور دوم** → **تست SSH**
-2. **پنل → ساخت کانفیگ** → **سرور ساخت کانفیگ** → Node → **Xray**
-3. لینک VLESS با **آدرس اتصال Node** (نه IP Hub) ساخته می‌شود
-
-## API (ووکامرس / اتوماسیون)
-
-در `POST /api/v1.php` هنگام ساخت سرویس می‌توانی `"node_id": "n...."` بفرستی (شناسه از لیست Node در پنل).
-
-## عیب‌یابی Node
-
-| مشکل | راه‌حل |
-|------|--------|
-| منوی Node نیست | `panel-self-update.sh` · Pro · URL مستقیم بالا |
-| `invalid_register_secret` | رمز ثبت را از پنل دوباره کپی کن |
-| `sshpass_missing` | روی Hub: `apt install sshpass` |
-| تست SSH fail | پسورد · پورت SSH · فایروال Node |
-| ساخت کانفیگ fail | Xray روی Node: `sudo bash /opt/unlimitsky-node/bin/repair-xray.sh` |
-
----
-
-# راهنمای اتصال پنل Marzban و Sanaei (3x-ui)
-
-> **قبل از اتصال پنل خارجی این بخش را بخوانید.** Marzban و Sanaei فقط **VLESS / VMess (Xray)** پشتیبانی می‌کنند — نه WireGuard، OpenVPN یا Amnezia.
-
-## پیش‌نیازها
-
-| مورد | توضیح |
-|------|--------|
-| **لایسنس Pro** | اتصال Marzban/Sanaei در **پنل → پنل‌ها / سرور** فقط با **Pro** (`پنل → لایسنس Pro`) |
-| **Marzban یا Sanaei** | از قبل روی VPS نصب و در دسترس باشد |
-| **ووکامرس** | هاست وردپرس باید به API پنل unlimitsky (و در صورت نیاز URL پنل Marzban/Sanaei) دسترسی داشته باشد |
-
-## پروتکل‌های پشتیبانی‌شده روی پنل خارجی
-
-| پنل | پروتکل‌ها | توضیح |
-|-----|-----------|--------|
-| **Marzban** | VLESS, VMess | در فیلد پروتکل‌ها: `vless\|vmess\|` + تگ inbound |
-| **Sanaei (3x-ui)** | VLESS, VMess | از inbound موجود در 3x-ui — لینک با قالب ساخته می‌شود |
-
-پروتکل‌های native (WireGuard، OpenVPN، Xray Reality روی VPS، Amnezia، L2TP) از **پنل → پروتکل‌ها** ساخته می‌شوند، نه Marzban/Sanaei.
-
----
-
-## بخش ۱ — اتصال پنل در ادمین unlimitsky (VPS)
-
-1. **Pro را فعال کن:** **پنل → لایسنس Pro** → کلید `USK-...`  
-2. **پنل → پنل‌ها / سرور** (منوی کناری)  
-3. **پنل → راهنمای اتصال** را برای توضیح فیلدها بخوان  
-4. افزودن پنل → **ذخیره و تست اتصال**
-
-### Marzban
-
-| فیلد | مثال | توضیح |
-|------|------|--------|
-| نام نمایشی | `Marzban اصلی` | در ادمین و ووکامرس نمایش داده می‌شود |
-| نوع | `Marzban` | |
-| آدرس پنل | `https://185.x.x.x:8000` | بدون `/` آخر؛ پورت باز باشد |
-| نام کاربری | `admin` | ادمین Marzban |
-| رمز عبور | `***` | |
-| پروتکل‌ها | `vless\|vmess\|` | با `\|` جدا — `\|` آخر اختیاری |
-| Flow | `flowon` | برای VLESS + Vision روی inboundهای سازگار |
-| Inbounds | هر خط یک تگ | تگ‌های Marzban (مثلاً `VLESS TCP`) |
-
-**بعد از ذخیره:** تست لاگین انجام می‌شود. وضعیت باید **active** شود.
-
-**تست دستی:** **پنل → ساخت کانفیگ** → حالت **Marzban / Sanaei** → انتخاب پنل → ساخت کاربر تست → کپی لینک subscription.
-
-### Sanaei (3x-ui)
-
-| فیلد | مثال | توضیح |
-|------|------|--------|
-| نام نمایشی | `Sanaei اروپا` | |
-| نوع | `Sanaei (3x-ui)` | |
-| آدرس پنل | `http://185.x.x.x:2053` | پورت پیش‌فرض 3x-ui معمولاً 2053 |
-| یوزر / رمز | ورود 3x-ui | |
-| Inbound ID | `1` | شماره از **Inbounds** در 3x-ui |
-| قالب لینک | پایین | برای ساخت لینک اشتراک |
-
-**Placeholderهای قالب لینک:**
-
-| Placeholder | معنی |
-|-------------|------|
-| `%s1` | UUID کلاینت |
-| `%s2` | host:port (مثلاً `185.x.x.x:443`) |
-| `%s3` | remark / نام |
-
-مثال VLESS:
-
-```
-vless://%s1@%s2?encryption=none&security=tls&type=ws&host=example.com&path=/path#%s3
-```
-
-قالب دقیق را از inbound در 3x-ui (QR یا share link) بگیر و uuid/host/remark را با `%s1`, `%s2`, `%s3` جایگزین کن.
-
-**Inbound در 3x-ui:** باید از قبل با VLESS یا VMess ساخته شده باشد — unlimitsky فقط **کلاینت** به آن inbound اضافه می‌کند.
-
----
-
-## بخش ۲ — تحویل خودکار ووکامرس
-
-دو روش. **روش الف پیشنهادی** است اگر Marzban/Sanaei را روی VPS unlimitsky تنظیم کرده‌ای.
-
-### روش الف — پنل خارجی از طریق API unlimitsky (پیشنهادی)
-
-پنل‌ها یک‌بار روی VPS مدیریت می‌شوند؛ در هر محصول مشخص می‌کنی کانفیگ کجا ساخته شود.
-
-**روی VPS:**
-
-1. **Pro** فعال  
-2. Marzban/Sanaei متصل (**بخش ۱**)  
-3. **پنل → کلید API** → ساخت کلید → کپی **آدرس API** + **کلید**
-
-**روی وردپرس:**
-
-1. **unlimitsky → پنل‌ها → افزودن**  
-   - نوع: **unlimitsky (native)**  
-   - آدرس API: `http://IP_VPS:8082`  
-   - کلید API: `USK-API-...`  
-   - **تست اتصال**
-
-2. **محصولات → محصول VPN**  
-   - تیک **محصول VPN**  
-   - اتصال: پنل **unlimitsky**  
-   - **محل ساخت کانفیگ:** **پنل Marzban / Sanaei (VLESS/VMess — Xray)**  
-   - **پنل Marzban/Sanaei (روی VPS):** از لیست انتخاب کن  
-   - حجم (GB)، مدت (روز)، قیمت  
-
-3. مشتری پرداخت → پلاگین API را با `panel_code` صدا می‌زند → کاربر روی Marzban/Sanaei → لینک در سفارش، ایمیل، **حساب کاربری → سرویس‌های VPN**
-
-```
-پرداخت مشتری (ووکامرس)
-        ↓
-پلاگین → POST /api/v1.php?action=create-service  (panel_code)
-        ↓
-VPS unlimitsky → API Marzban یا addClient در Sanaei
-        ↓
-لینک subscription / VLESS به مشتری
-```
-
-### روش ب — Marzban/Sanaei مستقیم در وردپرس
-
-اگر پنل VPN را **روی VPS unlimitsky ثبت نکرده‌ای** (روش قدیمی).
-
-1. **unlimitsky → پنل‌ها** → نوع **Marzban** یا **Sanaei**  
-2. URL، یوزر، رمز (+ Inbound ID و قالب لینک برای Sanaei)  
-3. **تست اتصال**  
-4. **محصول VPN** → همان پنل Marzban/Sanaei را انتخاب کن  
-5. فقط **VLESS/VMess** — WireGuard/OpenVPN روی این پنل‌ها نیست  
-
-> هاست وردپرس باید به URL پنل Marzban/Sanaei **دسترسی شبکه** داشته باشد.
-
----
-
-## بخش ۳ — ساخت دستی کانفیگ (ادمین)
-
-**پنل → ساخت کانفیگ**
-
-1. پلن دستی یا از لیست  
-2. حالت: **Marzban / Sanaei (پنل خارجی)** — نیاز به Pro  
-3. انتخاب پنل متصل  
-4. ثبت → لینک subscription نمایش داده می‌شود  
-
----
-
-## عیب‌یابی — Marzban / Sanaei
-
-| مشکل | راه‌حل |
-|------|--------|
-| منوی **پنل‌ها / سرور** نیست یا فرم غیرفعال | **لایسنس Pro** را فعال کن |
-| تست Marzban ناموفق | URL، پورت، فایروال، یوزر/رمز ادمین |
-| تست Sanaei ناموفق | URL 3x-ui؛ مسیر `cookie.txt` روی VPS قابل نوشتن باشد |
-| ووکامرس: لیست پنل خارجی خالی | اول Marzban/Sanaei را روی VPS وصل کن؛ Pro + کلید API |
-| خطای `panels_pro_required` | Pro روی VPS منقضی یا فعال نشده |
-| Sanaei: کاربر ساخته شد ولی لینک خراب | **قالب لینک** و **Inbound ID** را در تنظیمات VPS اصلاح کن |
-| Marzban: کاربر بدون subscription | **Inbounds** و پروتکل‌های `vless`/`vmess` را بررسی کن |
-| پروتکل اشتباه | پنل خارجی فقط VLESS/VMess — برای VLESS Reality روی VPS از **Xray** در **پنل → پروتکل‌ها** استفاده کن |
-
-**تست API (لیست پنل‌ها):**
-
-```bash
-curl -s -H "Authorization: Bearer USK-API-کلید-شما" \
-  "http://IP_VPS:8082/api/v1.php?action=panels"
-```
-
-انتظار: `"ok": true` و آرایه `"panels"`.
+- **لایسنس Pro** → فروشنده پنل
+- **نصب / VPN** → [عیب‌یابی](#عیب‌یابی)
+- **راهنمای فروشنده** → [docs/RESELLER-GUIDE.md](docs/RESELLER-GUIDE.md)
