@@ -4,6 +4,9 @@ require_once __DIR__ . '/../lib/init.php';
 $GLOBALS['page_title'] = __('nav_settings');
 $GLOBALS['active_nav'] = 'settings';
 
+require_once __DIR__ . '/../lib/usage-sync-settings.php';
+require_once __DIR__ . '/../lib/protocols/limits.php';
+
 global $sql;
 $auth = USK_Admin_Auth::get_data();
 $test = $sql->query("SELECT * FROM `test_account_setting` LIMIT 1")->fetch_assoc();
@@ -19,6 +22,8 @@ if ($panelAccessCfg['panel_port'] < 1024) {
 }
 $panelCurrentUrl = USK_PanelAccess::current_public_url();
 $panelAdminUrl = USK_PanelAccess::admin_login_url();
+$usageSyncCfg = USK_UsageSyncSettings::get();
+$usageSyncStatus = USK_UsageSyncSettings::status();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $section = $_POST['section'] ?? '';
@@ -94,6 +99,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ));
         usk_flash(__('settings_saved'));
     }
+    if ($section === 'usage_sync') {
+        USK_UsageSyncSettings::save(array(
+            'enabled' => !empty($_POST['usage_sync_enabled']),
+            'interval_minutes' => $_POST['usage_sync_interval'] ?? 5,
+            'hint' => $_POST['usage_sync_hint'] ?? '',
+        ));
+        usk_flash(__('settings_usage_sync_saved'));
+    }
     if ($section === 'woocommerce_shop') {
         USK_WooCommerce_Shop::save(array(
             'enabled' => !empty($_POST['woo_shop_enabled']),
@@ -102,7 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ));
         usk_flash(__('settings_saved'));
     }
-    header('Location: ' . usk_admin_url('settings') . ($section === 'connect_host' ? '#connect-host' : ($section === 'client_dns' ? '#client-dns' : ($section === 'panel_access' ? '#panel-access' : ($section === 'woocommerce_shop' ? '#woocommerce-shop' : '')))));
+    header('Location: ' . usk_admin_url('settings') . ($section === 'connect_host' ? '#connect-host' : ($section === 'client_dns' ? '#client-dns' : ($section === 'panel_access' ? '#panel-access' : ($section === 'usage_sync' ? '#usage-sync' : ($section === 'woocommerce_shop' ? '#woocommerce-shop' : '')))));
     exit;
 }
 
@@ -230,6 +243,56 @@ $panels = $sql->query("SELECT `code`,`name` FROM `panels`");
             <div class="form-group mb-3">
                 <label><?= __('settings_connect_host_hint_label') ?></label>
                 <input class="form-control" name="connect_host_hint" value="<?= usk_esc($connectHostCfg['hint'] ?? '') ?>" placeholder="<?= __('settings_connect_host_hint_ph') ?>">
+            </div>
+            <button type="submit" class="btn btn-usk-primary"><?= __('save') ?></button>
+        </form>
+    </div>
+</div>
+
+<div class="usk-card mb-4" id="usage-sync">
+    <div class="usk-card-header"><i class="fa-solid fa-gauge-high"></i> <?= __('settings_usage_sync') ?></div>
+    <div class="p-3">
+        <p class="text-muted small mb-3"><?= __('settings_usage_sync_desc') ?></p>
+        <?php if (!empty($usageSyncStatus['last_sync_at'])) : ?>
+            <p class="alert alert-usk-info small py-2 mb-3">
+                <?= sprintf(
+                    __('settings_usage_sync_last'),
+                    usk_esc(USK_ProtocolLimits::format_last_run_at($usageSyncStatus['last_sync_at'])),
+                    (int) ($usageSyncStatus['last_run']['usage_updated'] ?? 0),
+                    (int) ($usageSyncStatus['last_run']['disabled'] ?? 0)
+                ) ?>
+            </p>
+        <?php endif; ?>
+        <?php if (!empty($usageSyncStatus['force_pending'])) : ?>
+            <p class="alert alert-warning small py-2 mb-3"><?= __('settings_usage_sync_force_pending') ?></p>
+        <?php endif; ?>
+        <form method="post">
+            <input type="hidden" name="section" value="usage_sync">
+            <div class="form-group mb-3">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="usage_sync_enabled" id="usage-sync-enabled" value="1" <?= !empty($usageSyncCfg['enabled']) ? 'checked' : '' ?>>
+                    <label class="form-check-label" for="usage-sync-enabled"><?= __('settings_usage_sync_enable') ?></label>
+                </div>
+                <p class="text-muted small mt-1 mb-0"><?= __('settings_usage_sync_enable_hint') ?></p>
+            </div>
+            <div class="form-group mb-3">
+                <label><?= __('settings_usage_sync_interval') ?></label>
+                <div class="input-group" style="max-width:220px">
+                    <input class="form-control" type="number" name="usage_sync_interval" min="1" max="120" step="1"
+                           value="<?= (int) ($usageSyncCfg['interval_minutes'] ?? 5) ?>" dir="ltr" style="text-align:left">
+                    <span class="input-group-text"><?= __('settings_usage_sync_minutes') ?></span>
+                </div>
+                <p class="text-muted small mt-1 mb-0"><?= __('settings_usage_sync_interval_hint') ?></p>
+                <p class="text-muted small mt-1 mb-0"><?= __('settings_usage_sync_interval_presets') ?>:
+                    <?php foreach (USK_UsageSyncSettings::preset_intervals() as $i => $mins) : ?><?= $i > 0 ? ', ' : '' ?><code><?= (int) $mins ?></code><?php endforeach; ?>
+                </p>
+            </div>
+            <div class="alert alert-usk-info small py-2 mb-3">
+                <i class="fa-solid fa-circle-info"></i> <?= __('settings_usage_sync_disable_note') ?>
+            </div>
+            <div class="form-group mb-3">
+                <label><?= __('settings_usage_sync_hint_label') ?></label>
+                <input class="form-control" name="usage_sync_hint" value="<?= usk_esc($usageSyncCfg['hint'] ?? '') ?>" placeholder="<?= __('settings_usage_sync_hint_ph') ?>">
             </div>
             <button type="submit" class="btn btn-usk-primary"><?= __('save') ?></button>
         </form>

@@ -75,10 +75,7 @@ class USK_ServiceStats
             }
         }
 
-        return array('ok' => true, 'items' => $items, 'server_time' => date('c'), 'live' => array(
-            'cache_age_sec' => USK_LiveStats::cache_age_sec(),
-            'cache_fresh' => USK_LiveStats::is_fresh(),
-        ));
+        return array('ok' => true, 'items' => $items, 'server_time' => date('c'), 'live' => self::live_meta());
     }
 
     /** @return array<string, mixed> */
@@ -117,10 +114,19 @@ class USK_ServiceStats
             'active_connections' => (int) ($usage['active_connections'] ?? 0),
             'max_connections' => (int) ($usage['max_connections'] ?? ($view['max_connections'] ?? 1)),
             'server_time' => date('c'),
-            'live' => array(
-                'cache_age_sec' => USK_LiveStats::cache_age_sec(),
-                'cache_fresh' => USK_LiveStats::is_fresh(),
-            ),
+            'live' => self::live_meta(),
+        );
+    }
+
+    /** @return array<string, mixed> */
+    private static function live_meta()
+    {
+        require_once __DIR__ . '/usage-sync-settings.php';
+        $cfg = USK_UsageSyncSettings::get();
+        return array(
+            'interval_minutes' => (int) ($cfg['interval_minutes'] ?? 5),
+            'cache_age_sec' => USK_LiveStats::cache_age_sec(),
+            'cache_fresh' => USK_LiveStats::is_fresh(),
         );
     }
 }

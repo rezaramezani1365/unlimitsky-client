@@ -174,7 +174,7 @@ unset($_pk, $s);
             <li><?= __('limits_cron_connections') ?></li>
         </ul>
         <p class="text-muted small"><?= __('limits_cron_manual_note') ?></p>
-        <pre class="usk-code p-2" style="white-space:pre-wrap;direction:ltr;text-align:left">*/5 * * * * flock -n … php <?= usk_esc(USK_ROOT) ?>/cron/native-limits.php (هر ۵ دقیقه)</pre>
+        <pre class="usk-code p-2" style="white-space:pre-wrap;direction:ltr;text-align:left">* * * * * flock … php <?= usk_esc(USK_ROOT) ?>/cron/usage-sync-gate.php (فاصله در تنظیمات → بروزرسانی مصرف)</pre>
         <pre class="usk-code p-2 mt-2" style="white-space:pre-wrap;direction:ltr;text-align:left">* * * * * php <?= usk_esc(USK_ROOT) ?>/cron/enforce-connections.php (هر ۳۰ ثانیه + Fail2ban IP limit)</pre>
         <pre class="usk-code p-2 mt-2" style="white-space:pre-wrap;direction:ltr;text-align:left">www-data ALL=(root) NOPASSWD: /bin/bash <?= usk_esc(USK_ROOT) ?>/bin/disable-user-*.sh *
 www-data ALL=(root) NOPASSWD: /bin/bash <?= usk_esc(USK_ROOT) ?>/bin/enable-user-*.sh *

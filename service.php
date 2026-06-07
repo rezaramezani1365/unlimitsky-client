@@ -12,6 +12,9 @@ USK_PanelAccess::enforce_request_host();
 require_once __DIR__ . '/admin/lib/i18n.php';
 require_once __DIR__ . '/admin/lib/protocols/limits.php';
 require_once __DIR__ . '/admin/lib/customer-portal.php';
+require_once __DIR__ . '/admin/lib/usage-sync-settings.php';
+
+$portalUsageInterval = (int) (USK_UsageSyncSettings::get()['interval_minutes'] ?? 5);
 
 $portalLang = strtolower((string) ($_GET['lang'] ?? ($_SESSION['usk_portal_lang'] ?? 'en')));
 if (!in_array($portalLang, array('fa', 'en'), true)) {
@@ -124,7 +127,7 @@ function portal_esc($s)
                 <?php if (($view['volume_gb'] ?? 0) > 0) : ?>
                 <div class="portal-progress"><div class="portal-progress-bar" id="portal-usage-bar" style="width:<?= min(100, (float) ($usage['percent'] ?? 0)) ?>%"></div></div>
                 <div class="small text-muted mt-1" id="portal-usage-text"><?= portal_esc(__('portal_used')) ?>: <?= portal_esc((string) ($usage['used_gb'] ?? 0)) ?> GB · <?= portal_esc(__('portal_left')) ?>: <?= portal_esc((string) ($usage['remaining_gb'] ?? 0)) ?> GB</div>
-                <div class="small text-muted mt-1"><i class="fa-solid fa-clock"></i> <?= portal_esc(__('portal_stats_live')) ?></div>
+                <div class="small text-muted mt-1"><i class="fa-solid fa-clock"></i> <?= portal_esc(sprintf(__('portal_stats_live'), $portalUsageInterval)) ?></div>
                 <?php endif; ?>
             </div>
             <div class="portal-stat" id="portal-connections-block"
@@ -142,7 +145,7 @@ function portal_esc($s)
                     }
                 ?></div>
                 <?php if (!empty($usage['connections_tracked'])) : ?>
-                <div class="small text-muted mt-1"><i class="fa-solid fa-clock"></i> <?= portal_esc(__('portal_connections_live')) ?></div>
+                <div class="small text-muted mt-1"><i class="fa-solid fa-clock"></i> <?= portal_esc(sprintf(__('portal_connections_live'), $portalUsageInterval)) ?></div>
                 <?php endif; ?>
             </div>
             <div class="portal-stat">

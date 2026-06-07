@@ -210,14 +210,14 @@ class USK_ProtocolLimits
         return $report;
     }
 
-    /** Admin button — queue one native-limits run (rate-limited, non-blocking). */
+    /** Admin button — queue force sync for next gate run (no extra PHP process). */
     public static function sync_usage_and_enforce()
     {
-        require_once __DIR__ . '/../live-stats.php';
-        USK_LiveStats::request_background_sync();
+        require_once __DIR__ . '/../usage-sync-settings.php';
+        USK_UsageSyncSettings::request_force_sync();
 
         $last = self::get_last_run();
-        $age = USK_LiveStats::cache_age_sec();
+        $cfg = USK_UsageSyncSettings::get();
 
         return array(
             'queued' => true,
@@ -227,7 +227,7 @@ class USK_ProtocolLimits
             'details' => array(),
             'usage_meta' => is_array($last['usage_meta'] ?? null) ? $last['usage_meta'] : array(
                 'source' => 'cron',
-                'cache_age_sec' => $age,
+                'interval_minutes' => (int) ($cfg['interval_minutes'] ?? 5),
             ),
         );
     }

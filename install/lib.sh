@@ -418,25 +418,32 @@ usk_ensure_web_update_sudoers() {
     chmod 440 "$sudoers" 2>/dev/null || true
 }
 
-# Auto usage/limit sync — single cron job every 5 minutes with flock (no overlap, no daemon).
+# Cron gate runs every minute; heavy sync only when interval in data/settings/usage-sync.json elapses.
 usk_ensure_usage_cron() {
     local web_root="$1"
     local php_bin
     php_bin="$(command -v php 2>/dev/null || true)"
     [ -n "$php_bin" ] || return 0
-    [ -f "${web_root}/cron/native-limits.php" ] || return 0
+    [ -f "${web_root}/cron/usage-sync-gate.php" ] || return 0
 
     local lock_file="/var/run/unlimitsky-limits.lock"
     local cron_file="/etc/cron.d/unlimitsky-limits"
     cat > "$cron_file" <<EOF
-# unlimitsky — usage + connection sync every 5 min (one-shot, flock prevents pile-up)
+# unlimitsky — usage gate every minute (interval set in panel Settings)
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
-*/5 * * * * root flock -n ${lock_file} timeout 120 ${php_bin} ${web_root}/cron/native-limits.php >> /var/log/unlimitsky-limits.log 2>&1
+* * * * * root flock -n ${lock_file} timeout 130 ${php_bin} ${web_root}/cron/usage-sync-gate.php >> /var/log/unlimitsky-limits.log 2>&1
 EOF
     chmod 644 "$cron_file" 2>/dev/null || true
     touch /var/log/unlimitsky-limits.log 2>/dev/null || true
     chmod 644 /var/log/unlimitsky-limits.log 2>/dev/null || true
+
+    mkdir -p "${web_root}/data/settings" "${web_root}/data/live" 2>/dev/null || true
+    if [ ! -f "${web_root}/data/settings/usage-sync.json" ]; then
+        printf '%s\n' '{"enabled":true,"interval_minutes":5,"hint":"","updated_at":null}' \
+            > "${web_root}/data/settings/usage-sync.json" 2>/dev/null || true
+        chown www-data:www-data "${web_root}/data/settings/usage-sync.json" 2>/dev/null || true
+    fi
 }
 
 # Removed: separate connections cron (merged into native-limits.php).

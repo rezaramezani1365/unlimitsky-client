@@ -2,6 +2,9 @@
 global $sql;
 require_once dirname(__DIR__) . '/lib/protocols/limits.php';
 require_once dirname(__DIR__) . '/lib/service-config-view.php';
+require_once dirname(__DIR__) . '/lib/usage-sync-settings.php';
+
+$usageSyncInterval = (int) (USK_UsageSyncSettings::get()['interval_minutes'] ?? 5);
 
 $GLOBALS['page_title'] = __('nav_services');
 $GLOBALS['active_nav'] = 'services';
@@ -115,7 +118,7 @@ $lastSync = USK_ProtocolLimits::get_last_run();
             <?php if (!empty($client['usage_synced_at'])) : ?>
                 <?= sprintf(__('services_usage_synced_at'), usk_esc(USK_ProtocolLimits::format_last_run_at($client['usage_synced_at']))) ?>
             <?php else : ?>
-                <?= usk_esc(__('stats_live_hint')) ?>
+                <?= sprintf(__('stats_live_hint'), $usageSyncInterval) ?>
             <?php endif; ?>
             </p>
         <?php endif; ?>
@@ -224,7 +227,7 @@ $lastSync = USK_ProtocolLimits::get_last_run();
         <div class="p-3 d-flex flex-wrap gap-3 align-items-center justify-content-between">
             <div>
                 <strong><i class="fa-solid fa-gauge-high"></i> <?= __('services_sync_title') ?></strong>
-                <p class="text-muted small mb-0 mt-1"><?= __('services_sync_hint') ?></p>
+                <p class="text-muted small mb-0 mt-1"><?= sprintf(__('services_sync_hint'), $usageSyncInterval) ?></p>
                 <?php if (is_array($lastSync) && !empty($lastSync['ran_at'])) : ?>
                     <p class="text-muted small mb-0 mt-1"><?= sprintf(
                         __('services_sync_last'),
@@ -304,7 +307,7 @@ $lastSync = USK_ProtocolLimits::get_last_run();
     </div>
 
     <div class="table-responsive" id="usk-services-live">
-        <p class="text-muted small mb-2"><i class="fa-solid fa-clock"></i> <?= __('stats_live_hint') ?></p>
+        <p class="text-muted small mb-2"><i class="fa-solid fa-clock"></i> <?= sprintf(__('stats_live_hint'), $usageSyncInterval) ?></p>
         <table class="table table-sm">
             <thead>
                 <tr>
