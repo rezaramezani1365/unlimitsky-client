@@ -17,6 +17,21 @@ function usk_schema_query($mysqli, $ddl)
     }
 }
 
+function usk_schema_column_exists($mysqli, $table, $column)
+{
+    $table = preg_replace('/[^a-z0-9_]/', '', $table);
+    $column = preg_replace('/[^a-z0-9_]/', '', $column);
+    $res = $mysqli->query("SHOW COLUMNS FROM `{$table}` LIKE '{$column}'");
+    return $res && $res->num_rows > 0;
+}
+
+function usk_schema_add_column_if_missing($mysqli, $table, $column, $ddl)
+{
+    if (!usk_schema_column_exists($mysqli, $table, $column)) {
+        usk_schema_query($mysqli, $ddl);
+    }
+}
+
 try {
     mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
     $sql = new mysqli('localhost', $_GET['db_username'], $_GET['db_password'], $_GET['db_name']);
@@ -254,11 +269,17 @@ try {
         "ALTER TABLE `factors` MODIFY `from_id` varchar(128) COLLATE utf8mb4_bin NOT NULL",
         "ALTER TABLE `service_factors` MODIFY `from_id` varchar(128) COLLATE utf8mb4_bin NOT NULL",
         "ALTER TABLE `test_account` MODIFY `from_id` varchar(128) COLLATE utf8mb4_bin NOT NULL",
-        "ALTER TABLE `category` ADD COLUMN `connections` varchar(10) COLLATE utf8mb4_bin NOT NULL DEFAULT '1' AFTER `status`",
     );
     foreach ($migrations as $migration) {
         @$sql->query($migration);
     }
+
+    usk_schema_add_column_if_missing(
+        $sql,
+        'category',
+        'connections',
+        "ALTER TABLE `category` ADD COLUMN `connections` varchar(10) COLLATE utf8mb4_bin NOT NULL DEFAULT '1' AFTER `status`"
+    );
 
     mysqli_report(MYSQLI_REPORT_OFF);
     echo json_encode(array('status' => true, 'msg' => 'Database setup completed successfully.', 'status_code' => 200));
