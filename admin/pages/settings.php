@@ -115,7 +115,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ));
         usk_flash(__('settings_saved'));
     }
-    header('Location: ' . usk_admin_url('settings') . ($section === 'connect_host' ? '#connect-host' : ($section === 'client_dns' ? '#client-dns' : ($section === 'panel_access' ? '#panel-access' : ($section === 'usage_sync' ? '#usage-sync' : ($section === 'woocommerce_shop' ? '#woocommerce-shop' : '')))));
+    $settingsHash = '';
+    if ($section === 'connect_host') {
+        $settingsHash = '#connect-host';
+    } elseif ($section === 'client_dns') {
+        $settingsHash = '#client-dns';
+    } elseif ($section === 'panel_access') {
+        $settingsHash = '#panel-access';
+    } elseif ($section === 'usage_sync') {
+        $settingsHash = '#usage-sync';
+    } elseif ($section === 'woocommerce_shop') {
+        $settingsHash = '#woocommerce-shop';
+    }
+    header('Location: ' . usk_admin_url('settings') . $settingsHash);
     exit;
 }
 
