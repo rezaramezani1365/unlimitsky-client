@@ -20,12 +20,21 @@ function usk_services_sync_diag(array $report)
         return '';
     }
     $synced = (int) ($meta['usage_synced'] ?? 0);
+    $connSynced = (int) ($meta['connections_synced'] ?? 0);
     $parts = array();
+    if ($connSynced > 0) {
+        $parts[] = sprintf(__('services_sync_diag_connections'), $connSynced);
+    }
     if ($synced > 0 && (int) ($report['usage_updated'] ?? 0) === 0) {
         $parts[] = sprintf(__('services_sync_diag_synced'), $synced);
     }
     if (empty($meta['sudo_ok']) && ($meta['source'] ?? '') !== 'collect_script') {
         $parts[] = __('services_sync_diag_no_sudo');
+    } elseif (empty($meta['sudo_ok'])) {
+        $parts[] = __('services_sync_diag_collect_failed');
+    }
+    if (!empty($meta['parse_ok']) && $meta['parse_ok'] === false) {
+        $parts[] = __('services_sync_diag_collect_parse');
     }
     $xrayCfg = (int) ($meta['xray_cfg_clients'] ?? 0);
     $xrayUsers = (int) ($meta['xray_users'] ?? ($meta['map_counts']['xray'] ?? 0));
@@ -36,6 +45,9 @@ function usk_services_sync_diag(array $report)
     $ovpnUsers = (int) ($meta['ovpn_users'] ?? ($meta['map_counts']['openvpn'] ?? 0));
     if ($ovpnStatusFiles === 0 && $ovpnUsers === 0 && (int) ($report['checked'] ?? 0) > 0) {
         $parts[] = __('services_sync_diag_openvpn_status');
+    }
+    if (!empty($meta['node_errors']) && is_array($meta['node_errors'])) {
+        $parts[] = sprintf(__('services_sync_diag_node_errors'), count($meta['node_errors']));
     }
     if ($parts === array()) {
         return '';

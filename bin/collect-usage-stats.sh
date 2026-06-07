@@ -12,6 +12,19 @@ source "$DIR/openvpn-common.sh" 2>/dev/null || true
 
 OVPN_STATUS_DIR="${OVPN_STATUS_DIR:-/var/log/openvpn}"
 DATA_ROOT="${DATA_ROOT:-${USK_DATA_ROOT:-/var/lib/unlimitsky}}"
+PANEL_ROOT="${PANEL_ROOT:-$(dirname "$DIR")}"
+
+usk_append_xray_pairs_from_panel() {
+  local pairs_file="$1"
+  local f="${PANEL_ROOT}/data/clients/xray.json"
+  [ -f "$f" ] || return 0
+  jq -r '
+    if type == "object" then
+      to_entries[]? | select(.value | type == "object") |
+      ((.key // .value.username // "") | tostring) + "\t" + ((.value.uuid // .value.id // "") | tostring)
+    else empty end
+  ' "$f" 2>/dev/null >>"$pairs_file" || true
+}
 
 count_json_keys() {
   local j="$1"
@@ -113,6 +126,7 @@ xray_map_json() {
     jq -r '.[]? | (.username // "") + "\t" + (.uuid // "")' \
       "${DATA_ROOT}/xray/clients.json" 2>/dev/null >>"$pairs_file" || true
   fi
+  usk_append_xray_pairs_from_panel "$pairs_file"
 
   sort -u "$pairs_file" -o "$pairs_file" 2>/dev/null || true
   while IFS=$'\t' read -r email uuid; do
@@ -283,6 +297,7 @@ xray_connections_map_json() {
     jq -r '.[]? | (.username // "") + "\t" + (.uuid // "")' \
       "${DATA_ROOT}/xray/clients.json" 2>/dev/null >>"$pairs_file" || true
   fi
+  usk_append_xray_pairs_from_panel "$pairs_file"
   sort -u "$pairs_file" -o "$pairs_file" 2>/dev/null || true
   while IFS=$'\t' read -r email uuid; do
     email=$(echo "$email" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
@@ -351,6 +366,12 @@ done < <(usk_openvpn_discover_status_files 2>/dev/null || true)
 
 WG_JSON=$(wg_map_json wg0 wg)
 AWG_JSON=$(wg_map_json awg0 awg)
+if command -v jq >/dev/null 2>&1 && [ -f "${PANEL_ROOT}/data/clients/wireguard.json" ]; then
+  while IFS= read -r pk; do
+    [ -z "$pk" ] && continue
+    WG_JSON=$(echo "$WG_JSON" | jq -c --arg k "$pk" '. + {($k): (.[$k] // 0)}' 2>/dev/null || echo "$WG_JSON")
+  done < <(jq -r 'to_entries[]? | select(.value.public_key? != null) | .value.public_key' "${PANEL_ROOT}/data/clients/wireguard.json" 2>/dev/null || true)
+fi
 XRAY_JSON=$(xray_map_json)
 OVPN_JSON=$(openvpn_map_json)
 WG_CONN_JSON=$(wg_connections_map_json wg0 wg)

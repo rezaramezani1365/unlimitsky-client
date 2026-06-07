@@ -247,6 +247,29 @@ $lastSync = USK_ProtocolLimits::get_last_run();
             </form>
         </div>
     </div>
+    <?php
+    $syncMeta = is_array($lastSync) ? ($lastSync['usage_meta'] ?? array()) : array();
+    $syncWarn = array();
+    if (is_array($syncMeta)) {
+        if (empty($syncMeta['sudo_ok']) && ($syncMeta['source'] ?? '') === 'collect_script') {
+            $syncWarn[] = __('services_sync_diag_collect_failed');
+        } elseif (empty($syncMeta['sudo_ok'])) {
+            $syncWarn[] = __('services_sync_diag_no_sudo');
+        }
+        if (!empty($syncMeta['xray_cfg_clients']) && empty($syncMeta['xray_api_ok'])) {
+            $syncWarn[] = __('services_sync_diag_xray_stats');
+        }
+        if (!empty($syncMeta['node_errors'])) {
+            $syncWarn[] = __('services_sync_diag_node_hint');
+        }
+    }
+    if ($syncWarn !== array()) : ?>
+        <div class="alert alert-warning mb-3 small">
+            <strong><i class="fa-solid fa-triangle-exclamation"></i> <?= __('services_sync_diag_title') ?></strong>
+            <ul class="mb-0 mt-1 ps-3"><?php foreach ($syncWarn as $w) : ?><li><?= usk_esc($w) ?></li><?php endforeach; ?></ul>
+            <p class="mb-0 mt-2 text-muted"><?= __('services_sync_diag_cmd') ?>: <code dir="ltr">sudo bash <?= usk_esc(USK_ROOT) ?>/bin/collect-usage-stats.sh</code></p>
+        </div>
+    <?php endif; ?>
     <?php if ($count_ended > 0) : ?>
         <div class="alert alert-warning mb-3">
             <?= sprintf(__('services_ended_count'), $count_ended) ?>
