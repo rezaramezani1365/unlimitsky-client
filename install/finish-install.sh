@@ -65,15 +65,15 @@ usk_disable_live_stats_daemon "$WEB_ROOT"
 usk_ensure_connection_slot_hooks "$WEB_ROOT"
 
 usk_save_credentials "/root/unlimitsky-client.credentials" \
-    echo "TYPE=client" \
-    echo "URL=$PUBLIC_URL" \
-    echo "ADMIN_URL=${PUBLIC_URL}/admin/login.php" \
-    echo "ADMIN_USER=$ADMIN_USER" \
-    echo "ADMIN_PASS=$ADMIN_PASS" \
-    echo "MUST_CHANGE_PASSWORD=$([ "$MUST_CHANGE" -eq 1 ] && echo yes || echo no)" \
-    echo "DB_NAME=$USK_DB_NAME" \
-    echo "DB_USER=$USK_DB_USER" \
-    echo "DB_PASS=$USK_DB_PASS"
+    "TYPE=client" \
+    "URL=$PUBLIC_URL" \
+    "ADMIN_URL=${PUBLIC_URL}/admin/login.php" \
+    "ADMIN_USER=$ADMIN_USER" \
+    "ADMIN_PASS=$ADMIN_PASS" \
+    "MUST_CHANGE_PASSWORD=$([ "$MUST_CHANGE" -eq 1 ] && echo yes || echo no)" \
+    "DB_NAME=$USK_DB_NAME" \
+    "DB_USER=$USK_DB_USER" \
+    "DB_PASS=$USK_DB_PASS"
 
 usk_print_box \
     "Install complete" \

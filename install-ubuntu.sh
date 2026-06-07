@@ -280,17 +280,17 @@ file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_S
     usk_ensure_connection_slot_hooks "$WEB_ROOT"
 
     usk_save_credentials "$CREDS_FILE" \
-        echo "TYPE=client" \
-        echo "URL=$PUBLIC_URL" \
-        echo "ADMIN_URL=${PUBLIC_URL}/admin/login.php" \
-        echo "ADMIN_USER=$ADMIN_USER" \
-        echo "ADMIN_PASS=$ADMIN_PASS" \
-        echo "MUST_CHANGE_PASSWORD=$([ "$MUST_CHANGE" -eq 1 ] && echo yes || echo no)" \
-        echo "DB_NAME=$DB_NAME" \
-        echo "DB_USER=$DB_USER" \
-        echo "DB_PASS=$DB_PASS" \
-        echo "LICENSE_URL=$LICENSE_URL" \
-        echo "LICENSE_TOKEN=$LICENSE_TOKEN"
+        "TYPE=client" \
+        "URL=$PUBLIC_URL" \
+        "ADMIN_URL=${PUBLIC_URL}/admin/login.php" \
+        "ADMIN_USER=$ADMIN_USER" \
+        "ADMIN_PASS=$ADMIN_PASS" \
+        "MUST_CHANGE_PASSWORD=$([ "$MUST_CHANGE" -eq 1 ] && echo yes || echo no)" \
+        "DB_NAME=$DB_NAME" \
+        "DB_USER=$DB_USER" \
+        "DB_PASS=$DB_PASS" \
+        "LICENSE_URL=$LICENSE_URL" \
+        "LICENSE_TOKEN=$LICENSE_TOKEN"
 else
     echo "[*] Database provisioned for web installer (credentials stored on server)."
 fi

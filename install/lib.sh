@@ -167,7 +167,9 @@ usk_save_credentials() {
     umask 077
     {
         echo "# unlimitsky credentials — $(date -Iseconds)"
-        "$@"
+        for line in "$@"; do
+            echo "$line"
+        done
     } > "$file"
     chmod 600 "$file"
 }
