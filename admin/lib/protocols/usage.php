@@ -114,8 +114,11 @@ class USK_ProtocolUsage
         $updated = 0;
         $synced = 0;
         $connUpdated = 0;
+        $panelCounts = array();
+        $matchFailures = array();
         foreach (array('wireguard', 'openvpn', 'xray', 'l2tp', 'cisco') as $protocol) {
             $clients = USK_ProtocolLimits::load_protocol_clients($protocol);
+            $panelCounts[$protocol] = count($clients);
             $changed = false;
             foreach ($clients as $username => $rec) {
                 if (!is_array($rec)) {
@@ -159,6 +162,13 @@ class USK_ProtocolUsage
                 $bytes = self::bytes_from_maps($protocol, $username, $rec, $maps);
                 $connActive = self::connections_from_maps($protocol, $username, $rec, $connMaps);
                 if ($bytes === null && $connActive === null) {
+                    if (count($matchFailures) < 8) {
+                        $matchFailures[] = array(
+                            'protocol' => $protocol,
+                            'username' => (string) $username,
+                            'uuid' => (string) ($rec['uuid'] ?? ($rec['meta']['uuid'] ?? '')),
+                        );
+                    }
                     continue;
                 }
 
@@ -199,6 +209,10 @@ class USK_ProtocolUsage
 
         self::$lastCollectMeta['usage_synced'] = $synced;
         self::$lastCollectMeta['connections_synced'] = $connUpdated;
+        self::$lastCollectMeta['panel_clients'] = $panelCounts;
+        if ($matchFailures !== array()) {
+            self::$lastCollectMeta['match_failures'] = $matchFailures;
+        }
         self::$batchCache = null;
         return $updated;
     }
@@ -472,56 +486,101 @@ class USK_ProtocolUsage
     private static function bytes_from_maps($protocol, $username, array $rec, array $maps)
     {
         if ($protocol === 'wireguard') {
-            $pub = $rec['public_key'] ?? ($rec['meta']['public_key'] ?? '');
-            return ($pub !== '' && isset($maps['wireguard'][$pub])) ? (int) $maps['wireguard'][$pub] : null;
+            $pub = self::client_public_key($rec);
+            if ($pub !== '' && array_key_exists($pub, $maps['wireguard'] ?? array())) {
+                return (int) $maps['wireguard'][$pub];
+            }
+            return null;
         }
         if ($protocol === 'amnezia') {
-            $pub = $rec['public_key'] ?? ($rec['meta']['public_key'] ?? '');
-            return ($pub !== '' && isset($maps['amnezia'][$pub])) ? (int) $maps['amnezia'][$pub] : null;
+            $pub = self::client_public_key($rec);
+            if ($pub !== '' && array_key_exists($pub, $maps['amnezia'] ?? array())) {
+                return (int) $maps['amnezia'][$pub];
+            }
+            return null;
         }
         if ($protocol === 'xray') {
-            foreach (self::usage_name_candidates($username, $rec) as $name) {
-                if (isset($maps['xray'][$name])) {
-                    return (int) $maps['xray'][$name];
-                }
-            }
-            return null;
+            return self::lookup_named_map($maps['xray'] ?? array(), $protocol, $username, $rec);
         }
         if ($protocol === 'openvpn') {
-            foreach (self::usage_name_candidates($username, $rec) as $name) {
-                if (array_key_exists($name, $maps['openvpn'])) {
-                    return (int) $maps['openvpn'][$name];
-                }
-            }
-            return null;
+            return self::lookup_named_map($maps['openvpn'] ?? array(), $protocol, $username, $rec);
         }
 
         return null;
     }
 
-    private static function connections_from_maps($protocol, $username, array $rec, array $connMaps)
+    private static function client_public_key(array $rec)
     {
-        if ($protocol === 'wireguard') {
-            $pub = $rec['public_key'] ?? ($rec['meta']['public_key'] ?? '');
-            if ($pub !== '' && isset($connMaps['wireguard'][$pub])) {
-                return max(0, (int) $connMaps['wireguard'][$pub]);
-            }
-            return isset($connMaps['wireguard']) ? 0 : null;
+        return trim((string) ($rec['public_key'] ?? ($rec['meta']['public_key'] ?? '')));
+    }
+
+    /** @return int|null */
+    private static function lookup_named_map(array $map, $protocol, $username, array $rec)
+    {
+        if ($map === array()) {
+            return null;
         }
-        if ($protocol === 'amnezia') {
-            $pub = $rec['public_key'] ?? ($rec['meta']['public_key'] ?? '');
-            if ($pub !== '' && isset($connMaps['amnezia'][$pub])) {
-                return max(0, (int) $connMaps['amnezia'][$pub]);
+        foreach (self::usage_name_candidates($username, $rec) as $name) {
+            if (array_key_exists($name, $map)) {
+                return (int) $map[$name];
             }
-            return isset($connMaps['amnezia']) ? 0 : null;
         }
-        if ($protocol === 'xray' || $protocol === 'openvpn') {
-            foreach (self::usage_name_candidates($username, $rec) as $name) {
-                if (isset($connMaps[$protocol][$name])) {
-                    return max(0, (int) $connMaps[$protocol][$name]);
+        $uuid = trim((string) ($rec['uuid'] ?? ($rec['meta']['uuid'] ?? '')));
+        if ($uuid !== '') {
+            foreach ($map as $key => $val) {
+                $key = (string) $key;
+                if ($key === $uuid || stripos($key, $uuid) !== false) {
+                    return (int) $val;
                 }
             }
-            return isset($connMaps[$protocol]) ? 0 : null;
+        }
+        $user = trim((string) $username);
+        if ($user !== '') {
+            foreach ($map as $key => $val) {
+                if ((string) $key === $user) {
+                    return (int) $val;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static function connections_from_maps($protocol, $username, array $rec, array $connMaps)
+    {
+        $hasConnData = is_array($connMaps) && $connMaps !== array();
+        if ($protocol === 'wireguard') {
+            $pub = self::client_public_key($rec);
+            if ($pub !== '' && array_key_exists($pub, $connMaps['wireguard'] ?? array())) {
+                return max(0, (int) $connMaps['wireguard'][$pub]);
+            }
+            return $hasConnData ? 0 : null;
+        }
+        if ($protocol === 'amnezia') {
+            $pub = self::client_public_key($rec);
+            if ($pub !== '' && array_key_exists($pub, $connMaps['amnezia'] ?? array())) {
+                return max(0, (int) $connMaps['amnezia'][$pub]);
+            }
+            return $hasConnData ? 0 : null;
+        }
+        if ($protocol === 'xray' || $protocol === 'openvpn') {
+            $sub = $connMaps[$protocol] ?? array();
+            if (!is_array($sub)) {
+                return $hasConnData ? 0 : null;
+            }
+            foreach (self::usage_name_candidates($username, $rec) as $name) {
+                if (array_key_exists($name, $sub)) {
+                    return max(0, (int) $sub[$name]);
+                }
+            }
+            $uuid = trim((string) ($rec['uuid'] ?? ($rec['meta']['uuid'] ?? '')));
+            if ($uuid !== '') {
+                foreach ($sub as $key => $val) {
+                    if ((string) $key === $uuid || stripos((string) $key, $uuid) !== false) {
+                        return max(0, (int) $val);
+                    }
+                }
+            }
+            return $hasConnData ? 0 : null;
         }
 
         return null;
@@ -534,6 +593,8 @@ class USK_ProtocolUsage
             trim((string) $username),
             trim((string) ($rec['username'] ?? '')),
             trim((string) ($rec['email'] ?? '')),
+            trim((string) ($rec['meta']['username'] ?? '')),
+            trim((string) ($rec['meta']['email'] ?? '')),
         );
         $uuid = trim((string) ($rec['uuid'] ?? ($rec['meta']['uuid'] ?? '')));
         if ($uuid !== '') {
@@ -541,6 +602,13 @@ class USK_ProtocolUsage
             $email = self::xray_email_for_uuid($uuid);
             if ($email !== '') {
                 $names[] = $email;
+            }
+        }
+        if (!empty($rec['order_code'])) {
+            $code = trim((string) $rec['order_code']);
+            if ($code !== '') {
+                $names[] = base64_encode($code);
+                $names[] = base64_encode($code) . '_admin';
             }
         }
         $out = array();

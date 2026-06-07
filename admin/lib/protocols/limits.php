@@ -61,7 +61,11 @@ class USK_ProtocolLimits
         $panel = array();
         $file = self::clients_dir() . '/' . $protocol . '.json';
         if (is_file($file)) {
-            $data = json_decode((string) file_get_contents($file), true);
+            $raw = (string) file_get_contents($file);
+            $data = json_decode($raw, true);
+            if (!is_array($data) && function_exists('json_decode')) {
+                $data = json_decode($raw, true, 512, JSON_INVALID_UTF8_IGNORE);
+            }
             if (is_array($data)) {
                 $panel = self::normalize_clients($data);
             }
@@ -76,22 +80,58 @@ class USK_ProtocolLimits
         if ($data === array()) {
             return array();
         }
-        $keys = array_keys($data);
-        if ($keys !== range(0, count($data) - 1)) {
-            return $data;
+
+        if (self::clients_data_is_list($data)) {
+            $out = array();
+            foreach ($data as $rec) {
+                if (!is_array($rec)) {
+                    continue;
+                }
+                $username = trim((string) ($rec['username'] ?? ''));
+                if ($username === '') {
+                    continue;
+                }
+                if (empty($rec['username'])) {
+                    $rec['username'] = $username;
+                }
+                $out[$username] = $rec;
+            }
+            return $out;
         }
-        $out = array();
-        foreach ($data as $rec) {
+
+        foreach ($data as $key => $rec) {
             if (!is_array($rec)) {
                 continue;
             }
-            $username = trim((string) ($rec['username'] ?? ''));
+            $username = trim((string) ($rec['username'] ?? $key));
             if ($username === '') {
                 continue;
             }
-            $out[$username] = $rec;
+            $data[$key] = $rec;
+            if (empty($rec['username'])) {
+                $data[$key]['username'] = $username;
+            }
         }
-        return $out;
+
+        return $data;
+    }
+
+    /** Detect JSON arrays and legacy {"0":{...},"1":{...}} object lists. */
+    private static function clients_data_is_list(array $data)
+    {
+        $keys = array_keys($data);
+        if ($keys === range(0, count($data) - 1)) {
+            return true;
+        }
+        if ($keys === array()) {
+            return false;
+        }
+        foreach ($keys as $i => $key) {
+            if ((string) $key !== (string) $i) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public static function save_protocol_clients($protocol, array $clients)
