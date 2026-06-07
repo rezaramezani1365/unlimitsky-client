@@ -78,6 +78,13 @@ class USK_PanelAccess
         return $port;
     }
 
+    /** True when host is an IPv4 address (not a custom domain name). */
+    public static function is_ip_host($host)
+    {
+        $host = trim((string) $host);
+        return $host !== '' && preg_match('/^([0-9]{1,3}\.){3}[0-9]{1,3}$/', $host) === 1;
+    }
+
     public static function apply_script()
     {
         return USK_ROOT . '/bin/apply-panel-access.sh';
@@ -238,11 +245,14 @@ class USK_PanelAccess
             $host = is_array($parsed) ? (string) ($parsed['host'] ?? '') : '';
             if ($host !== '') {
                 $urlPort = !empty($parsed['port']) ? (int) $parsed['port'] : $port;
+                $domainMode = !empty($cfg['domain_enabled'])
+                    && $panelDomain !== ''
+                    && !self::is_ip_host($host);
                 return self::build_public_url(
                     $host,
                     $urlPort,
                     !empty($cfg['https_enabled']),
-                    true
+                    $domainMode
                 );
             }
             return rtrim($stored, '/');
@@ -252,7 +262,7 @@ class USK_PanelAccess
             $panelDomain,
             $port,
             !empty($cfg['https_enabled']),
-            $panelDomain !== ''
+            !empty($cfg['domain_enabled']) && $panelDomain !== ''
         );
     }
 
@@ -315,6 +325,15 @@ class USK_PanelAccess
             }
             $host = USK_ConnectHost::detect_ip();
             return 'http://' . $host . ':' . $port;
+        }
+
+        // IP access always needs explicit port (e.g. :8082) — mirror80 is for custom domains only.
+        if (self::is_ip_host($host)) {
+            $scheme = ($https && $port === 443) ? 'https' : 'http';
+            if (($https && $port === 443) || (!$https && $port === 80)) {
+                return $scheme . '://' . $host;
+            }
+            return $scheme . '://' . $host . ':' . $port;
         }
 
         $mirror80 = $domainMode && !in_array($port, array(80, 443), true);
