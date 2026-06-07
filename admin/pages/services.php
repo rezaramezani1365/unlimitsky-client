@@ -90,7 +90,7 @@ $lastSync = USK_ProtocolLimits::get_last_run();
 <div class="usk-card">
     <h3><?= __('service_detail') ?> #<?= usk_esc($s['code']) ?></h3>
     <p><strong><?= __('server') ?>:</strong> <?= usk_esc($s['location']) ?></p>
-    <p><strong><?= __('volume') ?>:</strong> <?= usk_esc($s['volume']) ?> GB — <strong><?= __('duration') ?>:</strong> <?= usk_esc($s['date']) ?> <?= __('days') ?></p>
+    <p><strong><?= __('volume') ?>:</strong> <?= usk_esc(usk_format_plan_gb($s['volume'])) ?> — <strong><?= __('duration') ?>:</strong> <?= usk_esc(usk_format_plan_days($s['date'])) ?></p>
     <p><strong><?= __('type') ?>:</strong> <?= usk_esc($s['type']) ?>
         <?php if (!empty($s['protocol']) && $s['protocol'] !== 'null') : ?>
             / <?= usk_esc($s['protocol']) ?>
@@ -294,7 +294,7 @@ $lastSync = USK_ProtocolLimits::get_last_run();
                 <tr class="<?= usk_esc($row['row_class']) ?>">
                     <td><code class="usk-code"><?= usk_esc($row['code']) ?></code></td>
                     <td><?= usk_esc($row['location']) ?></td>
-                    <td><?= usk_esc($row['volume']) ?>GB / <?= usk_esc($row['date']) ?><?= __('days') ?></td>
+                    <td><?= usk_esc(usk_format_plan_limits($row['volume'], $row['date'])) ?></td>
                     <td>
                         <?php if (!empty($row['usage_needs_sync'])) : ?>
                             <span class="small text-warning"><?= usk_esc($row['usage_display']) ?></span>
@@ -361,7 +361,8 @@ $lastSync = USK_ProtocolLimits::get_last_run();
         min: <?= json_encode(__('services_search_min_chars'), JSON_UNESCAPED_UNICODE) ?>,
         view: <?= json_encode(__('services_search_view'), JSON_UNESCAPED_UNICODE) ?>,
         usage: <?= json_encode(__('traffic_used'), JSON_UNESCAPED_UNICODE) ?>,
-        days: <?= json_encode(__('days'), JSON_UNESCAPED_UNICODE) ?>
+        days: <?= json_encode(__('days'), JSON_UNESCAPED_UNICODE) ?>,
+        unlimited: <?= json_encode(__('plan_unlimited'), JSON_UNESCAPED_UNICODE) ?>,
     };
 
     function esc(s) {
@@ -380,7 +381,10 @@ $lastSync = USK_ProtocolLimits::get_last_run();
 
     function renderItem(item) {
         var proto = item.protocol && item.protocol !== 'null' ? ' · ' + esc(item.protocol) : '';
-        var vol = esc(item.volume) + 'GB / ' + esc(item.date) + i18n.days;
+        var volGb = parseInt(item.volume, 10);
+        var volDays = parseInt(item.date, 10);
+        var vol = (volGb > 0 ? esc(volGb) + 'GB' : esc(i18n.unlimited)) + ' / '
+            + (volDays > 0 ? esc(volDays) + i18n.days : esc(i18n.unlimited));
         var portal = item.portal_url
             ? ' <a class="btn btn-sm btn-outline-primary ms-1" href="' + esc(item.portal_url) + '" target="_blank" rel="noopener"><i class="fa-solid fa-user"></i></a>'
             : '';

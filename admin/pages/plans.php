@@ -30,8 +30,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $name = $sql->real_escape_string(trim($_POST['name'] ?? ''));
-        $limit = $sql->real_escape_string(trim($_POST['limit'] ?? '0'));
-        $date = $sql->real_escape_string(trim($_POST['date'] ?? '0'));
+        $limit = max(0, (int) ($_POST['limit'] ?? 0));
+        $date = max(0, (int) ($_POST['date'] ?? 0));
+        $limit = $sql->real_escape_string((string) $limit);
+        $date = $sql->real_escape_string((string) $date);
         $price = $sql->real_escape_string(trim($_POST['price'] ?? '0'));
         $status = $sql->real_escape_string($_POST['status'] ?? 'active');
         if (!in_array($status, array('active', 'inactive'), true)) {
@@ -109,11 +111,13 @@ $editConnections = max(1, min(99, (int) ($edit['connections'] ?? 1)));
         <div class="form-row">
             <div class="form-group">
                 <label><?= __('plan_volume') ?></label>
-                <input class="form-control" name="limit" type="number" min="1" required value="<?= usk_esc($edit['limit'] ?? '') ?>">
+                <input class="form-control" name="limit" type="number" min="0" required value="<?= usk_esc($edit['limit'] ?? '30') ?>">
+                <small class="text-muted"><?= __('plan_volume_hint') ?></small>
             </div>
             <div class="form-group">
                 <label><?= __('plan_duration') ?></label>
-                <input class="form-control" name="date" type="number" min="1" required value="<?= usk_esc($edit['date'] ?? '') ?>">
+                <input class="form-control" name="date" type="number" min="0" required value="<?= usk_esc($edit['date'] ?? '30') ?>">
+                <small class="text-muted"><?= __('plan_duration_hint') ?></small>
             </div>
         </div>
         <div class="form-group">
@@ -163,8 +167,8 @@ $editConnections = max(1, min(99, (int) ($edit['connections'] ?? 1)));
                 <tr<?= $edit && (int) $edit['row'] === (int) $p['row'] ? ' class="table-active"' : '' ?>>
                     <td><?= usk_esc($p['name']) ?></td>
                     <td><code class="usk-code"><?= usk_esc($p['code']) ?></code></td>
-                    <td><?= usk_esc($p['limit']) ?> GB</td>
-                    <td><?= usk_esc($p['date']) ?> <?= __('plan_days_unit') ?></td>
+                    <td><?= usk_esc(usk_format_plan_gb($p['limit'])) ?></td>
+                    <td><?= usk_esc(usk_format_plan_days($p['date'])) ?></td>
                     <td><?= usk_esc($p['connections'] ?? '1') ?></td>
                     <td><?= number_format((int) $p['price']) ?></td>
                     <td><span class="badge badge-<?= $p['status'] === 'active' ? 'success' : 'danger' ?>"><?= usk_esc($p['status']) ?></span></td>

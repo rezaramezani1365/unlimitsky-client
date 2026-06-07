@@ -5,9 +5,23 @@ $GLOBALS['active_nav'] = 'license';
 USK_License::validate_cached();
 $info = USK_License::get();
 $is_pro = USK_License::is_pro();
+$vendorConfigured = USK_License::vendor_configured();
+$vendorSource = USK_License::vendor_config_source();
+$presence = USK_License::last_presence_sync();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $act = isset($_POST['action']) ? $_POST['action'] : '';
+    if ($act === 'sync_vendor') {
+        $res = USK_License::sync_presence_with_vendor(true);
+        if (!empty($res['ok'])) {
+            usk_flash(__('license_vendor_sync_ok'));
+        } else {
+            $err = isset($res['error']) ? $res['error'] : 'error';
+            usk_flash(__('license_vendor_sync_failed') . ': ' . usk_license_error_message($err), 'error');
+        }
+        header('Location: ' . usk_admin_url('license'));
+        exit;
+    }
     if ($act === 'activate') {
         $key = isset($_POST['license_key']) ? $_POST['license_key'] : '';
         $res = USK_License::activate($key);
@@ -96,6 +110,33 @@ if (USK_Migration::needs_license_reactivation()) :
     </div>
 </div>
 <?php endif; ?>
+
+<div class="usk-card mb-4">
+    <div class="usk-card-header"><?= __('license_vendor_title') ?></div>
+    <div class="p-3">
+        <?php if ($vendorConfigured) : ?>
+        <p class="mb-2 small text-muted"><?= __('license_vendor_configured') ?><?php if ($vendorSource !== '') : ?> <code dir="ltr"><?= usk_esc($vendorSource) ?></code><?php endif; ?></p>
+        <?php if (!empty($presence['synced_at'])) : ?>
+        <p class="mb-2 small">
+            <?= __('license_vendor_last_sync') ?>:
+            <span dir="ltr"><?= usk_esc($presence['synced_at']) ?></span>
+            <?php if (!empty($presence['ok'])) : ?>
+            <span class="badge badge-usk ms-1"><?= __('license_vendor_sync_ok_short') ?></span>
+            <?php elseif (!empty($presence['error'])) : ?>
+            <span class="badge badge-danger ms-1"><?= usk_esc(usk_license_error_message($presence['error'])) ?></span>
+            <?php endif; ?>
+        </p>
+        <?php endif; ?>
+        <p class="small text-muted mb-3"><?= __('license_vendor_auto_note') ?></p>
+        <form method="post" class="d-inline">
+            <input type="hidden" name="action" value="sync_vendor">
+            <button type="submit" class="btn btn-outline-usk btn-sm"><?= __('license_vendor_sync_btn') ?></button>
+        </form>
+        <?php else : ?>
+        <p class="small mb-0 text-warning"><?= __('license_vendor_not_configured') ?></p>
+        <?php endif; ?>
+    </div>
+</div>
 
 <div class="usk-card">
     <div class="usk-card-header"><?= __('license_instance') ?></div>

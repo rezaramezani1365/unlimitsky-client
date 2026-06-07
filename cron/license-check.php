@@ -6,6 +6,7 @@ define('USK_ROOT', dirname(__DIR__));
 require_once USK_ROOT . '/config.php';
 require_once USK_ROOT . '/admin/lib/license.php';
 
+USK_License::sync_presence_with_vendor(false);
 $before = USK_License::get();
 USK_License::refresh_from_vendor(true);
 $after = USK_License::get();

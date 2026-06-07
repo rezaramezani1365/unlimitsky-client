@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $duration_days = (int) $plan['date'];
             $max_connections = max(1, (int) ($plan['connections'] ?? 1));
         }
-    } elseif ($volume_gb < 1 || $duration_days < 1) {
+    } elseif ($volume_gb < 0 || $duration_days < 0) {
         usk_flash(__('create_manual_invalid'), 'error');
         $plan = null;
     } else {
@@ -231,11 +231,13 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         <div class="form-row manual-plan-fields mb-3">
             <div class="form-group col-md-6">
                 <label><?= __('volume') ?> (GB)</label>
-                <input type="number" class="form-control" name="manual_volume_gb" min="1" value="30">
+                <input type="number" class="form-control" name="manual_volume_gb" min="0" value="30">
+                <small class="text-muted"><?= __('plan_volume_hint') ?></small>
             </div>
             <div class="form-group col-md-6">
                 <label><?= __('duration') ?> (<?= __('days') ?>)</label>
-                <input type="number" class="form-control" name="manual_duration_days" min="1" value="30">
+                <input type="number" class="form-control" name="manual_duration_days" min="0" value="30">
+                <small class="text-muted"><?= __('plan_duration_hint') ?></small>
             </div>
         </div>
 
@@ -245,7 +247,7 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
                 <select class="form-control" name="plan_id" id="plan-select">
                     <option value="">—</option>
                     <?php while ($pl = $plans->fetch_assoc()) : ?>
-                        <option value="<?= (int) $pl['row'] ?>"><?= usk_esc($pl['name']) ?> — <?= usk_esc($pl['limit']) ?>GB / <?= usk_esc($pl['date']) ?> <?= __('days') ?></option>
+                        <option value="<?= (int) $pl['row'] ?>"><?= usk_esc($pl['name']) ?> — <?= usk_esc(usk_format_plan_limits($pl['limit'], $pl['date'])) ?></option>
                     <?php endwhile; ?>
                 </select>
             </div>

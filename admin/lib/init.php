@@ -77,6 +77,25 @@ function usk_service_name($code, $suffix = 'web')
     return base64_encode($code) . '_' . $suffix . '_' . time();
 }
 
+/** 0 = unlimited volume */
+function usk_format_plan_gb($gb)
+{
+    $gb = (int) $gb;
+    return $gb > 0 ? ($gb . ' GB') : __('plan_unlimited');
+}
+
+/** 0 = unlimited duration */
+function usk_format_plan_days($days)
+{
+    $days = (int) $days;
+    return $days > 0 ? ($days . ' ' . __('plan_days_unit')) : __('plan_unlimited');
+}
+
+function usk_format_plan_limits($gb, $days)
+{
+    return usk_format_plan_gb($gb) . ' / ' . usk_format_plan_days($days);
+}
+
 function usk_github_repo_url()
 {
     return 'https://github.com/rezaramezani1365/unlimitsky-client';

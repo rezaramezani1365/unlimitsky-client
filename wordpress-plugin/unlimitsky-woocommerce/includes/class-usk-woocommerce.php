@@ -217,8 +217,11 @@ class USK_WooCommerce
         wc_enqueue_js("
             var uskPanelTypes = {$panel_types_json};
             var uskPlansByPanel = {$plans_by_panel_json};
+            var uskUnlimited = " . wp_json_encode(__('نامحدود', 'unlimitsky-wc')) . ";
             function uskPlanLabel(p) {
-                return p.name + ' — ' + p.volume_gb + ' GB / ' + p.duration_days + ' " . esc_js(__('روز', 'unlimitsky-wc')) . "';
+                var vol = (parseInt(p.volume_gb, 10) > 0) ? (p.volume_gb + ' GB') : uskUnlimited;
+                var days = (parseInt(p.duration_days, 10) > 0) ? (p.duration_days + ' " . esc_js(__('روز', 'unlimitsky-wc')) . "') : uskUnlimited;
+                return p.name + ' — ' + vol + ' / ' + days;
             }
             function uskRebuildPlanSelect(panelId, selectedCode) {
                 var \$plan = jQuery('#_usk_plan_code');

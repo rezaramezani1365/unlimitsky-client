@@ -9,6 +9,11 @@ class USK_License
 
     private static $booted = false;
 
+    /** @var array{url:string,token:string,source:string}|null */
+    private static $peerVendorCache = null;
+
+    const PRESENCE_SYNC_INTERVAL = 900;
+
     private static function file_path()
     {
         return dirname(__DIR__) . '/data/license.json';
@@ -27,12 +32,186 @@ class USK_License
 
     private static function api_token()
     {
+        $peer = self::resolve_peer_vendor();
+        return $peer['token'] ?? '';
+    }
+
+    private static function license_server_url()
+    {
+        $peer = self::resolve_peer_vendor();
+        return $peer['url'] ?? '';
+    }
+
+    public static function vendor_configured()
+    {
+        return self::license_server_url() !== '' && self::api_token() !== '';
+    }
+
+    public static function vendor_config_source()
+    {
+        $peer = self::resolve_peer_vendor();
+        return $peer['source'] ?? '';
+    }
+
+    /** @return array{url:string,token:string,source:string}|null */
+    private static function resolve_peer_vendor()
+    {
+        if (self::$peerVendorCache !== null) {
+            return self::$peerVendorCache['url'] !== '' ? self::$peerVendorCache : null;
+        }
+
         global $config;
+        $url = isset($config['license_server']) ? trim((string) $config['license_server']) : '';
         $token = isset($config['license_api_token']) ? trim((string) $config['license_api_token']) : '';
-        if ($token === '' || $token === '[*LICENSE-TOKEN*]') {
+        if ($url !== '' && $url !== '[*LICENSE-SERVER*]' && $token !== '' && $token !== '[*LICENSE-TOKEN*]') {
+            self::$peerVendorCache = array('url' => $url, 'token' => $token, 'source' => 'config.php');
+            return self::$peerVendorCache;
+        }
+
+        foreach (self::peer_vendor_json_paths() as $path) {
+            $parsed = self::parse_vendor_json_file($path);
+            if ($parsed !== null) {
+                self::$peerVendorCache = $parsed;
+                return self::$peerVendorCache;
+            }
+        }
+
+        foreach (self::peer_vendor_config_paths() as $path) {
+            $parsed = self::parse_vendor_config_php($path);
+            if ($parsed !== null) {
+                self::$peerVendorCache = $parsed;
+                return self::$peerVendorCache;
+            }
+        }
+
+        self::$peerVendorCache = array('url' => '', 'token' => '', 'source' => '');
+        return null;
+    }
+
+    /** @return string[] */
+    private static function peer_vendor_config_paths()
+    {
+        return array(
+            '/var/www/unlimitsky-license/config.php',
+            dirname(USK_ROOT) . '/unlimitsky-license/config.php',
+        );
+    }
+
+    private static function normalize_license_api_url($domainOrApiUrl)
+    {
+        $url = rtrim(trim((string) $domainOrApiUrl), '/');
+        if ($url === '') {
             return '';
         }
-        return $token;
+        if (preg_match('#/api/v1\.php$#', $url)) {
+            return $url;
+        }
+        return $url . '/api/v1.php';
+    }
+
+    /** @return array{url:string,token:string,source:string}|null */
+    private static function parse_vendor_config_php($path)
+    {
+        if (!is_readable($path)) {
+            return null;
+        }
+        $cfg = @include $path;
+        if (!is_array($cfg)) {
+            return null;
+        }
+        $domain = rtrim(trim((string) ($cfg['domain'] ?? '')), '/');
+        $token = trim((string) ($cfg['api_secret'] ?? ''));
+        if ($domain === '' || $token === '') {
+            return null;
+        }
+        return array(
+            'url' => self::normalize_license_api_url($domain),
+            'token' => $token,
+            'source' => basename(dirname($path)) . '/config.php',
+        );
+    }
+
+    /** @return string[] */
+    private static function peer_vendor_json_paths()
+    {
+        return array(
+            USK_ROOT . '/data/license-vendor.json',
+            '/var/www/unlimitsky-license/data/reseller-api.json',
+            '/var/lib/unlimitsky/reseller-api.json',
+        );
+    }
+
+    /** @return array{url:string,token:string,source:string}|null */
+    private static function parse_vendor_json_file($path)
+    {
+        if (!is_readable($path)) {
+            return null;
+        }
+        $data = json_decode((string) file_get_contents($path), true);
+        if (!is_array($data)) {
+            return null;
+        }
+        $url = trim((string) ($data['license_server'] ?? ($data['url'] ?? '')));
+        $token = trim((string) ($data['api_token'] ?? ($data['token'] ?? '')));
+        if ($url === '' || $token === '') {
+            return null;
+        }
+        return array('url' => self::normalize_license_api_url($url), 'token' => $token, 'source' => basename(dirname($path)) . '/' . basename($path));
+    }
+
+    private static function presence_state_file()
+    {
+        return dirname(__DIR__) . '/data/vendor-presence.json';
+    }
+
+    /** @return array<string,mixed> */
+    public static function last_presence_sync()
+    {
+        $f = self::presence_state_file();
+        if (!is_file($f)) {
+            return array();
+        }
+        $data = json_decode((string) file_get_contents($f), true);
+        return is_array($data) ? $data : array();
+    }
+
+    private static function save_presence_sync(array $res)
+    {
+        $dir = dirname(self::presence_state_file());
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+        file_put_contents(self::presence_state_file(), json_encode(array(
+            'synced_at' => date('c'),
+            'ok' => !empty($res['ok']),
+            'error' => (string) ($res['error'] ?? ''),
+            'server_ip' => (string) ($res['server_ip'] ?? ''),
+            'source' => self::vendor_config_source(),
+        ), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+    }
+
+    private static function presence_sync_due()
+    {
+        $last = self::last_presence_sync();
+        $at = isset($last['synced_at']) ? strtotime($last['synced_at']) : 0;
+        return $at < time() - self::PRESENCE_SYNC_INTERVAL;
+    }
+
+    /**
+     * Tell vendor this client panel exists (Installations list). Throttled unless $force.
+     * @return array<string,mixed>|null
+     */
+    public static function sync_presence_with_vendor($force = false)
+    {
+        if (!$force && !self::presence_sync_due()) {
+            return null;
+        }
+        if (!self::vendor_configured()) {
+            return array('ok' => false, 'error' => 'license_server_not_configured');
+        }
+        $res = self::api_request('register');
+        self::save_presence_sync(is_array($res) ? $res : array('ok' => false, 'error' => 'invalid_response'));
+        return $res;
     }
 
     private static function sign_secret()
@@ -248,15 +427,15 @@ class USK_License
 
     public static function api_request($action, $license_key = '')
     {
-        global $config;
-        $url = isset($config['license_server']) ? trim((string) $config['license_server']) : '';
-        if ($url === '' || $url === '[*LICENSE-SERVER*]' || self::api_token() === '') {
+        $url = self::license_server_url();
+        if ($url === '' || self::api_token() === '') {
             return array('ok' => false, 'error' => 'license_server_not_configured');
         }
         if (!function_exists('curl_init')) {
             return array('ok' => false, 'error' => 'curl_required');
         }
 
+        global $config;
         $payload = array(
             'action' => $action,
             'instance_id' => self::instance_id(),
@@ -290,7 +469,18 @@ class USK_License
 
     public static function register_with_vendor()
     {
-        return self::api_request('register');
+        return self::sync_presence_with_vendor(true);
+    }
+
+    private static function admin_session_active()
+    {
+        if (PHP_SAPI === 'cli' && !defined('USK_ADMIN')) {
+            return defined('USK_CRON');
+        }
+        if (session_status() === PHP_SESSION_NONE) {
+            @session_start();
+        }
+        return !empty($_SESSION['usk_admin_logged']);
     }
 
     public static function activate($license_key)
@@ -495,6 +685,9 @@ class USK_License
             return;
         }
         self::$booted = true;
+        if (self::admin_session_active()) {
+            self::sync_presence_with_vendor(false);
+        }
         self::validate_cached();
     }
 

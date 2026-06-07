@@ -43,7 +43,7 @@ unlimitsky **پروتکل‌های VPN را مستقیم روی VPS اوبونت
 
 از **پنل → پروتکل‌ها** با یک کلیک نصب کن. اسکریپت کانفیگ سرور، فایروال و سرویس systemd را خودش انجام می‌دهد.
 
-**محدودیت‌ها:** cron اکانت تمام‌شده را **غیرفعال** می‌کند (اتصال قطع). رکورد در **پنل → سرویس‌ها** می‌ماند — تمدید یا حذف دستی.
+**محدودیت‌ها و مصرف:** پیش‌فرض — **پنل → سرویس‌ها → بروزرسانی مصرف همه** را بزن. اختیاری: [cron را فعال کن](#بروزرسانی-خودکار-مصرف-cron--اختیاری) تا مصرف خودکار sync شود. cron اکانت تمام‌شده را هم **غیرفعال** می‌کند (اتصال قطع). رکورد در **پنل → سرویس‌ها** می‌ماند — تمدید یا حذف دستی.
 
 **ساخت دستی:** **پنل → ساخت کانفیگ** — حجم و روز را مستقیم وارد کن (بدون نیاز به پلن).
 
@@ -138,6 +138,8 @@ sudo bash /opt/unlimitsky/client/scripts/update-panel.sh /var/www/unlimitsky /op
 | **L2TP/IPsec** | 1701 | روتر و ویندوز بدون نرم‌افزار اضافه |
 
 **الان چه کار می‌کند:** **نصب کامل سرور** + **ساخت کانفیگ per-customer** (ادمین + ووکامرس از طریق API).
+
+سنجش حجم (WireGuard، OpenVPN، Xray، Amnezia) از **پنل → سرویس‌ها** در دسترس است. اگر نمی‌خواهی هر بار دستی «بروزرسانی مصرف همه» بزنی، [بروزرسانی خودکار با cron](#بروزرسانی-خودکار-مصرف-cron--اختیاری) را ببین.
 
 ---
 
@@ -435,6 +437,7 @@ www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/add-user-*.sh *
 www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/disable-user-*.sh *
 www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/enable-user-*.sh *
 www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/remove-user-*.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/collect-usage-stats.sh
 ```
 
 ذخیره و خروج. سپس:
@@ -450,8 +453,78 @@ sudo chmod 440 /etc/sudoers.d/unlimitsky
 | `disable-user-*.sh` | cron — قطع اتصال وقتی مدت تمام شد یا حجم پر شد |
 | `enable-user-*.sh` | **سرویس‌ها → تمدید** — فعال‌سازی دوباره |
 | `remove-user-*.sh` | **سرویس‌ها → حذف از سرور** — حذف دستی |
+| `collect-usage-stats.sh` | خواندن ترافیک زنده (WireGuard، OpenVPN، Xray، Amnezia) برای sync مصرف |
 
-بدون `add-user-*.sh` ساخت کانفیگ از پنل یا ووکامرس کار نمی‌کند. بدون `disable-user-*.sh` اکانت منقضی تا حذف دستی وصل می‌ماند.
+بدون `add-user-*.sh` ساخت کانفیگ از پنل یا ووکامرس کار نمی‌کند. بدون `disable-user-*.sh` اکانت منقضی تا حذف دستی وصل می‌ماند. بدون `collect-usage-stats.sh` در sudoers، sync مصرف از پنل یا cron ممکن است برای همه سرویس‌ها **۰ GB** نشان دهد.
+
+---
+
+## بروزرسانی خودکار مصرف (cron — اختیاری)
+
+پیش‌فرض: **مصرف حجمی live نیست**. در **پنل → سرویس‌ها** دکمه **بروزرسانی مصرف همه** را بزن تا:
+
+- ترافیک زنده **WireGuard**، **OpenVPN**، **Xray** و **Amnezia** خوانده شود
+- **گیگابایت مصرف‌شده** ذخیره شود
+- سرویس‌های **تمام‌شده (حجم/زمان)** غیرفعال شوند
+
+اگر نمی‌خواهی هر بار دستی این دکمه را بزنی، همان کار را با **cron** زمان‌بندی کن (برای production پیشنهاد می‌شود).
+
+### ۱. اول دستی تست کن
+
+اگر مسیر پنل `/var/www/unlimitsky` نیست عوض کن (**پنل → پروتکل‌ها**):
+
+```bash
+sudo -u www-data php /var/www/unlimitsky/cron/native-limits.php
+```
+
+باید JSON با `usage_updated`، `checked` و `disabled` ببینی. بعد **پنل → سرویس‌ها** را refresh کن — ستون **ترافیک مصرف‌شده** باید عدد نشان دهد نه «بروزرسانی مصرف همه را بزنید».
+
+### ۲. فعال‌سازی cron (هر ۱۵ دقیقه)
+
+```bash
+sudo tee /etc/cron.d/unlimitsky-limits <<'EOF'
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+*/15 * * * * www-data timeout 240 /usr/bin/php /var/www/unlimitsky/cron/native-limits.php >> /var/log/unlimitsky-limits.log 2>&1
+EOF
+sudo chmod 644 /etc/cron.d/unlimitsky-limits
+```
+
+| بازه | معنی |
+|------|------|
+| `*/15 * * * *` | هر **۱۵ دقیقه** (پیش‌فرض مناسب) |
+| `*/5 * * * *` | هر **۵ دقیقه** (فروشگاه شلوغ‌تر) |
+| `*/30 * * * *` | هر **۳۰ دقیقه** (سرور کوچک) |
+
+> سریع‌تر از هر **۵ دقیقه** تنظیم نکن مگر دلیل مشخص — هر اجرا آمار VPN را از سرور می‌خواند.
+
+### ۳. مطمئن شو cron اجرا می‌شود
+
+```bash
+# تا ربع ساعت بعد صبر کن، بعد:
+sudo tail -20 /var/log/unlimitsky-limits.log
+```
+
+در پنل، بعد از اجرای موفق، **پنل → سرویس‌ها** زمان آخرین sync را نشان می‌دهد.
+
+### ۴. خاموش کردن sync خودکار
+
+```bash
+sudo rm -f /etc/cron.d/unlimitsky-limits
+```
+
+همچنان می‌توانی هر وقت خواستی **بروزرسانی مصرف همه** را در پنل بزنی.
+
+### نکات
+
+- **نصب تازه** (`install-ubuntu.sh` / نصب یک‌دستوری): مسیرهای metering و sudoers خودکار تنظیم می‌شوند.
+- **سرور قدیمی** که از نسخه قبل upgrade شده: اگر مصرف ۰ ماند، یک‌بار اجرا کن:
+  ```bash
+  sudo bash /var/www/unlimitsky/bin/xray-fix-stats-api.sh
+  sudo bash /var/www/unlimitsky/bin/openvpn-fix-status.sh
+  ```
+- **OpenVPN:** بایت‌ها از **status log** سرور هنگام اتصال خوانده می‌شوند؛ بعد از قطع، آخرین مجموع sync‌شده در پنل می‌ماند.
 
 ---
 

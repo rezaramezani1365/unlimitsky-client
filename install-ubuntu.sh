@@ -78,6 +78,31 @@ if [ "$AUTO" -eq 1 ] && [ -z "$ADMIN_PASS" ]; then
     MUST_CHANGE=1
 fi
 
+usk_auto_detect_license_vendor() {
+    local vendor_cfg="/var/www/unlimitsky-license/config.php"
+    [ -f "$vendor_cfg" ] || return 1
+    php -r '
+$c = @include $argv[1];
+if (!is_array($c)) exit(1);
+$d = rtrim(trim($c["domain"] ?? ""), "/");
+$t = trim($c["api_secret"] ?? "");
+if ($d === "" || $t === "") exit(1);
+$url = preg_match("#/api/v1\\.php$#", $d) ? $d : ($d . "/api/v1.php");
+echo json_encode(["license_server" => $url, "api_token" => $t], JSON_UNESCAPED_SLASHES);
+' "$vendor_cfg" 2>/dev/null
+}
+
+if [ -z "$LICENSE_URL" ] || [ -z "$LICENSE_TOKEN" ]; then
+    DETECTED_JSON="$(usk_auto_detect_license_vendor || true)"
+    if [ -n "$DETECTED_JSON" ]; then
+        LICENSE_URL="$(php -r '$j=json_decode(file_get_contents("php://stdin"),true); echo is_array($j)?($j["license_server"]??""):"";' <<<"$DETECTED_JSON")"
+        LICENSE_TOKEN="$(php -r '$j=json_decode(file_get_contents("php://stdin"),true); echo is_array($j)?($j["api_token"]??""):"";' <<<"$DETECTED_JSON")"
+        if [ -n "$LICENSE_URL" ] && [ -n "$LICENSE_TOKEN" ]; then
+            echo "[*] Auto-detected license vendor (unlimitsky-license on this VPS)"
+        fi
+    fi
+fi
+
 SERVER_IP="$(usk_detect_ip)"
 PUBLIC_URL="http://${SERVER_IP}:${PORT}"
 
@@ -228,6 +253,15 @@ if [ "$AUTO" -eq 1 ]; then
     if [ ! -f "$WEB_ROOT/install/unlimitsky.install" ]; then
         echo "ERROR: Install did not finish. DB credentials: $WEB_ROOT/install/.db-provision.json" >&2
         exit 1
+    fi
+
+    if [ -n "$LICENSE_URL" ] && [ -n "$LICENSE_TOKEN" ]; then
+        mkdir -p "$WEB_ROOT/data"
+        php -r '
+$path = $argv[1];
+$data = ["license_server" => $argv[2], "api_token" => $argv[3], "created_at" => date("c")];
+file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+' "$WEB_ROOT/data/license-vendor.json" "$LICENSE_URL" "$LICENSE_TOKEN"
     fi
 
     usk_secure_app_files "$WEB_ROOT"

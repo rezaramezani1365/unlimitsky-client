@@ -51,7 +51,7 @@ unlimitsky **installs and runs VPN protocols directly on your Ubuntu VPS** — n
 
 Install from **Panel → Protocols** with one click. Server config, firewall, and systemd service are handled by the script.
 
-**Limits:** cron **disables** expired/over-limit accounts (no connection). Records stay in **Panel → Services** — extend to renew or delete manually.
+**Limits & usage:** By default, click **Panel → Services → Update all usage** to refresh traffic meters. Optional: [enable cron](#automatic-usage-sync-optional-cron) so usage syncs automatically. Cron also **disables** expired/over-limit accounts (no connection). Records stay in **Panel → Services** — extend to renew or delete manually.
 
 **Manual create:** **Panel → Create config** — enter volume/days directly (no plan required).
 
@@ -127,6 +127,8 @@ From **Panel → Protocols**, the installer script sets up each protocol **on th
 | **L2TP/IPsec** | 1701 | Routers and Windows without extra apps |
 
 **What works now:** full **server installation** + **per-customer config creation** (admin + WooCommerce via API).
+
+Volume metering (WireGuard, OpenVPN, Xray, Amnezia) is available from **Panel → Services**. See [Automatic usage sync (optional cron)](#automatic-usage-sync-optional-cron) if you do not want to click **Update all usage** manually.
 
 ---
 
@@ -424,6 +426,7 @@ www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/add-user-*.sh *
 www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/disable-user-*.sh *
 www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/enable-user-*.sh *
 www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/remove-user-*.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash /var/www/unlimitsky/bin/collect-usage-stats.sh
 ```
 
 Save and exit. Then:
@@ -439,8 +442,78 @@ sudo chmod 440 /etc/sudoers.d/unlimitsky
 | `disable-user-*.sh` | Cron — block connection when plan expires or volume is used |
 | `enable-user-*.sh` | **Services → Extend** — re-enable after renewal |
 | `remove-user-*.sh` | **Services → Remove from server** — manual delete |
+| `collect-usage-stats.sh` | Read live traffic (WireGuard, OpenVPN, Xray, Amnezia) for usage sync |
 
-Without `add-user-*.sh`, creating configs from the panel or WooCommerce will fail. Without `disable-user-*.sh`, expired accounts stay connected until you remove them manually.
+Without `add-user-*.sh`, creating configs from the panel or WooCommerce will fail. Without `disable-user-*.sh`, expired accounts stay connected until you remove them manually. Without `collect-usage-stats.sh` in sudoers, usage sync from the panel or cron may show **0 GB** for all services.
+
+---
+
+## Automatic usage sync (optional cron)
+
+By default, **volume usage is not live**. Open **Panel → Services** and click **Update all usage** to:
+
+- read live traffic from **WireGuard**, **OpenVPN**, **Xray**, and **Amnezia**
+- save **GB used** on each service
+- **disable** accounts that exceeded volume or expired
+
+If you prefer not to click that button regularly, run the same job on a schedule with **cron** (recommended for production).
+
+### 1. Test manually first
+
+Replace `/var/www/unlimitsky` if your panel lives elsewhere (see **Panel → Protocols**):
+
+```bash
+sudo -u www-data php /var/www/unlimitsky/cron/native-limits.php
+```
+
+You should see JSON with `usage_updated`, `checked`, and `disabled`. Then refresh **Panel → Services** — the **Traffic used** column should show numbers instead of “Click Update all usage”.
+
+### 2. Enable cron (every 15 minutes)
+
+```bash
+sudo tee /etc/cron.d/unlimitsky-limits <<'EOF'
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+*/15 * * * * www-data timeout 240 /usr/bin/php /var/www/unlimitsky/cron/native-limits.php >> /var/log/unlimitsky-limits.log 2>&1
+EOF
+sudo chmod 644 /etc/cron.d/unlimitsky-limits
+```
+
+| Interval | Meaning |
+|----------|---------|
+| `*/15 * * * *` | Every **15 minutes** (good default) |
+| `*/5 * * * *` | Every **5 minutes** (busier shops) |
+| `*/30 * * * *` | Every **30 minutes** (small servers) |
+
+> Do not set faster than every **5 minutes** unless you have a clear reason — each run reads live VPN stats on the server.
+
+### 3. Check that cron runs
+
+```bash
+# Wait until the next quarter-hour, then:
+sudo tail -20 /var/log/unlimitsky-limits.log
+```
+
+In the panel, **Panel → Services** shows the last sync time after a successful run.
+
+### 4. Disable automatic sync
+
+```bash
+sudo rm -f /etc/cron.d/unlimitsky-limits
+```
+
+You can still use **Update all usage** in the panel anytime.
+
+### Notes
+
+- **Fresh install** (`install-ubuntu.sh` / one-line installer): metering paths and sudoers are set up automatically.
+- **Older servers** upgraded from an earlier version: if usage stays at 0, run once:
+  ```bash
+  sudo bash /var/www/unlimitsky/bin/xray-fix-stats-api.sh
+  sudo bash /var/www/unlimitsky/bin/openvpn-fix-status.sh
+  ```
+- **OpenVPN:** bytes are read from the server **status log** while a client is connected; after disconnect, the last synced total is kept in the panel.
 
 ---
 

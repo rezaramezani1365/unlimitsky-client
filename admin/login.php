@@ -27,6 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($lockout > 0) {
         $error = __('login_locked', 'Too many attempts. Try again later.');
     } elseif (USK_Admin_Auth::login(trim($_POST['username'] ?? ''), $_POST['password'] ?? '')) {
+        USK_License::sync_presence_with_vendor(true);
         if (USK_Admin_Auth::must_change_password()) {
             header('Location: ' . usk_admin_url('settings'));
             exit;
