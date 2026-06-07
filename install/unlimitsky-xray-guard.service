@@ -1,0 +1,15 @@
+[Unit]
+Description=UnlimitSky Xray connection slot guard (event-driven)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=WEB_ROOT=__WEB_ROOT__
+ExecStart=/bin/bash __WEB_ROOT__/bin/xray-connection-guard.sh
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target

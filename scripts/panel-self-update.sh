@@ -56,6 +56,7 @@ if [ -f "$LIB" ]; then
     usk_remove_connections_cron
     usk_ensure_fail2ban_iplimit "$WEB_ROOT"
     usk_disable_live_stats_daemon "$WEB_ROOT"
+    usk_ensure_connection_slot_hooks "$WEB_ROOT"
 fi
 
 echo "[*] Panel update complete ($COMMIT)"

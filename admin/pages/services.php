@@ -125,11 +125,12 @@ $lastSync = USK_ProtocolLimits::get_last_run();
         <?php if ($usageStats && !empty($usageStats['connections_tracked'])) : ?>
             <p><strong><?= __('services_connections_col') ?>:</strong>
                 <span id="usk-detail-connections-text" class="<?= !empty($usageStats['connections_near_limit']) ? 'text-danger' : (!empty($usageStats['connections_warning']) ? 'text-warning' : '') ?>">
-                <?= usk_esc((string) ($usageStats['connections_display'] ?? '')) ?> <?= __('plan_connections_unit') ?>
+                <?= usk_esc((string) ($usageStats['connections_display'] ?? '')) ?>
                 </span>
             </p>
         <?php elseif (!empty($client['max_connections'])) : ?>
-            <p><strong><?= __('portal_max_connections') ?>:</strong> <?= (int) $client['max_connections'] ?> <?= __('plan_connections_unit') ?></p>
+            <?php require_once dirname(__DIR__) . '/lib/protocols/connections.php'; ?>
+            <p><strong><?= __('services_connections_col') ?>:</strong> <?= usk_esc((string) (USK_ProtocolConnections::slots_label_for($client, (string) ($s['protocol'] ?? '')) ?? ((int) $client['max_connections'] . ' ' . __('plan_connections_unit')))) ?></p>
         <?php endif; ?>
         <?php if (($client['status'] ?? '') === 'expired' || ($client['status'] ?? '') === 'volume_exceeded') : ?>
             <div class="alert alert-warning mt-3"><?= __('service_disabled_notice') ?></div>
@@ -348,7 +349,7 @@ $lastSync = USK_ProtocolLimits::get_last_run();
                     </td>
                     <td class="usk-live-connections" data-usk-code="<?= usk_esc($row['code']) ?>">
                         <?php if ($row['connections_display'] !== null) : ?>
-                            <span class="small<?= !empty($row['connections_near_limit']) ? ' text-danger fw-semibold' : (!empty($row['connections_warning']) ? ' text-warning' : '') ?>"><?= usk_esc($row['connections_display']) ?></span>
+                            <span class="small"><?= usk_esc($row['connections_display']) ?></span>
                         <?php else : ?>
                             <span class="text-muted">—</span>
                         <?php endif; ?>

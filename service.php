@@ -138,15 +138,18 @@ function portal_esc($s)
                 <div class="label"><?= portal_esc(__('portal_max_connections')) ?></div>
                 <div class="value" id="portal-connections-value"><?php
                     $usageConn = $usage ?? array();
-                    if (!empty($usageConn['connections_tracked']) && !empty($usageConn['connections_display'])) {
-                        echo portal_esc((string) $usageConn['connections_display']) . ' ' . portal_esc(__('plan_connections_unit'));
+                    if (!empty($usageConn['connections_display'])) {
+                        echo portal_esc((string) $usageConn['connections_display']);
                     } else {
-                        echo (int) ($view['max_connections'] ?? 1) . ' ' . portal_esc(__('plan_connections_unit'));
+                        require_once __DIR__ . '/admin/lib/protocols/connections.php';
+                        $proto = (string) ($view['order']['protocol'] ?? '');
+                        $lbl = USK_ProtocolConnections::slots_label_for(
+                            array('max_connections' => (int) ($view['max_connections'] ?? 1)),
+                            $proto
+                        );
+                        echo portal_esc($lbl !== null ? $lbl : ((int) ($view['max_connections'] ?? 1) . ' ' . __('plan_connections_unit')));
                     }
                 ?></div>
-                <?php if (!empty($usage['connections_tracked'])) : ?>
-                <div class="small text-muted mt-1"><i class="fa-solid fa-clock"></i> <?= portal_esc(sprintf(__('portal_connections_live'), $portalUsageInterval)) ?></div>
-                <?php endif; ?>
             </div>
             <div class="portal-stat">
                 <div class="label"><?= portal_esc(__('duration')) ?></div>

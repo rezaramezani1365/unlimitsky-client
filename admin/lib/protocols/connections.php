@@ -32,6 +32,20 @@ class USK_ProtocolConnections
         return max(1, min(99, $max));
     }
 
+    /** Display plan slot capacity only (not live IP count). */
+    public static function slots_label_for(array $rec, $protocol = '')
+    {
+        $max = self::max_connections_for($rec);
+        $protocol = (string) $protocol;
+        if (!in_array($protocol, array('wireguard', 'openvpn', 'xray'), true)) {
+            return null;
+        }
+        if ($max <= 1) {
+            return __('plan_connections_single');
+        }
+        return sprintf(__('plan_connections_multi'), $max);
+    }
+
     public static function last_run_file()
     {
         return USK_ROOT . '/data/clients/connections-last-run.json';

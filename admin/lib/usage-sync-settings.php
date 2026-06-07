@@ -191,11 +191,8 @@ class USK_UsageSyncSettings
         require_once __DIR__ . '/protocols/limits.php';
         require_once __DIR__ . '/protocols/connections.php';
 
-        $report = USK_ProtocolLimits::enforce_all_with_connections();
+        $report = USK_ProtocolLimits::enforce_all();
         USK_ProtocolLimits::save_last_run($report);
-        if (!empty($report['connections']) && is_array($report['connections'])) {
-            USK_ProtocolConnections::save_last_run($report['connections']);
-        }
         self::clear_force_request();
 
         $state = self::read_state();

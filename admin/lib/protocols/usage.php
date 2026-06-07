@@ -72,9 +72,8 @@ class USK_ProtocolUsage
 
         require_once __DIR__ . '/connections.php';
         $maxConn = USK_ProtocolConnections::max_connections_for($rec);
-        $activeConn = max(0, (int) ($rec['active_connections'] ?? ($rec['meta']['active_connections'] ?? 0)));
-        $connSyncedAt = trim((string) ($rec['connections_synced_at'] ?? ($rec['meta']['connections_synced_at'] ?? '')));
         $connTracked = in_array($protocol, array('wireguard', 'openvpn', 'xray'), true);
+        $slotsLabel = $connTracked ? USK_ProtocolConnections::slots_label_for($rec, $protocol) : null;
 
         return array(
             'tracked' => $metered,
@@ -88,12 +87,12 @@ class USK_ProtocolUsage
             'exceeded' => $limitBytes > 0 && $usedBytes >= $limitBytes,
             'used_label' => USK_ProtocolLimits::format_bytes($usedBytes),
             'max_connections' => $maxConn,
-            'active_connections' => $activeConn,
-            'connections_synced_at' => $connSyncedAt,
+            'active_connections' => 0,
+            'connections_synced_at' => '',
             'connections_tracked' => $connTracked,
-            'connections_display' => $connTracked ? ($activeConn . ' / ' . $maxConn) : null,
-            'connections_near_limit' => $connTracked && $activeConn >= $maxConn,
-            'connections_warning' => $connTracked && $maxConn > 0 && $activeConn >= max(1, $maxConn - 1) && $activeConn < $maxConn,
+            'connections_display' => $slotsLabel,
+            'connections_near_limit' => false,
+            'connections_warning' => false,
         );
     }
 

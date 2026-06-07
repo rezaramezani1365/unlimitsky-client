@@ -73,6 +73,9 @@ fi
 if declare -F usk_disable_live_stats_daemon >/dev/null 2>&1; then
     usk_disable_live_stats_daemon "$WEB_ROOT"
 fi
+if declare -F usk_ensure_connection_slot_hooks >/dev/null 2>&1; then
+    usk_ensure_connection_slot_hooks "$WEB_ROOT"
+fi
 
 echo "[*] Done. Open: ${WEB_ROOT%/}/admin/index.php?page=updates"
 echo "    Backup page: ${WEB_ROOT%/}/admin/index.php?page=backup"

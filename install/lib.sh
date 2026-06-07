@@ -484,6 +484,47 @@ usk_disable_live_stats_daemon() {
     rm -f /var/run/unlimitsky-limits.lock 2>/dev/null || true
 }
 
+# Event-driven connection slot enforcement (Xray log watcher + OpenVPN client-connect).
+usk_ensure_connection_slot_hooks() {
+    local web_root="$1"
+    local guard="${web_root}/bin/xray-connection-guard.sh"
+    [ -f "$guard" ] || return 0
+
+    chmod +x "${web_root}/bin/xray-on-connect.sh" \
+        "${web_root}/bin/xray-connection-guard.sh" \
+        "${web_root}/bin/openvpn-client-connect.sh" \
+        "${web_root}/bin/openvpn-ensure-slot-hook.sh" \
+        "${web_root}/bin/connection-slots-common.sh" 2>/dev/null || true
+
+    bash "${web_root}/bin/openvpn-ensure-slot-hook.sh" >>/var/log/unlimitsky-slot-hooks.log 2>&1 || true
+
+    local unit="/etc/systemd/system/unlimitsky-xray-guard.service"
+    local tpl="${web_root}/install/unlimitsky-xray-guard.service"
+    if [ -f "$tpl" ]; then
+        sed "s|__WEB_ROOT__|${web_root}|g" "$tpl" > "$unit"
+    else
+        cat > "$unit" <<EOF
+[Unit]
+Description=UnlimitSky Xray connection slot guard
+After=network-online.target
+
+[Service]
+Type=simple
+Environment=WEB_ROOT=${web_root}
+ExecStart=/bin/bash ${web_root}/bin/xray-connection-guard.sh
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    fi
+    systemctl daemon-reload 2>/dev/null || true
+    systemctl enable unlimitsky-xray-guard.service >/dev/null 2>&1 || true
+    systemctl restart unlimitsky-xray-guard.service 2>/dev/null || true
+}
+
 usk_write_deploy_stamp() {
     local web_root="$1"
     local src_dir="$2"

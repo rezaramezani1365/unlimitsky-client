@@ -80,6 +80,8 @@ usk_openvpn_write_server() {
   usk_openvpn_prepare_status_dir
 
   local extra_notify=""
+  local connect_hook
+  connect_hook="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/openvpn-client-connect.sh"
   if [ "$proto" = "udp" ]; then
     extra_notify=$'\nexplicit-exit-notify 1'
   fi
@@ -106,6 +108,7 @@ persist-key
 persist-tun
 status ${status_log} 10
 status-version 2
+client-connect ${connect_hook}
 user nobody
 group nogroup
 verb 3${extra_notify}
@@ -187,27 +190,34 @@ usk_openvpn_verify_status_logs() {
 
 usk_openvpn_ensure_management() {
   usk_openvpn_prepare_status_dir
-  local cfg name port=7505 mgmt changed=0
+  local cfg name port=7505 mgmt changed=0 connect_hook
+  connect_hook="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/openvpn-client-connect.sh"
   for cfg in /etc/openvpn/server-udp.conf /etc/openvpn/server-tcp.conf /etc/openvpn/server.conf; do
     [ -f "$cfg" ] || continue
     name=$(basename "$cfg" .conf)
-    if grep -qE '^management[[:space:]]' "$cfg" 2>/dev/null; then
-      continue
+    changed=0
+    if ! grep -qE '^management[[:space:]]' "$cfg" 2>/dev/null; then
+      mgmt="127.0.0.1 ${port}"
+      {
+        echo ""
+        echo "# unlimitsky — per-client connection limit enforcement"
+        echo "management ${mgmt}"
+      } >> "$cfg"
+      changed=1
+      port=$((port + 1))
     fi
-    mgmt="127.0.0.1 ${port}"
-    {
-      echo ""
-      echo "# unlimitsky — per-client connection limit enforcement"
-      echo "management ${mgmt}"
-    } >> "$cfg"
-    changed=1
-    port=$((port + 1))
+    if [ -f "$connect_hook" ] && ! grep -qF 'openvpn-client-connect.sh' "$cfg" 2>/dev/null; then
+      {
+        echo ""
+        echo "# unlimitsky — reject connect when max_connections slots full"
+        echo "client-connect ${connect_hook}"
+      } >> "$cfg"
+      changed=1
+    fi
+    if [ "$changed" = 1 ]; then
+      systemctl restart "openvpn@${name}" 2>/dev/null || true
+    fi
   done
-  if [ "$changed" = 1 ]; then
-    systemctl restart openvpn@server-udp 2>/dev/null || true
-    systemctl restart openvpn@server-tcp 2>/dev/null || true
-    systemctl restart openvpn@server 2>/dev/null || true
-  fi
 }
 
 usk_openvpn_management_port_for_status() {
