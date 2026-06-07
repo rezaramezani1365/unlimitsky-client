@@ -264,8 +264,7 @@ usk_xray_write_config() {
         domainStrategy: "IPIfNonMatch",
         rules: [
           { type: "field", inboundTag: ["api"], outboundTag: "api" },
-          { type: "field", inboundTag: ["vless-reality-in"], outboundTag: "direct" },
-          { type: "field", outboundTag: "block", ip: ["geoip:private"] }
+          { type: "field", inboundTag: ["vless-reality-in"], outboundTag: "direct" }
         ]
       }
     }' > "$tmp"; then
@@ -496,9 +495,14 @@ usk_xray_clear_slot_iptables() {
     iptables -F USK_XRAY_CONN 2>/dev/null || true
     iptables -X USK_XRAY_CONN 2>/dev/null || true
   fi
+  while iptables -S INPUT 2>/dev/null | grep -q "USK_XRAY_CONN"; do
+    iptables -D INPUT -j USK_XRAY_CONN 2>/dev/null || break
+  done
   if [ -n "$port" ]; then
-    while iptables -S INPUT 2>/dev/null | grep -q "USK_XRAY_CONN"; do
-      iptables -D INPUT -j USK_XRAY_CONN 2>/dev/null || break
+    while iptables -S INPUT 2>/dev/null | grep -E "REJECT.*dport ${port}" >/dev/null 2>&1; do
+      line=$(iptables -S INPUT 2>/dev/null | grep -E "REJECT.*dport ${port}" | head -1)
+      [ -n "$line" ] || break
+      iptables -D INPUT ${line#-A INPUT } 2>/dev/null || break
     done
   fi
 }
@@ -610,6 +614,37 @@ usk_xray_rebuild_clients_in_config() {
   return 0
 }
 
+usk_xray_strip_bad_routing() {
+  local cfg="$1"
+  [ -f "$cfg" ] || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+  local tmp
+  tmp=$(mktemp)
+  if ! jq '
+    .routing.rules = ([.routing.rules[]? | select(
+      (.outboundTag // "") != "block"
+      and ((.ip // []) | index("geoip:private") | not)
+      and (.protocol // "") != "blackhole"
+    )]) |
+    .outbounds = [.outbounds[]? | select(.tag != "block" or .protocol == "blackhole")] |
+    if ([.outbounds[]? | select(.tag == "block")] | length) == 0 then
+      .outbounds += [{protocol:"blackhole", tag:"block"}]
+    else . end |
+    .outbounds = [.outbounds[]? | select(.protocol != "freedom" or .tag == "direct" or .tag == "api")] |
+    if ([.outbounds[]? | select(.tag == "direct")] | length) == 0 then
+      .outbounds = [{protocol:"freedom", tag:"direct", settings:{domainStrategy:"UseIPv4"}}] + .outbounds
+    else . end |
+    if ([.outbounds[]? | select(.tag == "api")] | length) == 0 then
+      .outbounds += [{protocol:"freedom", tag:"api", settings:{}}]
+    else . end
+  ' "$cfg" > "$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  mv "$tmp" "$cfg"
+  usk_xray_fix_perms "$cfg"
+}
+
 usk_xray_ensure_stats_policy() {
   local cfg="$1"
   [ -f "$cfg" ] || return 1
@@ -665,6 +700,10 @@ usk_xray_ensure_stats_policy() {
         $r1 + [{ type: "field", inboundTag: [$vt], outboundTag: "direct" }]
       end
     ) |
+    .routing.rules = ([.routing.rules[]? | select(
+      (.outboundTag // "") != "block"
+      and ((.ip // []) | index("geoip:private") | not)
+    )]) |
     .inbounds |= map(
       if .protocol == "vless" then
         .settings.clients = [.settings.clients[]? | . + {level: (.level // 0), flow: (.flow // "xtls-rprx-vision")}]
@@ -675,6 +714,17 @@ usk_xray_ensure_stats_policy() {
   fi
   mv "$tmp" "$cfg"
   usk_xray_fix_perms "$cfg"
+}
+
+usk_xray_rewrite_from_clients() {
+  local cfg="${1:-$XRAY_CFG}"
+  [ -f "$cfg" ] || return 1
+  local clients port
+  clients=$(usk_xray_load_clients "$cfg")
+  port=$(usk_xray_vless_port_from_config "$cfg")
+  port=${port:-443}
+  [ "$clients" != "[]" ] && [ -n "$clients" ] || return 1
+  usk_xray_write_config "$cfg" "$clients" "$port"
 }
 
 usk_xray_verify_stats_api() {

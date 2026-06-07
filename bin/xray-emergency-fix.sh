@@ -18,7 +18,7 @@ usk_xray_clear_slot_iptables "${port:-443}"
 
 if [ -f "$XRAY_CFG" ]; then
   echo "[*] Restoring Xray config + restart..."
-  exec "$DIR/xray-restore-runtime.sh"
+  exec "$DIR/xray-fix-connectivity.sh"
 fi
 
 echo "USK_OK: iptables_cleared (no xray config found)"
