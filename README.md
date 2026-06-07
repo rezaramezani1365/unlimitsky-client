@@ -154,6 +154,7 @@ Volume metering (WireGuard, OpenVPN, Xray, Amnezia) is available from **Panel �
 | Admin panel | ✅ | ✅ |
 | WooCommerce plugin | ✅ | ✅ |
 | **Marzban / Sanaei panels** | — | ✅ **Panel → Panels / Servers** |
+| **Nodes** (VPN on another VPS) | — | ✅ **Panel → Nodes** |
 | Pro activation | — | `USK-...` key from your panel provider |
 
 **Activate Pro:** after install → **Panel → Pro License** → enter your `USK-XXXX-...` key.
@@ -173,6 +174,15 @@ Volume metering (WireGuard, OpenVPN, Xray, Amnezia) is available from **Panel �
 - WooCommerce 5.0+
 - PHP 7.4+ with cURL
 - SSL (HTTPS) recommended
+
+### Node / second VPS (optional — Pro)
+
+| Server | Requirements |
+|--------|----------------|
+| **Hub (panel VPS)** | **Pro** license · `apt install sshpass` · panel port (e.g. 8082) reachable from the Node |
+| **Node (second VPS)** | Ubuntu 20.04+ · SSH **username/password** (root recommended) · SSH port (usually 22) open **from Hub to Node** · outbound HTTP to Hub to download scripts |
+
+> **Where in the panel?** Sidebar → **Nodes** (after **Panels / Servers**). Dashboard quick action. If missing: run `panel-self-update.sh` and activate Pro. Direct URL: `http://YOUR_IP:8082/admin/index.php?page=nodes`
 
 ---
 
@@ -553,6 +563,97 @@ This is the **primary** way unlimitsky is designed to work: **your VPS = your VP
 
 Extended guide: [docs/RESELLER-GUIDE.md](docs/RESELLER-GUIDE.md)
 
+### 4. Marzban / Sanaei (optional — Pro)
+
+**Full guide:** [Marzban & Sanaei](#marzban--sanaei-3x-ui--setup-guide) — read before connecting.
+
+Summary: **Panel → Pro License** → **Panel → Panels / Servers** → add Marzban or Sanaei → test connection.
+
+### 5. Nodes / second VPS (Pro — Xray on another server)
+
+With **Nodes**, Xray configs are created on a **second VPS**. The main panel (Hub) connects via **SSH** — **no per-node token**.
+
+| Where | Path |
+|-------|------|
+| **Sidebar** | **Nodes** — right after **Panels / Servers**, before **Connection guide** |
+| **Dashboard** | Quick actions → **Nodes** |
+| **Create config** | **Provisioning server** → pick a Node (Xray only) |
+| **Direct URL** | `http://YOUR_IP:8082/admin/index.php?page=nodes` |
+
+If the menu is missing: run `panel-self-update.sh` below and activate **Pro**.
+
+#### Prerequisites on Hub (panel server)
+
+```bash
+# 1) Pro license active in panel
+# 2) sshpass on Hub
+sudo apt update && sudo apt install -y sshpass
+
+# 3) Update panel files (required if Nodes menu is missing)
+sudo bash /var/www/unlimitsky/scripts/panel-self-update.sh
+```
+
+#### Register a Node in the panel
+
+1. **Panel → Nodes**
+2. Copy the **Node registration password** (one shared install password — not a per-node token)
+3. Copy the **install command** from the same page
+
+#### Install on the second VPS (Node)
+
+**Interactive (recommended):**
+
+```bash
+curl -fsSL http://HUB_IP:8082/bin/install-node.sh | sudo bash -s
+```
+
+The script asks for:
+
+| Input | Description |
+|-------|-------------|
+| Hub IP/domain | Main panel VPS address |
+| Hub port | Usually `8082` |
+| Registration password | From **Panel → Nodes** |
+| SSH user | On **this Node VPS** (e.g. `root`) |
+| SSH password | That user's password — Hub uses it for provisioning |
+| Node name | e.g. `germany-1` |
+| Connect address | IP or domain buyers see in the VLESS link |
+
+**Non-interactive:**
+
+```bash
+curl -fsSL http://HUB_IP:8082/bin/install-node.sh -o /tmp/install-node.sh
+sudo bash /tmp/install-node.sh \
+  --hub-ip 1.2.3.4 \
+  --hub-port 8082 \
+  --register-secret 'PASSWORD_FROM_PANEL' \
+  --ssh-user root \
+  --ssh-pass 'NODE_SSH_PASSWORD' \
+  --name germany-1 \
+  --connect-host 185.x.x.x
+```
+
+If Xray is missing on the Node, the installer tries to install it.
+
+#### After install
+
+1. **Panel → Nodes** → **Test SSH**
+2. **Panel → Create config** → **Provisioning server** → select the Node → protocol **Xray**
+3. The VLESS link uses the **Node connect address**
+
+#### WooCommerce API (optional)
+
+You can send `node_id` in the create-service API request (Node id from the panel list, e.g. `nabc123def456`).
+
+#### Node troubleshooting
+
+| Issue | Fix |
+|-------|-----|
+| **Nodes** menu missing | Run `panel-self-update.sh` · clear browser cache · activate Pro |
+| Node registration fails | Panel port reachable from Node · correct registration password · Pro active |
+| SSH test fails | SSH password · port 22 open Hub→Node · `sshpass` on Hub |
+| Provision on Node fails | Xray installed on Node · on Node: `sudo bash /opt/unlimitsky-node/bin/repair-xray.sh` |
+
 ---
 
 # Marzban & Sanaei (3x-ui) — setup guide
@@ -823,6 +924,9 @@ Alternative: add Marzban/Sanaei **directly in WordPress** (Method B in the guide
 | WooCommerce no config | Test panel connection in WP + order status Completed |
 | External panel list empty in product | Connect Marzban/Sanaei on VPS (Pro) + valid API key |
 | `panels_pro_required` API error | Activate Pro on unlimitsky VPS |
+| **Nodes** menu missing in sidebar | `sudo bash /var/www/unlimitsky/scripts/panel-self-update.sh` · Pro license · direct URL `?page=nodes` |
+| Node registration fails | Panel port reachable from Node · registration password · Pro · `sshpass` on Hub |
+| Node SSH test fails | SSH password · port 22 Hub→Node · `apt install sshpass` |
 | Plugin cURL error | Enable cURL in PHP on WordPress host |
 
 **Verify install:**

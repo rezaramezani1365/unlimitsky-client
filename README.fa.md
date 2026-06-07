@@ -88,6 +88,8 @@ unlimitsky **پروتکل‌های VPN را مستقیم روی VPS اوبونت
 
 **به‌روزرسانی فایل‌های پنل** (بدون دست زدن به دیتابیس):
 
+### به‌روزرسانی فایل‌های پنل
+
 ```bash
 # نصب با curl (repo unlimitsky-client — ریشه در /opt/unlimitsky):
 curl -fsSL https://raw.githubusercontent.com/rezaramezani1365/unlimitsky-client/main/scripts/install.sh | sudo bash -s -- \
@@ -95,6 +97,9 @@ curl -fsSL https://raw.githubusercontent.com/rezaramezani1365/unlimitsky-client/
 
 # یا فقط rsync (همان منبع):
 sudo bash /opt/unlimitsky/scripts/update-panel.sh /var/www/unlimitsky /opt/unlimitsky
+
+# به‌روزرسانی از GitHub (پیشنهادی — منوی Node و امکانات جدید):
+sudo bash /var/www/unlimitsky/scripts/panel-self-update.sh
 
 # monorepo (پوشه client داخل repo):
 sudo bash /opt/unlimitsky/client/scripts/update-panel.sh /var/www/unlimitsky /opt/unlimitsky/client
@@ -165,6 +170,7 @@ sudo bash /opt/unlimitsky/client/scripts/update-panel.sh /var/www/unlimitsky /op
 | پنل ادمین | ✅ | ✅ |
 | پلاگین ووکامرس | ✅ | ✅ |
 | **پنل Marzban / Sanaei** | — | ✅ **پنل → پنل‌ها / سرور** |
+| **Node / سرور دوم** (VPN روی VPS دیگر) | — | ✅ **پنل → Node / سرور دوم** |
 | فعال‌سازی Pro | — | کلید `USK-...` از فروشنده پنل |
 
 **فعال‌سازی Pro:** بعد از نصب → **پنل → لایسنس Pro** → کلید `USK-XXXX-...` را وارد کن.
@@ -184,6 +190,15 @@ sudo bash /opt/unlimitsky/client/scripts/update-panel.sh /var/www/unlimitsky /op
 - WooCommerce 5.0+
 - PHP 7.4+ با cURL
 - SSL (HTTPS) پیشنهادی
+
+### Node / سرور دوم (اختیاری — Pro)
+
+| سرور | پیش‌نیاز |
+|------|----------|
+| **Hub (همان VPS پنل)** | لایسنس **Pro** · `apt install sshpass` · پورت پنل (مثلاً 8082) از Node قابل دسترس باشد |
+| **Node (VPS دوم)** | Ubuntu 20.04+ · SSH با **یوزر/پسورد** (root پیشنهادی) · پورت SSH (معمولاً 22) از Hub باز باشد · دسترسی خروجی HTTP به Hub برای دانلود اسکریپت |
+
+> **کجا در پنل؟** منوی کناری → **Node / سرور دوم** (بین «پنل‌ها / سرور» و «راهنمای اتصال»). اگر نمی‌بینی: [راهنمای Node](#node--سرور-دوم--راهنمای-hub-و-node) · [به‌روزرسانی پنل](#به‌روزرسانی-فایل‌های-پنل) · لایسنس Pro. آدرس مستقیم: `http://IP:8082/admin/index.php?page=nodes`
 
 ---
 
@@ -568,6 +583,15 @@ sudo rm -f /etc/cron.d/unlimitsky-limits
 
 خلاصه: **پنل → لایسنس Pro** → **پنل → پنل‌ها / سرور** → افزودن Marzban یا Sanaei → تست اتصال.
 
+### ۵. Node / سرور دوم (Pro — Xray)
+
+با **Node** کانفیگ Xray روی **VPS دوم** ساخته می‌شود؛ پنل اصلی (Hub) از **SSH** به Node وصل می‌شود — **توکن جدا برای هر Node لازم نیست**.
+
+**مسیر در پنل:** منوی کناری → **Node / سرور دوم** — بین «پنل‌ها / سرور» و «راهنمای اتصال».  
+اگر این منو را **نمی‌بینی** → لایسنس Pro + [به‌روزرسانی پنل](#به‌روزرسانی-فایل‌های-پنل) (`panel-self-update.sh`).  
+آدرس مستقیم: `http://YOUR_IP:8082/admin/index.php?page=nodes`  
+راهنمای کامل: [Node / سرور دوم — Hub و Node](#node--سرور-دوم--راهنمای-hub-و-node)
+
 ---
 
 ## مرحله ۳ — نصب پلاگین ووکامرس
@@ -672,6 +696,9 @@ wp-content/plugins/unlimitsky-woocommerce/
 | ووکامرس کانفیگ نمی‌دهد | تست اتصال پنل در وردپرس + وضعیت سفارش Completed |
 | لیست پنل خارجی در محصول خالی است | Marzban/Sanaei را روی VPS (Pro) وصل کن + کلید API معتبر |
 | خطای API `panels_pro_required` | لایسنس Pro روی VPS فعال نیست |
+| منوی **Node / سرور دوم** در پنل نیست | `sudo bash /var/www/unlimitsky/scripts/panel-self-update.sh` · کش مرورگر · Pro فعال · [راهنمای Node](#node--سرور-دوم--راهنمای-hub-و-node) |
+| ثبت Node خطا می‌دهد | پورت پنل از VPS دوم باز · رمز ثبت درست · Pro · `sshpass` روی Hub |
+| تست SSH Node ناموفق | پسورد SSH · پورت 22 Hub→Node · `apt install sshpass` |
 | پلاگین خطای cURL | cURL را در PHP هاست فعال کن |
 
 **بررسی نصب:**
@@ -706,6 +733,105 @@ unlimitsky-client/
 - مشکل **فنی نصب** → بخش عیب‌یابی بالا
 
 راهنمای تکمیلی: [docs/RESELLER-GUIDE.md](docs/RESELLER-GUIDE.md)
+
+---
+
+# Node / سرور دوم — راهنمای Hub و Node
+
+> **Hub** = VPS پنل unlimitsky (سرور اصلی). **Node** = VPS دوم که Xray روی آن اجرا می‌شود. Hub از **SSH** (با یوزر/پسورد SSH همان Node) کانفیگ می‌سازد — **توکن per-node ندارید**؛ فقط یک **رمز ثبت** مشترک هنگام نصب از پنل کپی می‌شود.
+
+## کجا در پنل ادمین؟
+
+| محل | مسیر |
+|-----|------|
+| **منوی کناری** | **Node / سرور دوم** — دقیقاً **بعد از** «پنل‌ها / سرور» و **قبل از** «راهنمای اتصال» |
+| **داشبورد** | دسترسی سریع → **Node / سرور دوم** |
+| **ساخت کانفیگ** | فیلد **سرور ساخت کانفیگ** → انتخاب Node (فقط Xray) |
+| **URL مستقیم** | `http://YOUR_IP:8082/admin/index.php?page=nodes` |
+
+اگر منو را نمی‌بینی: پنل قدیمی است → [به‌روزرسانی](#به‌روزرسانی-فایل‌های-پنل) + لایسنس **Pro**.
+
+## پیش‌نیاز Hub (سرور پنل)
+
+```bash
+# لایسنس Pro در پنل → لایسنس Pro
+sudo apt update && sudo apt install -y sshpass
+sudo bash /var/www/unlimitsky/scripts/panel-self-update.sh
+```
+
+- پورت پنل (مثلاً **8082**) از VPS Node برای `curl` و API ثبت باز باشد
+- فایروال Hub: SSH خروجی به Node (پورت 22 یا دلخواه)
+
+## پیش‌نیاز Node (VPS دوم)
+
+- Ubuntu 20.04 / 22.04 / 24.04
+- SSH با **password** (root پیشنهادی) — Hub با `sshpass` وصل می‌شود
+- پورت SSH از **Hub به Node** باز باشد
+- دسترسی خروجی HTTP/HTTPS به Hub (دانلود `install-node.sh` و اسکریپت‌ها)
+
+## مرحله ۱ — در پنل Hub
+
+1. **پنل → Node / سرور دوم**
+2. **رمز ثبت Node** را کپی کن
+3. **دستور نصب** را از همان صفحه بردار (شبیه زیر):
+
+```bash
+curl -fsSL http://HUB_IP:8082/bin/install-node.sh | sudo bash -s
+```
+
+## مرحله ۲ — روی VPS دوم (Node)
+
+### نصب تعاملی (پیشنهادی)
+
+```bash
+curl -fsSL http://HUB_IP:8082/bin/install-node.sh | sudo bash -s
+```
+
+| سؤال اسکریپت | مقدار نمونه |
+|--------------|-------------|
+| IP/دامنه Hub | `185.x.x.x` |
+| پورت Hub | `8082` |
+| رمز ثبت | از پنل → Node |
+| یوزر SSH | `root` (روی **همین** VPS) |
+| پسورد SSH | پسورد root سرور دوم |
+| نام Node | `germany-1` |
+| آدرس اتصال | IP یا دامنه در لینک VLESS خریدار |
+
+### نصب غیرتعاملی
+
+```bash
+curl -fsSL http://HUB_IP:8082/bin/install-node.sh -o /tmp/install-node.sh
+sudo bash /tmp/install-node.sh \
+  --hub-ip 1.2.3.4 \
+  --hub-port 8082 \
+  --register-secret 'رمز_از_پنل' \
+  --ssh-user root \
+  --ssh-pass 'پسورد_SSH_سرور_دوم' \
+  --name germany-1 \
+  --connect-host 185.x.x.x
+```
+
+اسکریپت در `/opt/unlimitsky-node/` اسکریپت‌های worker را از Hub دانلود می‌کند، sudoers را برای provisioning تنظیم می‌کند و در صورت نیاز **Xray** را نصب می‌کند.
+
+## مرحله ۳ — بعد از ثبت
+
+1. **پنل → Node / سرور دوم** → **تست SSH**
+2. **پنل → ساخت کانفیگ** → **سرور ساخت کانفیگ** → Node → **Xray**
+3. لینک VLESS با **آدرس اتصال Node** (نه IP Hub) ساخته می‌شود
+
+## API (ووکامرس / اتوماسیون)
+
+در `POST /api/v1.php` هنگام ساخت سرویس می‌توانی `"node_id": "n...."` بفرستی (شناسه از لیست Node در پنل).
+
+## عیب‌یابی Node
+
+| مشکل | راه‌حل |
+|------|--------|
+| منوی Node نیست | `panel-self-update.sh` · Pro · URL مستقیم بالا |
+| `invalid_register_secret` | رمز ثبت را از پنل دوباره کپی کن |
+| `sshpass_missing` | روی Hub: `apt install sshpass` |
+| تست SSH fail | پسورد · پورت SSH · فایروال Node |
+| ساخت کانفیگ fail | Xray روی Node: `sudo bash /opt/unlimitsky-node/bin/repair-xray.sh` |
 
 ---
 
