@@ -1,17 +1,13 @@
 <?php
 
-define('USK_CRON', true);
-define('USK_ROOT', dirname(__DIR__));
-
-require_once USK_ROOT . '/config.php';
-require_once USK_ROOT . '/admin/lib/live-stats.php';
-
-$report = USK_LiveStats::tick();
-
+/**
+ * Deprecated — kept so old systemd units exit cleanly after update.
+ * Do NOT run collect in a loop; use cron/native-limits.php instead.
+ */
 if (php_sapi_name() === 'cli') {
-    echo json_encode($report, JSON_UNESCAPED_UNICODE) . PHP_EOL;
-    exit(empty($report['ok']) ? 1 : 0);
+    fwrite(STDERR, "live-stats-worker is disabled; use cron/native-limits.php\n");
+    exit(0);
 }
-
+http_response_code(410);
 header('Content-Type: application/json; charset=utf-8');
-echo json_encode($report, JSON_UNESCAPED_UNICODE);
+echo json_encode(array('ok' => false, 'error' => 'disabled'));

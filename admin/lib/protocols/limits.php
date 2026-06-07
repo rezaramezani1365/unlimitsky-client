@@ -210,23 +210,23 @@ class USK_ProtocolLimits
         return $report;
     }
 
-    /** Admin button — background worker (no PHP-FPM timeout / connection reset). */
+    /** Admin button — queue one native-limits run (rate-limited, non-blocking). */
     public static function sync_usage_and_enforce()
     {
         require_once __DIR__ . '/../live-stats.php';
         USK_LiveStats::request_background_sync();
 
-        $cache = USK_LiveStats::read_cache();
+        $last = self::get_last_run();
         $age = USK_LiveStats::cache_age_sec();
 
         return array(
             'queued' => true,
-            'usage_updated' => (int) ($cache['usage_updated'] ?? 0),
-            'checked' => 0,
-            'disabled' => 0,
+            'usage_updated' => (int) ($last['usage_updated'] ?? 0),
+            'checked' => (int) ($last['checked'] ?? 0),
+            'disabled' => (int) ($last['disabled'] ?? 0),
             'details' => array(),
-            'usage_meta' => is_array($cache['usage_meta'] ?? null) ? $cache['usage_meta'] : array(
-                'source' => 'live_worker',
+            'usage_meta' => is_array($last['usage_meta'] ?? null) ? $last['usage_meta'] : array(
+                'source' => 'cron',
                 'cache_age_sec' => $age,
             ),
         );

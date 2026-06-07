@@ -70,8 +70,8 @@ fi
 if declare -F usk_ensure_fail2ban_iplimit >/dev/null 2>&1; then
     usk_ensure_fail2ban_iplimit "$WEB_ROOT"
 fi
-if declare -F usk_ensure_live_stats_daemon >/dev/null 2>&1; then
-    usk_ensure_live_stats_daemon "$WEB_ROOT"
+if declare -F usk_disable_live_stats_daemon >/dev/null 2>&1; then
+    usk_disable_live_stats_daemon "$WEB_ROOT"
 fi
 
 echo "[*] Done. Open: ${WEB_ROOT%/}/admin/index.php?page=updates"

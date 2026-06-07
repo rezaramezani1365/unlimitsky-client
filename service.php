@@ -26,7 +26,6 @@ $view = USK_CustomerPortal::load($code, $token);
 
 $scriptDir = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/');
 $portalStatsUrl = ($scriptDir === '' || $scriptDir === '.') ? '/portal-stats.php' : ($scriptDir . '/portal-stats.php');
-$portalStreamUrl = ($scriptDir === '' || $scriptDir === '.') ? '/portal-live-stream.php' : ($scriptDir . '/portal-live-stream.php');
 $assetBase = ($scriptDir === '' || $scriptDir === '.') ? '/admin/assets' : ($scriptDir . '/admin/assets');
 $isRtl = USK_I18n::is_rtl();
 $bootstrapFile = $isRtl ? 'bootstrap.rtl.min.css' : 'bootstrap.min.css';
@@ -118,7 +117,6 @@ function portal_esc($s)
             </div>
             <div class="portal-stat" id="portal-usage-block"
                  data-stats-url="<?= portal_esc($portalStatsUrl) ?>"
-                 data-stream-url="<?= portal_esc($portalStreamUrl) ?>"
                  data-code="<?= portal_esc($view['order']['code'] ?? '') ?>"
                  data-token="<?= portal_esc($token) ?>">
                 <div class="label"><?= portal_esc(__('volume')) ?></div>
@@ -131,7 +129,6 @@ function portal_esc($s)
             </div>
             <div class="portal-stat" id="portal-connections-block"
                  data-stats-url="<?= portal_esc($portalStatsUrl) ?>"
-                 data-stream-url="<?= portal_esc($portalStreamUrl) ?>"
                  data-code="<?= portal_esc($view['order']['code'] ?? '') ?>"
                  data-token="<?= portal_esc($token) ?>"
                  data-live="<?= !empty($usage['connections_tracked']) ? '1' : '0' ?>">
@@ -331,18 +328,15 @@ function portal_esc($s)
     var connBlock = document.getElementById('portal-connections-block');
     if (usageLive || connBlock) {
         var statsUrl = usageLive ? usageLive.getAttribute('data-stats-url') : connBlock.getAttribute('data-stats-url');
-        var streamUrl = usageLive ? usageLive.getAttribute('data-stream-url') : connBlock.getAttribute('data-stream-url');
         var pCode = (usageLive || connBlock).getAttribute('data-code');
         var pToken = (usageLive || connBlock).getAttribute('data-token');
         var bar = document.getElementById('portal-usage-bar');
         var usageText = document.getElementById('portal-usage-text');
         var connValue = document.getElementById('portal-connections-value');
-        var connTracked = connBlock && connBlock.getAttribute('data-live') === '1';
         var usedLbl = <?= json_encode(__('portal_used'), JSON_UNESCAPED_UNICODE) ?>;
         var leftLbl = <?= json_encode(__('portal_left'), JSON_UNESCAPED_UNICODE) ?>;
         var connUnit = <?= json_encode(__('plan_connections_unit'), JSON_UNESCAPED_UNICODE) ?>;
-        var pollTimer = null;
-        var eventSource = null;
+        var POLL_MS = 30000;
 
         function applyPortalStats(data) {
             if (!data || !data.ok) return;
@@ -370,37 +364,8 @@ function portal_esc($s)
                 .catch(function () {});
         }
 
-        function startPortalPolling(ms) {
-            if (pollTimer) clearInterval(pollTimer);
-            refreshPortalStats();
-            pollTimer = setInterval(refreshPortalStats, ms);
-        }
-
-        function startPortalStream() {
-            if (!streamUrl || !pCode || !pToken || typeof EventSource === 'undefined') {
-                startPortalPolling(3000);
-                return;
-            }
-            var url = streamUrl + '?code=' + encodeURIComponent(pCode) + '&t=' + encodeURIComponent(pToken);
-            try {
-                eventSource = new EventSource(url);
-                eventSource.addEventListener('stats', function (e) {
-                    try { applyPortalStats(JSON.parse(e.data)); } catch (err) {}
-                });
-                eventSource.onerror = function () {
-                    if (eventSource) {
-                        eventSource.close();
-                        eventSource = null;
-                    }
-                    startPortalPolling(3000);
-                };
-                refreshPortalStats();
-            } catch (e) {
-                startPortalPolling(3000);
-            }
-        }
-
-        startPortalStream();
+        refreshPortalStats();
+        setInterval(refreshPortalStats, POLL_MS);
         document.addEventListener('visibilitychange', function () {
             if (!document.hidden) refreshPortalStats();
         });

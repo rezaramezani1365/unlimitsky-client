@@ -74,7 +74,6 @@ $list = $sql->query("SELECT * FROM `orders` WHERE $where ORDER BY `row` DESC LIM
 $list_count = $list ? $list->num_rows : 0;
 $search_base = usk_admin_base() . '/services-search.php';
 $stats_base = usk_admin_base() . '/service-stats.php';
-$stats_stream = usk_admin_base() . '/live-stream.php';
 $sync_action = usk_admin_base() . '/services-action.php';
 $lastSync = USK_ProtocolLimits::get_last_run();
 ?>
@@ -305,13 +304,8 @@ $lastSync = USK_ProtocolLimits::get_last_run();
         <div class="usk-service-search-results d-none" id="uskServiceSearchResults" aria-live="polite"></div>
     </div>
 
-    <div class="table-responsive" id="usk-services-live"
-         data-stats-endpoint="<?= usk_esc($stats_base) ?>"
-         data-stats-stream="<?= usk_esc($stats_stream) ?>">
-        <p class="text-muted small mb-2" id="usk-live-status">
-            <i class="fa-solid fa-signal"></i> <?= __('stats_live_hint') ?>
-            <span class="usk-live-badge ms-1 d-none" id="usk-live-badge"></span>
-        </p>
+    <div class="table-responsive" id="usk-services-live" data-stats-endpoint="<?= usk_esc($stats_base) ?>">
+        <p class="text-muted small mb-2"><i class="fa-solid fa-signal"></i> <?= __('stats_live_hint') ?></p>
         <table class="table table-sm">
             <thead>
                 <tr>
@@ -527,19 +521,14 @@ function uskSyncUsageSubmit(form) {
     var root = document.getElementById('usk-services-live');
     var detailCode = <?= json_encode(!empty($s) && !empty($usageStats) && (int) ($s['volume'] ?? 0) > 0 ? (string) ($s['code'] ?? '') : '') ?>;
     var endpoint = root ? root.getAttribute('data-stats-endpoint') : <?= json_encode($stats_base, JSON_UNESCAPED_UNICODE) ?>;
-    var streamEndpoint = root ? root.getAttribute('data-stats-stream') : <?= json_encode($stats_stream, JSON_UNESCAPED_UNICODE) ?>;
     if (!endpoint) return;
 
+    var POLL_MS = 30000;
     var i18n = {
         pending: <?= json_encode(__('services_usage_pending'), JSON_UNESCAPED_UNICODE) ?>,
         left: <?= json_encode(__('portal_left'), JSON_UNESCAPED_UNICODE) ?>,
         synced: <?= json_encode(__('services_usage_synced_at'), JSON_UNESCAPED_UNICODE) ?>,
-        liveOk: <?= json_encode(__('stats_live_ok'), JSON_UNESCAPED_UNICODE) ?>,
-        liveStale: <?= json_encode(__('stats_live_stale'), JSON_UNESCAPED_UNICODE) ?>,
     };
-
-    var pollTimer = null;
-    var eventSource = null;
 
     function esc(s) {
         var d = document.createElement('div');
@@ -585,19 +574,6 @@ function uskSyncUsageSubmit(form) {
         }
     }
 
-    function updateLiveBadge(live) {
-        var badge = document.getElementById('usk-live-badge');
-        if (!badge || !live) return;
-        badge.classList.remove('d-none', 'text-success', 'text-warning');
-        if (live.cache_fresh) {
-            badge.className = 'usk-live-badge ms-1 text-success';
-            badge.textContent = i18n.liveOk;
-        } else {
-            badge.className = 'usk-live-badge ms-1 text-warning';
-            badge.textContent = i18n.liveStale;
-        }
-    }
-
     function applyItem(code, item) {
         var cell = document.querySelector('.usk-live-usage[data-usk-code="' + code + '"]');
         if (cell && item) {
@@ -624,19 +600,9 @@ function uskSyncUsageSubmit(form) {
         }
     }
 
-    function applyPayload(data) {
-        if (!data || !data.ok || !data.items) return;
-        updateLiveBadge(data.live);
-        Object.keys(data.items).forEach(function (code) {
-            applyItem(code, data.items[code]);
-        });
-    }
-
     function collectCodes() {
         var codes = [];
-        if (detailCode) {
-            codes.push(detailCode);
-        }
+        if (detailCode) codes.push(detailCode);
         if (root) {
             root.querySelectorAll('tr[data-usk-code]').forEach(function (tr) {
                 var c = tr.getAttribute('data-usk-code');
@@ -654,42 +620,17 @@ function uskSyncUsageSubmit(form) {
             headers: { 'Accept': 'application/json' },
         })
             .then(function (r) { return r.json(); })
-            .then(applyPayload)
+            .then(function (data) {
+                if (!data || !data.ok || !data.items) return;
+                Object.keys(data.items).forEach(function (code) {
+                    applyItem(code, data.items[code]);
+                });
+            })
             .catch(function () {});
     }
 
-    function startPolling(ms) {
-        if (pollTimer) clearInterval(pollTimer);
-        refreshStats();
-        pollTimer = setInterval(refreshStats, ms);
-    }
-
-    function startStream() {
-        var codes = collectCodes();
-        if (!streamEndpoint || !codes.length || typeof EventSource === 'undefined') {
-            startPolling(3000);
-            return;
-        }
-        var url = streamEndpoint + '?codes=' + encodeURIComponent(codes.join(','));
-        try {
-            eventSource = new EventSource(url);
-            eventSource.addEventListener('stats', function (e) {
-                try { applyPayload(JSON.parse(e.data)); } catch (err) {}
-            });
-            eventSource.onerror = function () {
-                if (eventSource) {
-                    eventSource.close();
-                    eventSource = null;
-                }
-                startPolling(3000);
-            };
-            refreshStats();
-        } catch (e) {
-            startPolling(3000);
-        }
-    }
-
-    startStream();
+    refreshStats();
+    setInterval(refreshStats, POLL_MS);
     document.addEventListener('visibilitychange', function () {
         if (!document.hidden) refreshStats();
     });
