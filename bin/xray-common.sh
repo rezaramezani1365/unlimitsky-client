@@ -220,7 +220,7 @@ usk_xray_write_config() {
       stats: {},
       api: {
         tag: "api",
-        services: ["StatsService", "HandlerService"]
+        services: ["StatsService"]
       },
       policy: {
         levels: { "0": { statsUserUplink: true, statsUserDownlink: true, statsUserOnline: true } },
@@ -257,12 +257,14 @@ usk_xray_write_config() {
       ],
       outbounds: [
         { protocol: "freedom", tag: "direct", settings: { domainStrategy: "UseIPv4" } },
+        { protocol: "freedom", tag: "api", settings: {} },
         { protocol: "blackhole", tag: "block" }
       ],
       routing: {
         domainStrategy: "IPIfNonMatch",
         rules: [
           { type: "field", inboundTag: ["api"], outboundTag: "api" },
+          { type: "field", inboundTag: ["vless-reality-in"], outboundTag: "direct" },
           { type: "field", outboundTag: "block", ip: ["geoip:private"] }
         ]
       }
@@ -451,20 +453,130 @@ usk_xray_user_online_count() {
   echo "${val:-0}"
 }
 
-usk_xray_kick_inbound_user() {
+usk_xray_online_ips_for_email() {
   local email="$1"
-  local cfg="${2:-$XRAY_CFG}"
-  local bin tag uuid user_json
-  bin=$(usk_xray_bin 2>/dev/null) || return 1
-  tag=$(usk_xray_vless_inbound_tag "$cfg")
-  [ -n "$tag" ] || tag="vless-reality-in"
-  uuid=$(jq -r --arg e "$email" '.inbounds[]? | select(.protocol=="vless") | .settings.clients[]? | select(.email==$e) | .id // empty' "$cfg" 2>/dev/null | head -1)
-  "$bin" api rmu --server=127.0.0.1:10085 -tag="$tag" -email="$email" >/dev/null 2>&1 \
-    || return 1
-  if [ -n "$uuid" ]; then
-    user_json=$(jq -nc --arg id "$uuid" --arg email "$email" '{id:$id,email:$email,flow:"xtls-rprx-vision",level:0}')
-    "$bin" api adu --server=127.0.0.1:10085 -tag="$tag" -user="$user_json" >/dev/null 2>&1 || true
+  local bin raw
+  bin=$(usk_xray_bin 2>/dev/null) || return 0
+  raw=$("$bin" api statsonline --server=127.0.0.1:10085 2>/dev/null || true)
+  [ -n "$raw" ] || return 0
+  echo "$raw" | jq -r --arg e "$email" '
+    if ((.users // null) | type) == "object" then
+      .users[$e][]? // empty
+    elif ((.users // null) | type) == "array" then
+      .users[] | select(.email? == $e or .name? == $e) | (.ips[]? // empty)
+    else
+      empty
+    end
+  ' 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | sort -u
+}
+
+usk_xray_vless_port_from_config() {
+  local cfg="${1:-$XRAY_CFG}"
+  jq -r '(.inbounds[]? | select(.protocol=="vless") | .port) // 443' "$cfg" 2>/dev/null | head -1
+}
+
+usk_xray_slot_chain_reset() {
+  local port="$1"
+  iptables -N USK_XRAY_CONN 2>/dev/null || true
+  iptables -F USK_XRAY_CONN
+  iptables -C INPUT -j USK_XRAY_CONN 2>/dev/null || iptables -I INPUT 1 -j USK_XRAY_CONN
+  iptables -C USK_XRAY_CONN -p tcp --dport "$port" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null \
+    || iptables -A USK_XRAY_CONN -p tcp --dport "$port" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+}
+
+usk_xray_reject_ip_on_port() {
+  local ip="$1"
+  local port="$2"
+  [ -n "$ip" ] && [ -n "$port" ] || return 1
+  iptables -C USK_XRAY_CONN -p tcp -s "$ip" --dport "$port" -j REJECT 2>/dev/null \
+    && return 0
+  iptables -A USK_XRAY_CONN -p tcp -s "$ip" --dport "$port" -j REJECT --reject-with tcp-reset 2>/dev/null || true
+}
+
+usk_xray_enforce_slot_limit() {
+  local email="$1"
+  local max="$2"
+  local cfg="${3:-$XRAY_CFG}"
+  local port ip_list ip_count kicked i ip
+  [ -f "$cfg" ] || return 0
+  max=${max:-1}
+  [ "$max" -ge 1 ] 2>/dev/null || max=1
+  port=$(usk_xray_vless_port_from_config "$cfg")
+  port=${port:-443}
+
+  mapfile -t ip_list < <(usk_xray_online_ips_for_email "$email")
+  ip_count=${#ip_list[@]}
+
+  if [ "$ip_count" -eq 0 ]; then
+    echo 0
+    return 0
   fi
+
+  if [ "$ip_count" -le "$max" ]; then
+    echo 0
+    return 0
+  fi
+
+  kicked=0
+  i=0
+  for ip in "${ip_list[@]}"; do
+    i=$((i + 1))
+    if [ "$i" -gt "$max" ]; then
+      usk_xray_reject_ip_on_port "$ip" "$port" && kicked=$((kicked + 1))
+    fi
+  done
+  echo "$kicked"
+}
+
+usk_xray_rebuild_clients_in_config() {
+  local cfg="${1:-$XRAY_CFG}"
+  local panel_root="${2:-${PANEL_ROOT:-}}"
+  [ -f "$cfg" ] || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+  [ -n "$panel_root" ] || panel_root="$(cd "$(dirname "$cfg")/../.." 2>/dev/null && pwd || echo /var/www/unlimitsky)"
+
+  local data_root="${DATA_ROOT:-${USK_DATA_ROOT:-/var/lib/unlimitsky}}"
+  local panel_file="${panel_root}/data/clients/xray.json"
+  local reg_file="${data_root}/xray/clients.json"
+  local empty='[]'
+  local panel_json='[]'
+  local reg_json='[]'
+  [ -f "$panel_file" ] && panel_json=$(cat "$panel_file")
+  [ -f "$reg_file" ] && reg_json=$(cat "$reg_file")
+
+  local clients_json
+  clients_json=$(jq -s --arg empty "$empty" '
+    def as_map:
+      if type == "array" then
+        reduce .[] as $r ({}; if ($r.username // "") != "" then . + {($r.username): $r} else . end)
+      elif type == "object" then . else {} end;
+    (.[0] | as_map) as $p | (.[1] | as_map) as $r |
+    ($p + $r) | to_entries | map(select(.value.status? // "active" == "active")) |
+    map({
+      id: (.value.uuid // .value.id // ""),
+      email: (.key),
+      flow: "xtls-rprx-vision",
+      level: 0
+    }) | map(select(.id != "" and .email != ""))
+  ' <(echo "$panel_json") <(echo "$reg_json") 2>/dev/null)
+
+  if [ -z "$clients_json" ] || [ "$clients_json" = "null" ] || [ "$clients_json" = "[]" ]; then
+    return 1
+  fi
+
+  local tmp
+  tmp=$(mktemp)
+  if ! jq --argjson clients "$clients_json" '
+    .inbounds |= map(
+      if .protocol == "vless" then
+        .settings.clients = $clients
+      else . end
+    )' "$cfg" > "$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  mv "$tmp" "$cfg"
+  usk_xray_fix_perms "$cfg"
   return 0
 }
 
@@ -476,11 +588,18 @@ usk_xray_ensure_stats_policy() {
   tmp=$(mktemp)
   if ! jq '
     .stats = (.stats // {}) |
-    .api = { tag: "api", services: ["StatsService", "HandlerService"] } |
+    .api = ((.api // {tag:"api"}) + {tag:"api", services: ((.api.services // ["StatsService"]) | map(select(. == "StatsService")) | if length == 0 then ["StatsService"] else . end)}) |
     .policy = (.policy // {}) |
     .policy.levels = (.policy.levels // {}) |
     .policy.levels["0"] = ((.policy.levels["0"] // {}) + {statsUserUplink:true, statsUserDownlink:true, statsUserOnline:true}) |
     .policy.system = (.policy.system // {statsInboundUplink:true, statsInboundDownlink:true}) |
+    .outbounds = (
+      if ([.outbounds[]? | select(.tag == "api")] | length) > 0 then
+        .outbounds
+      else
+        .outbounds + [{protocol:"freedom", tag:"api", settings:{}}]
+      end
+    ) |
     .inbounds = (
       if ([.inbounds[]? | select(.tag == "api")] | length) > 0 then
         .inbounds
@@ -496,15 +615,20 @@ usk_xray_ensure_stats_policy() {
     ) |
     .routing = (.routing // { domainStrategy: "IPIfNonMatch", rules: [] }) |
     .routing.rules = (
-      if ([.routing.rules[]? | select(.inboundTag? != null and (.inboundTag | index("api")))] | length) > 0 then
+      (if ([.routing.rules[]? | select(.inboundTag? != null and (.inboundTag | index("api")))] | length) > 0 then
         .routing.rules
       else
         [{ type: "field", inboundTag: ["api"], outboundTag: "api" }] + (.routing.rules // [])
+      end) as $r1 |
+      if ([$r1[]? | select(.inboundTag? != null and (.inboundTag | index("vless-reality-in")))] | length) > 0 then
+        $r1
+      else
+        $r1 + [{ type: "field", inboundTag: ["vless-reality-in"], outboundTag: "direct" }]
       end
     ) |
     .inbounds |= map(
       if .protocol == "vless" then
-        .settings.clients = [.settings.clients[]? | . + {level: (.level // 0)}]
+        .settings.clients = [.settings.clients[]? | . + {level: (.level // 0), flow: (.flow // "xtls-rprx-vision")}]
       else . end
     )' "$cfg" > "$tmp"; then
     rm -f "$tmp"
