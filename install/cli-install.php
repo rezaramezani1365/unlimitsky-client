@@ -131,6 +131,9 @@ if (empty($connect['status'])) {
 }
 
 require_once $config_path;
+if (!defined('USK_ROOT')) {
+    define('USK_ROOT', $root);
+}
 require_once $root . '/admin/lib/auth.php';
 require_once $root . '/admin/lib/license.php';
 USK_Admin_Auth::create_from_install($admin_user, $admin_pass, $lang, $must_change);

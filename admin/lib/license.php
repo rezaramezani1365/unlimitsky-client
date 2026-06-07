@@ -19,13 +19,18 @@ class USK_License
         return dirname(__DIR__) . '/data/license.json';
     }
 
+    private static function root_dir()
+    {
+        return defined('USK_ROOT') ? USK_ROOT : dirname(__DIR__, 2);
+    }
+
     public static function instance_id()
     {
         $id_file = dirname(__DIR__) . '/data/instance.id';
         if (file_exists($id_file)) {
             return trim(file_get_contents($id_file));
         }
-        $id = hash('sha256', php_uname('n') . '|' . (isset($_SERVER['SERVER_ADDR']) ? $_SERVER['SERVER_ADDR'] : '') . '|' . USK_ROOT);
+        $id = hash('sha256', php_uname('n') . '|' . (isset($_SERVER['SERVER_ADDR']) ? $_SERVER['SERVER_ADDR'] : '') . '|' . self::root_dir());
         @file_put_contents($id_file, $id);
         return $id;
     }
@@ -93,7 +98,7 @@ class USK_License
     {
         return array(
             '/var/www/unlimitsky-license/config.php',
-            dirname(USK_ROOT) . '/unlimitsky-license/config.php',
+            dirname(self::root_dir()) . '/unlimitsky-license/config.php',
         );
     }
 
@@ -135,7 +140,7 @@ class USK_License
     private static function peer_vendor_json_paths()
     {
         return array(
-            USK_ROOT . '/data/license-vendor.json',
+            self::root_dir() . '/data/license-vendor.json',
             '/var/www/unlimitsky-license/data/reseller-api.json',
             '/var/lib/unlimitsky/reseller-api.json',
         );
