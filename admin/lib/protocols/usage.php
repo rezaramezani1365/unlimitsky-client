@@ -129,31 +129,28 @@ class USK_ProtocolUsage
                     if ($ovpn === null) {
                         continue;
                     }
-                    $prev = (int) ($rec['usage_bytes'] ?? 0);
-                    $hadSync = !empty($rec['usage_synced_at']);
+                    $prev = self::record_usage_bytes($rec);
                     $newBytes = (int) $ovpn['usage_bytes'];
                     $clients[$username]['usage_bytes'] = $newBytes;
                     $clients[$username]['ovpn_session_bytes'] = (int) $ovpn['ovpn_session_bytes'];
                     $connActive = self::connections_from_maps($protocol, $username, $rec, $connMaps);
                     if ($connActive !== null) {
                         $prevConn = (int) ($rec['active_connections'] ?? 0);
-                        $clients[$username]['active_connections'] = $connActive;
-                        $clients[$username]['connections_synced_at'] = date('c');
-                        if ($connActive !== $prevConn || empty($rec['connections_synced_at'])) {
+                        if (self::should_persist_connections($rec, $connActive, $prevConn)) {
+                            $clients[$username]['active_connections'] = $connActive;
+                            $clients[$username]['connections_synced_at'] = date('c');
                             $changed = true;
                             $connUpdated++;
                         }
                     }
-                    if ($newBytes !== $prev) {
-                        $clients[$username]['usage_synced_at'] = date('c');
-                        $changed = true;
-                        $updated++;
-                        $synced++;
-                    } elseif (!$hadSync) {
+                    if (self::should_persist_usage($rec, $newBytes, $prev)) {
                         $clients[$username]['usage_synced_at'] = date('c');
                         $changed = true;
                         $synced++;
-                    } else {
+                        if ($newBytes > $prev) {
+                            $updated++;
+                        }
+                    } elseif ($newBytes !== $prev || !self::record_has_usage_bytes($rec)) {
                         $changed = true;
                     }
                     continue;
@@ -172,34 +169,28 @@ class USK_ProtocolUsage
                     continue;
                 }
 
-                $prev = (int) ($rec['usage_bytes'] ?? 0);
-                $hadSync = !empty($rec['usage_synced_at']);
+                $prev = self::record_usage_bytes($rec);
                 if ($bytes !== null) {
                     $newBytes = max($prev, (int) $bytes);
-                    if ($newBytes !== $prev) {
-                        $clients[$username]['usage_bytes'] = $newBytes;
-                        $clients[$username]['usage_synced_at'] = date('c');
-                        $changed = true;
-                        $updated++;
-                        $synced++;
-                    } elseif (!$hadSync) {
+                    if (self::should_persist_usage($rec, $newBytes, $prev)) {
                         $clients[$username]['usage_bytes'] = $newBytes;
                         $clients[$username]['usage_synced_at'] = date('c');
                         $changed = true;
                         $synced++;
+                        if ($newBytes > $prev) {
+                            $updated++;
+                        }
                     }
                 }
 
                 if ($connActive !== null) {
                     $prevConn = (int) ($rec['active_connections'] ?? 0);
-                    if ($connActive !== $prevConn || empty($rec['connections_synced_at'])) {
+                    if (self::should_persist_connections($rec, $connActive, $prevConn)) {
                         $clients[$username]['active_connections'] = $connActive;
                         $clients[$username]['connections_synced_at'] = date('c');
                         $changed = true;
                         $connUpdated++;
                     }
-                } elseif ($bytes !== null && !$hadSync) {
-                    $changed = true;
                 }
             }
             if ($changed) {
@@ -464,6 +455,41 @@ class USK_ProtocolUsage
                 'openvpn' => self::normalize_int_map($data['connections']['openvpn'] ?? array()),
             ),
         );
+    }
+
+    private static function record_has_usage_bytes(array $rec)
+    {
+        if (!array_key_exists('usage_bytes', $rec)) {
+            return false;
+        }
+        return $rec['usage_bytes'] !== null && $rec['usage_bytes'] !== '';
+    }
+
+    private static function record_usage_bytes(array $rec)
+    {
+        return self::record_has_usage_bytes($rec) ? (int) $rec['usage_bytes'] : 0;
+    }
+
+    private static function should_persist_usage(array $rec, $newBytes, $prevBytes)
+    {
+        if (!self::record_has_usage_bytes($rec)) {
+            return true;
+        }
+        if (empty($rec['usage_synced_at'])) {
+            return true;
+        }
+        return (int) $newBytes > (int) $prevBytes;
+    }
+
+    private static function should_persist_connections(array $rec, $newConn, $prevConn)
+    {
+        if (!array_key_exists('active_connections', $rec)) {
+            return true;
+        }
+        if (empty($rec['connections_synced_at'])) {
+            return true;
+        }
+        return (int) $newConn !== (int) $prevConn;
     }
 
     /** @return array<string,int> */
