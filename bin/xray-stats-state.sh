@@ -3,7 +3,7 @@
 # Sourced by collect-usage-stats.sh (not run directly).
 set -uo pipefail
 
-USK_XRAY_ONLINE_GRACE_MS="${USK_XRAY_ONLINE_GRACE_MS:-180000}"
+USK_XRAY_ONLINE_GRACE_MS="${USK_XRAY_ONLINE_GRACE_MS:-90000}"
 USK_XRAY_ACCESS_TAIL_LINES="${USK_XRAY_ACCESS_TAIL_LINES:-8000}"
 
 usk_xray_stats_state_path() {

@@ -150,6 +150,8 @@ BIN_LIST=(
   provision-common.sh
   xray-common.sh
   xray-stats-state.sh
+  enforce-xray-iplimit.sh
+  install-fail2ban-iplimit.sh
   openvpn-common.sh
   collect-usage-stats.sh
   enforce-connection-limits.sh

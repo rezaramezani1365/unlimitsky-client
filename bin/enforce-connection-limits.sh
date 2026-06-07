@@ -24,6 +24,11 @@ fi
 
 command -v jq >/dev/null 2>&1 || { echo '{"ok":false,"error":"jq_required"}'; exit 1; }
 
+iplimit_report='{}'
+if [ -f "${DIR}/enforce-xray-iplimit.sh" ]; then
+  iplimit_report=$(bash "${DIR}/enforce-xray-iplimit.sh" 2>/dev/null || echo '{}')
+fi
+
 checked=0
 trimmed=0
 details='[]'
@@ -147,6 +152,7 @@ jq -nc \
   --argjson checked "$checked" \
   --argjson trimmed "$trimmed" \
   --argjson details "$details" \
-  '{ok:true, checked:$checked, trimmed:$trimmed, connections_trimmed:$trimmed, details:$details, ran_at:(now|todate)}'
+  --argjson iplimit "$iplimit_report" \
+  '{ok:true, checked:$checked, trimmed:$trimmed, connections_trimmed:$trimmed, details:$details, iplimit:$iplimit, ran_at:(now|todate)}'
 
 exit 0

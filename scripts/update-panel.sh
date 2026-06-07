@@ -67,6 +67,9 @@ fi
 if declare -F usk_ensure_connections_cron >/dev/null 2>&1; then
     usk_ensure_connections_cron "$WEB_ROOT"
 fi
+if declare -F usk_ensure_fail2ban_iplimit >/dev/null 2>&1; then
+    usk_ensure_fail2ban_iplimit "$WEB_ROOT"
+fi
 
 echo "[*] Done. Open: ${WEB_ROOT%/}/admin/index.php?page=updates"
 echo "    Backup page: ${WEB_ROOT%/}/admin/index.php?page=backup"
