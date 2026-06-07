@@ -21,5 +21,7 @@ if [ -f "$REGISTRY" ] && command -v jq >/dev/null 2>&1; then
   jq --arg u "$USERNAME" '[.[] | select(.username != $u)]' "$REGISTRY" > "$tmp" && mv "$tmp" "$REGISTRY"
 fi
 
+rm -f "$DATA_ROOT/openvpn/profiles/${USERNAME}.ovpn" 2>/dev/null || true
+
 echo "USK_OK"
 exit 0

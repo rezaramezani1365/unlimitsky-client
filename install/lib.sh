@@ -397,8 +397,17 @@ usk_ensure_web_update_sudoers() {
     if ! grep -qF 'collect-usage-stats.sh' "$sudoers" 2>/dev/null; then
         echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/collect-usage-stats.sh" >> "$sudoers"
     fi
+    if ! grep -qF 'xray-fix-stats-api.sh' "$sudoers" 2>/dev/null; then
+        echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/xray-fix-stats-api.sh" >> "$sudoers"
+    fi
     if ! grep -qF 'enforce-connection-limits.sh' "$sudoers" 2>/dev/null; then
         echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/enforce-connection-limits.sh" >> "$sudoers"
+    fi
+    if ! grep -qF 'enforce-xray-iplimit.sh' "$sudoers" 2>/dev/null; then
+        echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/enforce-xray-iplimit.sh" >> "$sudoers"
+    fi
+    if ! grep -qF 'install-fail2ban-iplimit.sh' "$sudoers" 2>/dev/null; then
+        echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/install-fail2ban-iplimit.sh *" >> "$sudoers"
     fi
     if ! grep -qF 'xray-emergency-fix.sh' "$sudoers" 2>/dev/null; then
         echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/xray-emergency-fix.sh" >> "$sudoers"
@@ -407,6 +416,106 @@ usk_ensure_web_update_sudoers() {
         echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/scripts/panel-self-update.sh *" >> "$sudoers"
     fi
     chmod 440 "$sudoers" 2>/dev/null || true
+}
+
+# Auto usage/limit sync — no manual cron setup for resellers.
+usk_ensure_usage_cron() {
+    local web_root="$1"
+    local php_bin
+    php_bin="$(command -v php 2>/dev/null || true)"
+    [ -n "$php_bin" ] || return 0
+    [ -f "${web_root}/cron/native-limits.php" ] || return 0
+
+    local cron_file="/etc/cron.d/unlimitsky-limits"
+    cat > "$cron_file" <<EOF
+# unlimitsky — usage sync & limit enforcement every 30s (managed by panel install/update)
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+* * * * * root ${php_bin} ${web_root}/cron/native-limits.php >> /var/log/unlimitsky-limits.log 2>&1
+* * * * * root sleep 30; ${php_bin} ${web_root}/cron/native-limits.php >> /var/log/unlimitsky-limits.log 2>&1
+EOF
+    chmod 644 "$cron_file" 2>/dev/null || true
+    touch /var/log/unlimitsky-limits.log 2>/dev/null || true
+    chmod 644 /var/log/unlimitsky-limits.log 2>/dev/null || true
+}
+
+usk_ensure_connections_cron() {
+    local web_root="$1"
+    local php_bin
+    php_bin="$(command -v php 2>/dev/null || true)"
+    [ -n "$php_bin" ] || return 0
+    [ -f "${web_root}/cron/enforce-connections.php" ] || return 0
+
+    local cron_file="/etc/cron.d/unlimitsky-connections"
+    cat > "$cron_file" <<EOF
+# unlimitsky — enforce max concurrent VPN connections every 30s
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+* * * * * root ${php_bin} ${web_root}/cron/enforce-connections.php >> /var/log/unlimitsky-connections.log 2>&1
+* * * * * root sleep 30; ${php_bin} ${web_root}/cron/enforce-connections.php >> /var/log/unlimitsky-connections.log 2>&1
+EOF
+    chmod 644 "$cron_file" 2>/dev/null || true
+    touch /var/log/unlimitsky-connections.log 2>/dev/null || true
+    chmod 644 /var/log/unlimitsky-connections.log 2>/dev/null || true
+}
+
+# Configure Fail2ban IP-limit jail when Xray is present (3x-ui style). Installs fail2ban if missing.
+usk_ensure_fail2ban_iplimit() {
+    local web_root="$1"
+    local script="${web_root}/bin/install-fail2ban-iplimit.sh"
+    [ -f "$script" ] || return 0
+    [ -f "${web_root}/bin/xray-common.sh" ] || return 0
+    # shellcheck disable=SC1091
+    source "${web_root}/bin/xray-common.sh" 2>/dev/null || true
+    [ -f "${XRAY_CFG:-/var/lib/unlimitsky/xray/config.json}" ] || return 0
+    if command -v fail2ban-client >/dev/null 2>&1 && fail2ban-client status usk-ipl >/dev/null 2>&1; then
+        return 0
+    fi
+    bash "$script" 30 >> /var/log/unlimitsky-fail2ban-install.log 2>&1 || true
+}
+
+# Background worker — collects VPN stats every ~5s for live admin/portal UI.
+usk_ensure_live_stats_daemon() {
+    local web_root="$1"
+    local daemon="${web_root}/bin/live-stats-daemon.sh"
+    local worker="${web_root}/cron/live-stats-worker.php"
+    [ -f "$daemon" ] || return 0
+    [ -f "$worker" ] || return 0
+
+    mkdir -p "${web_root}/data/live" 2>/dev/null || true
+    touch "${web_root}/data/live/daemon.log" "${web_root}/data/live/worker.log" 2>/dev/null || true
+    chown -R www-data:www-data "${web_root}/data/live" 2>/dev/null || true
+    chmod 775 "${web_root}/data/live" 2>/dev/null || true
+    chmod 664 "${web_root}/data/live/"*.log 2>/dev/null || true
+
+    local unit="/etc/systemd/system/unlimitsky-live-stats.service"
+    local tpl="${web_root}/install/unlimitsky-live-stats.service"
+    if [ -f "$tpl" ]; then
+        sed "s|__WEB_ROOT__|${web_root}|g" "$tpl" > "$unit"
+        chmod 644 "$unit" 2>/dev/null || true
+    else
+        cat > "$unit" <<EOF
+[Unit]
+Description=UnlimitSky live VPN usage & connection stats
+After=network-online.target
+
+[Service]
+Type=simple
+Environment=WEB_ROOT=${web_root}
+Environment=USK_LIVE_STATS_INTERVAL=5
+ExecStart=/bin/bash ${web_root}/bin/live-stats-daemon.sh
+Restart=always
+RestartSec=3
+User=root
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    fi
+
+    systemctl daemon-reload 2>/dev/null || true
+    systemctl enable unlimitsky-live-stats.service >/dev/null 2>&1 || true
+    systemctl restart unlimitsky-live-stats.service 2>/dev/null || true
 }
 
 usk_write_deploy_stamp() {

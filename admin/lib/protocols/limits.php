@@ -61,7 +61,11 @@ class USK_ProtocolLimits
         $panel = array();
         $file = self::clients_dir() . '/' . $protocol . '.json';
         if (is_file($file)) {
-            $data = json_decode((string) file_get_contents($file), true);
+            $raw = (string) file_get_contents($file);
+            $data = json_decode($raw, true);
+            if (!is_array($data) && function_exists('json_decode')) {
+                $data = json_decode($raw, true, 512, JSON_INVALID_UTF8_IGNORE);
+            }
             if (is_array($data)) {
                 $panel = self::normalize_clients($data);
             }
@@ -76,22 +80,58 @@ class USK_ProtocolLimits
         if ($data === array()) {
             return array();
         }
-        $keys = array_keys($data);
-        if ($keys !== range(0, count($data) - 1)) {
-            return $data;
+
+        if (self::clients_data_is_list($data)) {
+            $out = array();
+            foreach ($data as $rec) {
+                if (!is_array($rec)) {
+                    continue;
+                }
+                $username = trim((string) ($rec['username'] ?? ''));
+                if ($username === '') {
+                    continue;
+                }
+                if (empty($rec['username'])) {
+                    $rec['username'] = $username;
+                }
+                $out[$username] = $rec;
+            }
+            return $out;
         }
-        $out = array();
-        foreach ($data as $rec) {
+
+        foreach ($data as $key => $rec) {
             if (!is_array($rec)) {
                 continue;
             }
-            $username = trim((string) ($rec['username'] ?? ''));
+            $username = trim((string) ($rec['username'] ?? $key));
             if ($username === '') {
                 continue;
             }
-            $out[$username] = $rec;
+            $data[$key] = $rec;
+            if (empty($rec['username'])) {
+                $data[$key]['username'] = $username;
+            }
         }
-        return $out;
+
+        return $data;
+    }
+
+    /** Detect JSON arrays and legacy {"0":{...},"1":{...}} object lists. */
+    private static function clients_data_is_list(array $data)
+    {
+        $keys = array_keys($data);
+        if ($keys === range(0, count($data) - 1)) {
+            return true;
+        }
+        if ($keys === array()) {
+            return false;
+        }
+        foreach ($keys as $i => $key) {
+            if ((string) $key !== (string) $i) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public static function save_protocol_clients($protocol, array $clients)
@@ -170,17 +210,26 @@ class USK_ProtocolLimits
         return $report;
     }
 
-    /** Admin button — prefer CLI worker (no PHP-FPM timeout); fallback to in-process. */
+    /** Admin button — background worker (no PHP-FPM timeout / connection reset). */
     public static function sync_usage_and_enforce()
     {
-        $report = self::run_limits_via_cli();
-        if (is_array($report)) {
-            return $report;
-        }
+        require_once __DIR__ . '/../live-stats.php';
+        USK_LiveStats::request_background_sync();
 
-        $report = self::enforce_all();
-        self::save_last_run($report);
-        return $report;
+        $cache = USK_LiveStats::read_cache();
+        $age = USK_LiveStats::cache_age_sec();
+
+        return array(
+            'queued' => true,
+            'usage_updated' => (int) ($cache['usage_updated'] ?? 0),
+            'checked' => 0,
+            'disabled' => 0,
+            'details' => array(),
+            'usage_meta' => is_array($cache['usage_meta'] ?? null) ? $cache['usage_meta'] : array(
+                'source' => 'live_worker',
+                'cache_age_sec' => $age,
+            ),
+        );
     }
 
     /**
@@ -438,29 +487,53 @@ class USK_ProtocolLimits
     /** Remove VPN user from server (manual action by reseller). */
     public static function remove_from_server($protocol, $username)
     {
-        $script = USK_ROOT . '/bin/remove-user-' . $protocol . '.sh';
-        if (file_exists($script)) {
-            $uuid = '';
-            if ($protocol === 'xray') {
-                $clients = self::load_protocol_clients($protocol);
-                $uuid = $clients[$username]['meta']['uuid'] ?? ($clients[$username]['uuid'] ?? '');
+        $clients = self::load_protocol_clients($protocol);
+        $rec = isset($clients[$username]) && is_array($clients[$username]) ? $clients[$username] : array();
+        $meta = self::client_meta($rec);
+        $nodeId = trim((string) ($rec['node_id'] ?? ''));
+
+        $args = self::remove_script_args($protocol, $username, $meta);
+        $scriptName = 'remove-user-' . $protocol . '.sh';
+
+        if ($nodeId !== '') {
+            require_once USK_ROOT . '/admin/lib/nodes.php';
+            require_once USK_ROOT . '/admin/lib/node-ssh.php';
+            $node = USK_Nodes::get($nodeId);
+            if ($node && USK_NodeSsh::sshpass_available()) {
+                USK_NodeSsh::run_script($node, $scriptName, $args, 120);
             }
-            $args = array($username);
-            if ($protocol === 'xray' && $uuid !== '') {
-                $args[] = $uuid;
+        } else {
+            $script = USK_ROOT . '/bin/' . $scriptName;
+            if (file_exists($script)) {
+                @shell_exec(self::sudo_script_cmd($script, $args));
             }
-            @shell_exec(self::sudo_script_cmd($script, $args));
         }
 
-        $clients = self::load_protocol_clients($protocol);
         if (isset($clients[$username])) {
-            $clients[$username]['status'] = 'revoked';
-            $clients[$username]['revoked_at'] = date('c');
-            $clients[$username]['revoke_reason'] = 'manual';
+            unset($clients[$username]);
             self::save_protocol_clients($protocol, $clients);
         }
 
         self::update_orders_by_client($protocol, $username, 'revoked');
+    }
+
+    /** @return array<int, string> */
+    private static function remove_script_args($protocol, $username, array $meta)
+    {
+        $args = array($username);
+        if ($protocol === 'xray') {
+            $uuid = trim((string) ($meta['uuid'] ?? ''));
+            if ($uuid !== '') {
+                $args[] = $uuid;
+            }
+        } elseif ($protocol === 'wireguard' || $protocol === 'amnezia') {
+            $pub = trim((string) ($meta['public_key'] ?? ''));
+            if ($pub !== '') {
+                $args[] = $pub;
+            }
+        }
+
+        return $args;
     }
 
     /** Extend / renew — reseller adds days and/or GB, service active again. */

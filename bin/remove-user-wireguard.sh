@@ -5,12 +5,16 @@ source "$DIR/provision-common.sh"
 if [ "$EUID" -ne 0 ]; then usk_json_fail "run_as_root"; fi
 
 USERNAME="${1:-}"
+PUB="${2:-}"
 [ -n "$USERNAME" ] || usk_json_fail "username_required"
 
 REGISTRY="$DATA_ROOT/wireguard/clients.json"
-PUB=""
+if [ -z "$PUB" ] || [ "$PUB" = "null" ]; then
+  if [ -f "$REGISTRY" ] && command -v jq >/dev/null 2>&1; then
+    PUB=$(jq -r --arg u "$USERNAME" '.[] | select(.username==$u) | .public_key' "$REGISTRY" | head -1)
+  fi
+fi
 if [ -f "$REGISTRY" ] && command -v jq >/dev/null 2>&1; then
-  PUB=$(jq -r --arg u "$USERNAME" '.[] | select(.username==$u) | .public_key' "$REGISTRY" | head -1)
   tmp=$(mktemp)
   jq --arg u "$USERNAME" '[.[] | select(.username != $u)]' "$REGISTRY" > "$tmp" && mv "$tmp" "$REGISTRY"
 fi

@@ -6,12 +6,14 @@ source "$DIR/amnezia-common.sh"
 if [ "$EUID" -ne 0 ]; then usk_json_fail "run_as_root"; fi
 
 USERNAME="${1:-}"
+PUBKEY="${2:-}"
 [ -n "$USERNAME" ] || usk_json_fail "username_required"
 
-PUBKEY=""
 REGISTRY="$DATA_ROOT/amnezia/clients.json"
-if [ -f "$REGISTRY" ] && command -v jq >/dev/null 2>&1; then
-  PUBKEY=$(jq -r --arg u "$USERNAME" '.[] | select(.username==$u) | .public_key' "$REGISTRY" | head -1)
+if [ -z "$PUBKEY" ] || [ "$PUBKEY" = "null" ]; then
+  if [ -f "$REGISTRY" ] && command -v jq >/dev/null 2>&1; then
+    PUBKEY=$(jq -r --arg u "$USERNAME" '.[] | select(.username==$u) | .public_key' "$REGISTRY" | head -1)
+  fi
 fi
 
 if usk_amnezia_bivlked; then

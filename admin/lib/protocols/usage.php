@@ -70,6 +70,12 @@ class USK_ProtocolUsage
         $metered = in_array($protocol, array('wireguard', 'openvpn', 'xray'), true);
         $syncedAt = trim((string) ($rec['usage_synced_at'] ?? ($rec['meta']['usage_synced_at'] ?? '')));
 
+        require_once __DIR__ . '/connections.php';
+        $maxConn = USK_ProtocolConnections::max_connections_for($rec);
+        $activeConn = max(0, (int) ($rec['active_connections'] ?? ($rec['meta']['active_connections'] ?? 0)));
+        $connSyncedAt = trim((string) ($rec['connections_synced_at'] ?? ($rec['meta']['connections_synced_at'] ?? '')));
+        $connTracked = in_array($protocol, array('wireguard', 'openvpn', 'xray'), true);
+
         return array(
             'tracked' => $metered,
             'needs_sync' => $metered && $syncedAt === '' && $volumeGb > 0,
@@ -81,6 +87,13 @@ class USK_ProtocolUsage
             'percent' => $percent,
             'exceeded' => $limitBytes > 0 && $usedBytes >= $limitBytes,
             'used_label' => USK_ProtocolLimits::format_bytes($usedBytes),
+            'max_connections' => $maxConn,
+            'active_connections' => $activeConn,
+            'connections_synced_at' => $connSyncedAt,
+            'connections_tracked' => $connTracked,
+            'connections_display' => $connTracked ? ($activeConn . ' / ' . $maxConn) : null,
+            'connections_near_limit' => $connTracked && $activeConn >= $maxConn,
+            'connections_warning' => $connTracked && $maxConn > 0 && $activeConn >= max(1, $maxConn - 1) && $activeConn < $maxConn,
         );
     }
 
@@ -96,11 +109,16 @@ class USK_ProtocolUsage
             'xray' => count($maps['xray'] ?? array()),
             'openvpn' => count($maps['openvpn'] ?? array()),
         );
+        $connMaps = $maps['_connections'] ?? array();
 
         $updated = 0;
         $synced = 0;
+        $connUpdated = 0;
+        $panelCounts = array();
+        $matchFailures = array();
         foreach (array('wireguard', 'openvpn', 'xray', 'l2tp', 'cisco') as $protocol) {
             $clients = USK_ProtocolLimits::load_protocol_clients($protocol);
+            $panelCounts[$protocol] = count($clients);
             $changed = false;
             foreach ($clients as $username => $rec) {
                 if (!is_array($rec)) {
@@ -111,42 +129,68 @@ class USK_ProtocolUsage
                     if ($ovpn === null) {
                         continue;
                     }
-                    $prev = (int) ($rec['usage_bytes'] ?? 0);
-                    $hadSync = !empty($rec['usage_synced_at']);
+                    $prev = self::record_usage_bytes($rec);
                     $newBytes = (int) $ovpn['usage_bytes'];
                     $clients[$username]['usage_bytes'] = $newBytes;
                     $clients[$username]['ovpn_session_bytes'] = (int) $ovpn['ovpn_session_bytes'];
-                    if ($newBytes !== $prev) {
+                    $connActive = self::connections_from_maps($protocol, $username, $rec, $connMaps);
+                    if ($connActive !== null) {
+                        $prevConn = (int) ($rec['active_connections'] ?? 0);
+                        if (self::should_persist_connections($rec, $connActive, $prevConn)) {
+                            $clients[$username]['active_connections'] = $connActive;
+                            $clients[$username]['connections_synced_at'] = date('c');
+                            $changed = true;
+                            $connUpdated++;
+                        }
+                    }
+                    if (self::should_persist_usage($rec, $newBytes, $prev)) {
                         $clients[$username]['usage_synced_at'] = date('c');
                         $changed = true;
-                        $updated++;
                         $synced++;
-                    } elseif (!$hadSync) {
-                        $clients[$username]['usage_synced_at'] = date('c');
-                        $changed = true;
-                        $synced++;
-                    } else {
+                        if ($newBytes > $prev) {
+                            $updated++;
+                        }
+                    } elseif ($newBytes !== $prev || !self::record_has_usage_bytes($rec)) {
                         $changed = true;
                     }
                     continue;
                 }
+
                 $bytes = self::bytes_from_maps($protocol, $username, $rec, $maps);
-                if ($bytes === null) {
+                $connActive = self::connections_from_maps($protocol, $username, $rec, $connMaps);
+                if ($bytes === null && $connActive === null) {
+                    if (count($matchFailures) < 8) {
+                        $matchFailures[] = array(
+                            'protocol' => $protocol,
+                            'username' => (string) $username,
+                            'uuid' => (string) ($rec['uuid'] ?? ($rec['meta']['uuid'] ?? '')),
+                        );
+                    }
                     continue;
                 }
-                $prev = (int) ($rec['usage_bytes'] ?? 0);
-                $newBytes = max($prev, (int) $bytes);
-                $hadSync = !empty($rec['usage_synced_at']);
-                if ($newBytes !== $prev) {
-                    $clients[$username]['usage_bytes'] = $newBytes;
-                    $clients[$username]['usage_synced_at'] = date('c');
-                    $changed = true;
-                    $updated++;
-                    $synced++;
-                } elseif (!$hadSync) {
-                    $clients[$username]['usage_synced_at'] = date('c');
-                    $changed = true;
-                    $synced++;
+
+                $prev = self::record_usage_bytes($rec);
+                if ($bytes !== null) {
+                    $newBytes = self::merge_usage_bytes($protocol, $prev, (int) $bytes);
+                    if (self::should_persist_usage($rec, $newBytes, $prev)) {
+                        $clients[$username]['usage_bytes'] = $newBytes;
+                        $clients[$username]['usage_synced_at'] = date('c');
+                        $changed = true;
+                        $synced++;
+                        if ($newBytes > $prev) {
+                            $updated++;
+                        }
+                    }
+                }
+
+                if ($connActive !== null) {
+                    $prevConn = (int) ($rec['active_connections'] ?? 0);
+                    if (self::should_persist_connections($rec, $connActive, $prevConn)) {
+                        $clients[$username]['active_connections'] = $connActive;
+                        $clients[$username]['connections_synced_at'] = date('c');
+                        $changed = true;
+                        $connUpdated++;
+                    }
                 }
             }
             if ($changed) {
@@ -155,6 +199,11 @@ class USK_ProtocolUsage
         }
 
         self::$lastCollectMeta['usage_synced'] = $synced;
+        self::$lastCollectMeta['connections_synced'] = $connUpdated;
+        self::$lastCollectMeta['panel_clients'] = $panelCounts;
+        if ($matchFailures !== array()) {
+            self::$lastCollectMeta['match_failures'] = $matchFailures;
+        }
         self::$batchCache = null;
         return $updated;
     }
@@ -168,7 +217,7 @@ class USK_ProtocolUsage
 
         $fromSudo = self::batch_usage_maps_via_sudo();
         if (is_array($fromSudo)) {
-            self::$batchCache = $fromSudo;
+            self::$batchCache = self::merge_node_usage_maps($fromSudo);
             return self::$batchCache;
         }
 
@@ -191,6 +240,113 @@ class USK_ProtocolUsage
         return self::$batchCache;
     }
 
+    /** Merge live stats collected over SSH from Node VPS servers. */
+    private static function merge_node_usage_maps(array $maps)
+    {
+        if (!is_file(USK_ROOT . '/admin/lib/nodes.php')) {
+            return $maps;
+        }
+        require_once USK_ROOT . '/admin/lib/nodes.php';
+        require_once USK_ROOT . '/admin/lib/node-ssh.php';
+        if (!class_exists('USK_Nodes') || !class_exists('USK_NodeSsh') || !USK_NodeSsh::sshpass_available()) {
+            return $maps;
+        }
+
+        $nodeClients = array();
+        foreach (array('xray', 'wireguard', 'openvpn') as $protocol) {
+            $clients = USK_ProtocolLimits::load_protocol_clients($protocol);
+            foreach ($clients as $username => $rec) {
+                if (!is_array($rec)) {
+                    continue;
+                }
+                $nodeId = trim((string) ($rec['node_id'] ?? ''));
+                if ($nodeId === '') {
+                    continue;
+                }
+                if (!isset($nodeClients[$nodeId])) {
+                    $nodeClients[$nodeId] = array();
+                }
+                $nodeClients[$nodeId][] = array('protocol' => $protocol, 'username' => $username, 'rec' => $rec);
+            }
+        }
+
+        if ($nodeClients === array()) {
+            return $maps;
+        }
+
+        if (!isset($maps['_connections']) || !is_array($maps['_connections'])) {
+            $maps['_connections'] = array(
+                'wireguard' => array(),
+                'amnezia' => array(),
+                'xray' => array(),
+                'openvpn' => array(),
+            );
+        }
+
+        $nodesFetched = 0;
+        foreach ($nodeClients as $nodeId => $entries) {
+            $node = USK_Nodes::get($nodeId);
+            if (!$node) {
+                continue;
+            }
+            $remote = USK_NodeSsh::run_script($node, 'collect-usage-stats.sh', array(), 90);
+            if (empty($remote['ok'])) {
+                self::$lastCollectMeta['node_errors'][$nodeId] = $remote['error'] ?? 'remote_failed';
+                continue;
+            }
+            $log = (string) ($remote['log'] ?? '');
+            if (!preg_match('/(\{.*"ok"\s*:\s*true.*\})/s', $log, $m)) {
+                self::$lastCollectMeta['node_errors'][$nodeId] = 'invalid_json';
+                continue;
+            }
+            $data = json_decode($m[1], true);
+            if (!is_array($data) || empty($data['ok'])) {
+                self::$lastCollectMeta['node_errors'][$nodeId] = 'parse_failed';
+                continue;
+            }
+            $nodesFetched++;
+            $remoteMaps = array(
+                'wireguard' => self::normalize_int_map($data['wireguard'] ?? array()),
+                'amnezia' => self::normalize_int_map($data['amnezia'] ?? array()),
+                'xray' => self::normalize_int_map($data['xray'] ?? array()),
+                'openvpn' => self::normalize_int_map($data['openvpn'] ?? array()),
+            );
+            $remoteConn = array(
+                'wireguard' => self::normalize_int_map($data['connections']['wireguard'] ?? array()),
+                'amnezia' => self::normalize_int_map($data['connections']['amnezia'] ?? array()),
+                'xray' => self::normalize_int_map($data['connections']['xray'] ?? array()),
+                'openvpn' => self::normalize_int_map($data['connections']['openvpn'] ?? array()),
+            );
+
+            foreach ($entries as $entry) {
+                $protocol = $entry['protocol'];
+                $username = $entry['username'];
+                $rec = $entry['rec'];
+                if ($protocol === 'wireguard') {
+                    $pub = $rec['public_key'] ?? ($rec['meta']['public_key'] ?? '');
+                    if ($pub !== '' && isset($remoteMaps['wireguard'][$pub])) {
+                        $maps['wireguard'][$pub] = (int) $remoteMaps['wireguard'][$pub];
+                        if (isset($remoteConn['wireguard'][$pub])) {
+                            $maps['_connections']['wireguard'][$pub] = (int) $remoteConn['wireguard'][$pub];
+                        }
+                    }
+                    continue;
+                }
+                foreach (self::usage_name_candidates($username, $rec) as $name) {
+                    if (isset($remoteMaps[$protocol][$name])) {
+                        $maps[$protocol][$name] = (int) $remoteMaps[$protocol][$name];
+                    }
+                    if (isset($remoteConn[$protocol][$name])) {
+                        $maps['_connections'][$protocol][$name] = (int) $remoteConn[$protocol][$name];
+                    }
+                }
+            }
+        }
+
+        self::$lastCollectMeta['nodes_fetched'] = $nodesFetched;
+        return $maps;
+    }
+
     /** @return array<string,array<string,int>>|null */
     private static function batch_usage_maps_via_sudo()
     {
@@ -200,22 +356,80 @@ class USK_ProtocolUsage
         }
 
         $cmd = 'sudo -n /bin/bash ' . escapeshellarg($script) . ' 2>/dev/null';
-        $raw = self::shell_with_timeout($cmd, 30);
+        $raw = self::shell_with_timeout($cmd, 45);
         if ($raw === '') {
-            self::$lastCollectMeta = array('sudo_ok' => false, 'source' => 'collect_script');
+            self::$lastCollectMeta = array(
+                'sudo_ok' => false,
+                'source' => 'collect_script',
+                'collect_error' => 'empty_output',
+            );
             return null;
         }
 
-        $data = json_decode(trim($raw), true);
+        $data = self::decode_collect_json($raw);
         if (!is_array($data) || empty($data['ok'])) {
-            self::$lastCollectMeta = array('sudo_ok' => true, 'parse_ok' => false);
+            self::$lastCollectMeta = array(
+                'sudo_ok' => true,
+                'parse_ok' => false,
+                'source' => 'collect_script',
+                'collect_tail' => substr(trim($raw), -400),
+            );
+            return self::maybe_fix_xray_stats_and_retry($script);
+        }
+
+        if (isset($data['_meta']) && is_array($data['_meta'])) {
+            self::$lastCollectMeta = array_merge(array('sudo_ok' => true, 'parse_ok' => true, 'source' => 'collect_script'), $data['_meta']);
+        } else {
+            self::$lastCollectMeta = array('sudo_ok' => true, 'parse_ok' => true, 'source' => 'collect_script');
+        }
+
+        $maps = array(
+            'wireguard' => self::normalize_int_map($data['wireguard'] ?? array()),
+            'amnezia' => self::normalize_int_map($data['amnezia'] ?? array()),
+            'xray' => self::normalize_int_map($data['xray'] ?? array()),
+            'openvpn' => self::normalize_int_map($data['openvpn'] ?? array()),
+            '_connections' => array(
+                'wireguard' => self::normalize_int_map($data['connections']['wireguard'] ?? array()),
+                'amnezia' => self::normalize_int_map($data['connections']['amnezia'] ?? array()),
+                'xray' => self::normalize_int_map($data['connections']['xray'] ?? array()),
+                'openvpn' => self::normalize_int_map($data['connections']['openvpn'] ?? array()),
+            ),
+        );
+
+        $cfgClients = (int) (self::$lastCollectMeta['xray_cfg_clients'] ?? 0);
+        $apiOk = !empty(self::$lastCollectMeta['xray_api_ok']);
+        if ($cfgClients > 0 && !$apiOk && empty(self::$lastCollectMeta['retried'])) {
+            $retry = self::maybe_fix_xray_stats_and_retry($script);
+            if (is_array($retry)) {
+                return $retry;
+            }
+        }
+
+        return $maps;
+    }
+
+    /** @return array<string,array<string,int>>|null */
+    private static function maybe_fix_xray_stats_and_retry($script)
+    {
+        $fix = USK_ROOT . '/bin/xray-fix-stats-api.sh';
+        if (is_file($fix)) {
+            self::shell_with_timeout('sudo -n /bin/bash ' . escapeshellarg($fix) . ' 2>&1', 60);
+        }
+
+        $cmd = 'sudo -n /bin/bash ' . escapeshellarg($script) . ' 2>/dev/null';
+        $raw = self::shell_with_timeout($cmd, 45);
+        if ($raw === '') {
+            return null;
+        }
+        $data = self::decode_collect_json($raw);
+        if (!is_array($data) || empty($data['ok'])) {
             return null;
         }
 
         if (isset($data['_meta']) && is_array($data['_meta'])) {
-            self::$lastCollectMeta = array_merge(array('sudo_ok' => true, 'source' => 'collect_script'), $data['_meta']);
+            self::$lastCollectMeta = array_merge(array('sudo_ok' => true, 'parse_ok' => true, 'source' => 'collect_script', 'retried' => true), $data['_meta']);
         } else {
-            self::$lastCollectMeta = array('sudo_ok' => true, 'source' => 'collect_script');
+            self::$lastCollectMeta = array('sudo_ok' => true, 'parse_ok' => true, 'source' => 'collect_script', 'retried' => true);
         }
 
         return array(
@@ -223,7 +437,104 @@ class USK_ProtocolUsage
             'amnezia' => self::normalize_int_map($data['amnezia'] ?? array()),
             'xray' => self::normalize_int_map($data['xray'] ?? array()),
             'openvpn' => self::normalize_int_map($data['openvpn'] ?? array()),
+            '_connections' => array(
+                'wireguard' => self::normalize_int_map($data['connections']['wireguard'] ?? array()),
+                'amnezia' => self::normalize_int_map($data['connections']['amnezia'] ?? array()),
+                'xray' => self::normalize_int_map($data['connections']['xray'] ?? array()),
+                'openvpn' => self::normalize_int_map($data['connections']['openvpn'] ?? array()),
+            ),
         );
+    }
+
+    /** @return array<string,mixed>|null */
+    private static function decode_collect_json($raw)
+    {
+        $raw = trim((string) $raw);
+        if ($raw === '') {
+            return null;
+        }
+        $data = json_decode($raw, true);
+        if (is_array($data) && !empty($data['ok'])) {
+            return $data;
+        }
+        if (preg_match('/(\{"wireguard".*"ok"\s*:\s*true[^}]*\})\s*$/s', $raw, $m)) {
+            $data = json_decode($m[1], true);
+            if (is_array($data) && !empty($data['ok'])) {
+                return $data;
+            }
+        }
+        if (preg_match('/(\{[^{}]*"ok"\s*:\s*true[^{}]*\})/s', $raw, $m)) {
+            $data = json_decode($m[1], true);
+            if (is_array($data) && !empty($data['ok'])) {
+                return $data;
+            }
+        }
+        $start = strrpos($raw, '{"wireguard"');
+        if ($start === false) {
+            $start = strrpos($raw, '{');
+        }
+        if ($start !== false) {
+            $data = json_decode(substr($raw, $start), true);
+            if (is_array($data) && !empty($data['ok'])) {
+                return $data;
+            }
+        }
+        return null;
+    }
+
+    private static function record_has_usage_bytes(array $rec)
+    {
+        if (!array_key_exists('usage_bytes', $rec)) {
+            return false;
+        }
+        return $rec['usage_bytes'] !== null && $rec['usage_bytes'] !== '';
+    }
+
+    private static function record_usage_bytes(array $rec)
+    {
+        return self::record_has_usage_bytes($rec) ? (int) $rec['usage_bytes'] : 0;
+    }
+
+    /** @return int */
+    private static function merge_usage_bytes($protocol, $prevBytes, $incomingBytes)
+    {
+        $prevBytes = (int) $prevBytes;
+        $incomingBytes = (int) $incomingBytes;
+        if ($protocol === 'xray' && self::xray_traffic_mode_is_delta()) {
+            if ($incomingBytes <= 0) {
+                return $prevBytes;
+            }
+            return $prevBytes + $incomingBytes;
+        }
+        return max($prevBytes, $incomingBytes);
+    }
+
+    private static function xray_traffic_mode_is_delta()
+    {
+        $mode = trim((string) (self::$lastCollectMeta['xray_traffic_mode'] ?? ''));
+        return $mode === 'delta';
+    }
+
+    private static function should_persist_usage(array $rec, $newBytes, $prevBytes)
+    {
+        if (!self::record_has_usage_bytes($rec)) {
+            return true;
+        }
+        if (empty($rec['usage_synced_at'])) {
+            return true;
+        }
+        return (int) $newBytes > (int) $prevBytes;
+    }
+
+    private static function should_persist_connections(array $rec, $newConn, $prevConn)
+    {
+        if (!array_key_exists('active_connections', $rec)) {
+            return true;
+        }
+        if (empty($rec['connections_synced_at'])) {
+            return true;
+        }
+        return (int) $newConn !== (int) $prevConn;
     }
 
     /** @return array<string,int> */
@@ -246,28 +557,101 @@ class USK_ProtocolUsage
     private static function bytes_from_maps($protocol, $username, array $rec, array $maps)
     {
         if ($protocol === 'wireguard') {
-            $pub = $rec['public_key'] ?? ($rec['meta']['public_key'] ?? '');
-            return ($pub !== '' && isset($maps['wireguard'][$pub])) ? (int) $maps['wireguard'][$pub] : null;
+            $pub = self::client_public_key($rec);
+            if ($pub !== '' && array_key_exists($pub, $maps['wireguard'] ?? array())) {
+                return (int) $maps['wireguard'][$pub];
+            }
+            return null;
         }
         if ($protocol === 'amnezia') {
-            $pub = $rec['public_key'] ?? ($rec['meta']['public_key'] ?? '');
-            return ($pub !== '' && isset($maps['amnezia'][$pub])) ? (int) $maps['amnezia'][$pub] : null;
+            $pub = self::client_public_key($rec);
+            if ($pub !== '' && array_key_exists($pub, $maps['amnezia'] ?? array())) {
+                return (int) $maps['amnezia'][$pub];
+            }
+            return null;
         }
         if ($protocol === 'xray') {
-            foreach (self::usage_name_candidates($username, $rec) as $name) {
-                if (isset($maps['xray'][$name])) {
-                    return (int) $maps['xray'][$name];
-                }
-            }
-            return null;
+            return self::lookup_named_map($maps['xray'] ?? array(), $protocol, $username, $rec);
         }
         if ($protocol === 'openvpn') {
-            foreach (self::usage_name_candidates($username, $rec) as $name) {
-                if (array_key_exists($name, $maps['openvpn'])) {
-                    return (int) $maps['openvpn'][$name];
+            return self::lookup_named_map($maps['openvpn'] ?? array(), $protocol, $username, $rec);
+        }
+
+        return null;
+    }
+
+    private static function client_public_key(array $rec)
+    {
+        return trim((string) ($rec['public_key'] ?? ($rec['meta']['public_key'] ?? '')));
+    }
+
+    /** @return int|null */
+    private static function lookup_named_map(array $map, $protocol, $username, array $rec)
+    {
+        if ($map === array()) {
+            return null;
+        }
+        foreach (self::usage_name_candidates($username, $rec) as $name) {
+            if (array_key_exists($name, $map)) {
+                return (int) $map[$name];
+            }
+        }
+        $uuid = trim((string) ($rec['uuid'] ?? ($rec['meta']['uuid'] ?? '')));
+        if ($uuid !== '') {
+            foreach ($map as $key => $val) {
+                $key = (string) $key;
+                if ($key === $uuid || stripos($key, $uuid) !== false) {
+                    return (int) $val;
                 }
             }
-            return null;
+        }
+        $user = trim((string) $username);
+        if ($user !== '') {
+            foreach ($map as $key => $val) {
+                if ((string) $key === $user) {
+                    return (int) $val;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static function connections_from_maps($protocol, $username, array $rec, array $connMaps)
+    {
+        $hasConnData = is_array($connMaps) && $connMaps !== array();
+        if ($protocol === 'wireguard') {
+            $pub = self::client_public_key($rec);
+            if ($pub !== '' && array_key_exists($pub, $connMaps['wireguard'] ?? array())) {
+                return max(0, (int) $connMaps['wireguard'][$pub]);
+            }
+            return $hasConnData ? 0 : null;
+        }
+        if ($protocol === 'amnezia') {
+            $pub = self::client_public_key($rec);
+            if ($pub !== '' && array_key_exists($pub, $connMaps['amnezia'] ?? array())) {
+                return max(0, (int) $connMaps['amnezia'][$pub]);
+            }
+            return $hasConnData ? 0 : null;
+        }
+        if ($protocol === 'xray' || $protocol === 'openvpn') {
+            $sub = $connMaps[$protocol] ?? array();
+            if (!is_array($sub)) {
+                return $hasConnData ? 0 : null;
+            }
+            foreach (self::usage_name_candidates($username, $rec) as $name) {
+                if (array_key_exists($name, $sub)) {
+                    return max(0, (int) $sub[$name]);
+                }
+            }
+            $uuid = trim((string) ($rec['uuid'] ?? ($rec['meta']['uuid'] ?? '')));
+            if ($uuid !== '') {
+                foreach ($sub as $key => $val) {
+                    if ((string) $key === $uuid || stripos((string) $key, $uuid) !== false) {
+                        return max(0, (int) $val);
+                    }
+                }
+            }
+            return $hasConnData ? 0 : null;
         }
 
         return null;
@@ -280,6 +664,8 @@ class USK_ProtocolUsage
             trim((string) $username),
             trim((string) ($rec['username'] ?? '')),
             trim((string) ($rec['email'] ?? '')),
+            trim((string) ($rec['meta']['username'] ?? '')),
+            trim((string) ($rec['meta']['email'] ?? '')),
         );
         $uuid = trim((string) ($rec['uuid'] ?? ($rec['meta']['uuid'] ?? '')));
         if ($uuid !== '') {
@@ -287,6 +673,13 @@ class USK_ProtocolUsage
             $email = self::xray_email_for_uuid($uuid);
             if ($email !== '') {
                 $names[] = $email;
+            }
+        }
+        if (!empty($rec['order_code'])) {
+            $code = trim((string) $rec['order_code']);
+            if ($code !== '') {
+                $names[] = base64_encode($code);
+                $names[] = base64_encode($code) . '_admin';
             }
         }
         $out = array();
@@ -450,12 +843,32 @@ class USK_ProtocolUsage
 
         self::$xrayUuidEmailCache = array();
         $paths = array(
+            USK_ROOT . '/data/clients/xray.json',
             '/usr/local/etc/xray/config.json',
             getenv('XRAY_CFG') ?: '',
         );
         foreach ($paths as $path) {
             $path = trim((string) $path);
             if ($path === '' || !is_readable($path)) {
+                continue;
+            }
+            if (substr($path, -5) === '.json' && strpos($path, 'clients/xray') !== false) {
+                $panel = json_decode((string) file_get_contents($path), true);
+                if (is_array($panel)) {
+                    foreach ($panel as $username => $rec) {
+                        if (!is_array($rec)) {
+                            continue;
+                        }
+                        $id = trim((string) ($rec['uuid'] ?? ($rec['id'] ?? '')));
+                        $email = trim((string) ($rec['email'] ?? $username));
+                        if ($id !== '' && $email !== '') {
+                            self::$xrayUuidEmailCache[$id] = $email;
+                        }
+                    }
+                }
+                if (self::$xrayUuidEmailCache !== array()) {
+                    break;
+                }
                 continue;
             }
             $cfg = json_decode((string) file_get_contents($path), true);

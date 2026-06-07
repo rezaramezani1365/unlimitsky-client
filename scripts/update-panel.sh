@@ -43,7 +43,7 @@ rsync -a --exclude '.git' --exclude 'config.php' --exclude 'install/unlimitsky.i
     "$SRC/" "$WEB_ROOT/"
 
 chmod +x "$WEB_ROOT"/bin/*.sh "$WEB_ROOT"/bin/*.py 2>/dev/null || true
-mkdir -p "$WEB_ROOT/data/backups/tmp" "$WEB_ROOT/data/settings"
+mkdir -p "$WEB_ROOT/data/backups/tmp" "$WEB_ROOT/data/settings" "$WEB_ROOT/data/live"
 chown -R www-data:www-data "$WEB_ROOT"
 chmod -R 775 "$WEB_ROOT/admin/data" "$WEB_ROOT/data" 2>/dev/null || true
 
@@ -59,6 +59,19 @@ else
         echo "[!] ZipArchive missing — install php zip manually if backup export fails."
     fi
     usk_restart_php_fpm 2>/dev/null || true
+fi
+
+if declare -F usk_ensure_usage_cron >/dev/null 2>&1; then
+    usk_ensure_usage_cron "$WEB_ROOT"
+fi
+if declare -F usk_ensure_connections_cron >/dev/null 2>&1; then
+    usk_ensure_connections_cron "$WEB_ROOT"
+fi
+if declare -F usk_ensure_fail2ban_iplimit >/dev/null 2>&1; then
+    usk_ensure_fail2ban_iplimit "$WEB_ROOT"
+fi
+if declare -F usk_ensure_live_stats_daemon >/dev/null 2>&1; then
+    usk_ensure_live_stats_daemon "$WEB_ROOT"
 fi
 
 echo "[*] Done. Open: ${WEB_ROOT%/}/admin/index.php?page=updates"
