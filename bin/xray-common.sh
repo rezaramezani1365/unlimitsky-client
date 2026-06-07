@@ -724,6 +724,7 @@ usk_xray_enforce_slot_limit() {
 usk_xray_rebuild_clients_in_config() {
   local cfg="${1:-$XRAY_CFG}"
   local panel_root="${2:-${PANEL_ROOT:-}}"
+  local force="${3:-0}"
   [ -f "$cfg" ] || return 1
   command -v jq >/dev/null 2>&1 || return 1
   [ -n "$panel_root" ] || panel_root="$(cd "$(dirname "$cfg")/../.." 2>/dev/null && pwd || echo /var/www/unlimitsky)"
@@ -746,8 +747,8 @@ usk_xray_rebuild_clients_in_config() {
     (.[0] | as_map) as $p | (.[1] | as_map) as $r |
     ($p + $r) | to_entries | map(select(.value.status? // "active" == "active")) |
     map({
-      id: (.value.uuid // .value.id // ""),
-      email: (.key),
+      id: (.value.uuid // .value.id // .value.meta.uuid // ""),
+      email: (.value.username // .key // "user"),
       flow: "xtls-rprx-vision",
       level: 0
     }) | map(select(.id != "" and .email != ""))
@@ -763,10 +764,18 @@ usk_xray_rebuild_clients_in_config() {
   if [ "${new_count:-0}" -lt 1 ]; then
     return 1
   fi
-  if [ "${current_count:-0}" -gt 0 ] && [ "${new_count:-0}" -lt "${current_count:-0}" ]; then
+  if [ "$force" != "1" ] && [ "${current_count:-0}" -gt 0 ] && [ "${new_count:-0}" -lt "${current_count:-0}" ]; then
     echo "USK_WARN: rebuild skipped (would remove clients: ${current_count} -> ${new_count})" >&2
     return 1
   fi
+
+  local cfg_clients merged
+  cfg_clients=$(usk_xray_load_clients "$cfg")
+  merged=$(jq -s '
+    def by_id: reduce .[] as $c ({}; if ($c.id // "") != "" then . + {($c.id): $c} else . end);
+    (.[0] | by_id) + (.[1] | by_id) | to_entries | map(.value) | unique_by(.id)
+  ' <(echo "$cfg_clients") <(echo "$clients_json") 2>/dev/null || echo "$clients_json")
+  [ -n "$merged" ] && [ "$merged" != "null" ] && clients_json="$merged"
 
   local tmp
   tmp=$(mktemp)
@@ -782,6 +791,10 @@ usk_xray_rebuild_clients_in_config() {
   mv "$tmp" "$cfg"
   usk_xray_fix_perms "$cfg"
   return 0
+}
+
+usk_xray_force_sync_panel_clients() {
+  usk_xray_rebuild_clients_in_config "${1:-$XRAY_CFG}" "${2:-${PANEL_ROOT:-}}" 1
 }
 
 usk_xray_strip_bad_routing() {

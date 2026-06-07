@@ -86,10 +86,12 @@ if ! usk_xray_verify_or_fail "$XRAY_CFG"; then
   fi
 fi
 
-usk_xray_rebuild_clients_in_config "$XRAY_CFG" "$PANEL_ROOT" 2>/dev/null || true
+usk_xray_rebuild_clients_in_config "$XRAY_CFG" "$PANEL_ROOT" 1 2>/dev/null || true
 source "$DIR/provision-common.sh" 2>/dev/null || true
+usk_xray_clear_slot_iptables "${VLESS_PORT}" 2>/dev/null || true
 REFRESHED=$(usk_xray_refresh_stored_links "$PANEL_ROOT" 2>/dev/null || echo 0)
-echo "USK_INFO: xray_links_refreshed=${REFRESHED:-0}"
+CFG_N=$(jq '[.inbounds[]?|select(.protocol=="vless")|.settings.clients[]?]|length' "$XRAY_CFG" 2>/dev/null || echo 0)
+echo "USK_INFO: xray_links_refreshed=${REFRESHED:-0} config_clients=${CFG_N:-0}"
 
 # shellcheck disable=SC1090
 . "$USK_XRAY_REALITY_FILE"
