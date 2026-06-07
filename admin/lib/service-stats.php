@@ -3,6 +3,7 @@
 require_once __DIR__ . '/service-config-view.php';
 require_once __DIR__ . '/protocols/limits.php';
 require_once __DIR__ . '/protocols/usage.php';
+require_once __DIR__ . '/live-stats.php';
 
 class USK_ServiceStats
 {
@@ -74,7 +75,10 @@ class USK_ServiceStats
             }
         }
 
-        return array('ok' => true, 'items' => $items, 'server_time' => date('c'));
+        return array('ok' => true, 'items' => $items, 'server_time' => date('c'), 'live' => array(
+            'cache_age_sec' => USK_LiveStats::cache_age_sec(),
+            'cache_fresh' => USK_LiveStats::is_fresh(),
+        ));
     }
 
     /** @return array<string, mixed> */
@@ -113,6 +117,10 @@ class USK_ServiceStats
             'active_connections' => (int) ($usage['active_connections'] ?? 0),
             'max_connections' => (int) ($usage['max_connections'] ?? ($view['max_connections'] ?? 1)),
             'server_time' => date('c'),
+            'live' => array(
+                'cache_age_sec' => USK_LiveStats::cache_age_sec(),
+                'cache_fresh' => USK_LiveStats::is_fresh(),
+            ),
         );
     }
 }

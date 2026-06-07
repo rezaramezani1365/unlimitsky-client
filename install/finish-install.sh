@@ -61,6 +61,7 @@ usk_secure_app_files "$WEB_ROOT"
 usk_ensure_usage_cron "$WEB_ROOT"
 usk_ensure_connections_cron "$WEB_ROOT"
 usk_ensure_fail2ban_iplimit "$WEB_ROOT"
+usk_ensure_live_stats_daemon "$WEB_ROOT"
 
 usk_save_credentials "/root/unlimitsky-client.credentials" \
     echo "TYPE=client" \

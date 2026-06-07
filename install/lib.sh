@@ -474,6 +474,50 @@ usk_ensure_fail2ban_iplimit() {
     bash "$script" 30 >> /var/log/unlimitsky-fail2ban-install.log 2>&1 || true
 }
 
+# Background worker — collects VPN stats every ~5s for live admin/portal UI.
+usk_ensure_live_stats_daemon() {
+    local web_root="$1"
+    local daemon="${web_root}/bin/live-stats-daemon.sh"
+    local worker="${web_root}/cron/live-stats-worker.php"
+    [ -f "$daemon" ] || return 0
+    [ -f "$worker" ] || return 0
+
+    mkdir -p "${web_root}/data/live" 2>/dev/null || true
+    touch "${web_root}/data/live/daemon.log" "${web_root}/data/live/worker.log" 2>/dev/null || true
+    chown -R www-data:www-data "${web_root}/data/live" 2>/dev/null || true
+    chmod 775 "${web_root}/data/live" 2>/dev/null || true
+    chmod 664 "${web_root}/data/live/"*.log 2>/dev/null || true
+
+    local unit="/etc/systemd/system/unlimitsky-live-stats.service"
+    local tpl="${web_root}/install/unlimitsky-live-stats.service"
+    if [ -f "$tpl" ]; then
+        sed "s|__WEB_ROOT__|${web_root}|g" "$tpl" > "$unit"
+        chmod 644 "$unit" 2>/dev/null || true
+    else
+        cat > "$unit" <<EOF
+[Unit]
+Description=UnlimitSky live VPN usage & connection stats
+After=network-online.target
+
+[Service]
+Type=simple
+Environment=WEB_ROOT=${web_root}
+Environment=USK_LIVE_STATS_INTERVAL=5
+ExecStart=/bin/bash ${web_root}/bin/live-stats-daemon.sh
+Restart=always
+RestartSec=3
+User=root
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    fi
+
+    systemctl daemon-reload 2>/dev/null || true
+    systemctl enable unlimitsky-live-stats.service >/dev/null 2>&1 || true
+    systemctl restart unlimitsky-live-stats.service 2>/dev/null || true
+}
+
 usk_write_deploy_stamp() {
     local web_root="$1"
     local src_dir="$2"

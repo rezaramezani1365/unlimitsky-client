@@ -75,8 +75,8 @@ if ($returnView > 0) {
 }
 
 try {
-    @set_time_limit(300);
-    @ini_set('max_execution_time', '300');
+    @set_time_limit(30);
+    @ini_set('max_execution_time', '30');
 
     if (!method_exists('USK_ProtocolLimits', 'sync_usage_and_enforce')) {
         throw new RuntimeException('sync_not_available');
@@ -87,12 +87,16 @@ try {
         throw new RuntimeException('sync_empty_report');
     }
 
-    usk_flash(sprintf(
-        __('services_sync_ok'),
-        (int) ($report['usage_updated'] ?? 0),
-        (int) ($report['checked'] ?? 0),
-        (int) ($report['disabled'] ?? 0)
-    ) . usk_services_sync_diag($report));
+    if (!empty($report['queued'])) {
+        usk_flash(__('services_sync_queued'));
+    } else {
+        usk_flash(sprintf(
+            __('services_sync_ok'),
+            (int) ($report['usage_updated'] ?? 0),
+            (int) ($report['checked'] ?? 0),
+            (int) ($report['disabled'] ?? 0)
+        ) . usk_services_sync_diag($report));
+    }
 } catch (Throwable $e) {
     error_log('USK services sync_usage: ' . $e->getMessage());
     usk_flash(__('services_sync_failed'), 'error');

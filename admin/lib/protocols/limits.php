@@ -210,17 +210,26 @@ class USK_ProtocolLimits
         return $report;
     }
 
-    /** Admin button — prefer CLI worker (no PHP-FPM timeout); fallback to in-process. */
+    /** Admin button — background worker (no PHP-FPM timeout / connection reset). */
     public static function sync_usage_and_enforce()
     {
-        $report = self::run_limits_via_cli();
-        if (is_array($report)) {
-            return $report;
-        }
+        require_once __DIR__ . '/../live-stats.php';
+        USK_LiveStats::request_background_sync();
 
-        $report = self::enforce_all();
-        self::save_last_run($report);
-        return $report;
+        $cache = USK_LiveStats::read_cache();
+        $age = USK_LiveStats::cache_age_sec();
+
+        return array(
+            'queued' => true,
+            'usage_updated' => (int) ($cache['usage_updated'] ?? 0),
+            'checked' => 0,
+            'disabled' => 0,
+            'details' => array(),
+            'usage_meta' => is_array($cache['usage_meta'] ?? null) ? $cache['usage_meta'] : array(
+                'source' => 'live_worker',
+                'cache_age_sec' => $age,
+            ),
+        );
     }
 
     /**

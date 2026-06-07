@@ -1,0 +1,16 @@
+[Unit]
+Description=UnlimitSky live VPN usage & connection stats
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=WEB_ROOT=__WEB_ROOT__
+Environment=USK_LIVE_STATS_INTERVAL=5
+ExecStart=/bin/bash __WEB_ROOT__/bin/live-stats-daemon.sh
+Restart=always
+RestartSec=3
+User=root
+
+[Install]
+WantedBy=multi-user.target
