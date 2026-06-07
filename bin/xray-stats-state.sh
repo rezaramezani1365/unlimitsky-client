@@ -36,8 +36,105 @@ usk_xray_statsquery_raw() {
   "$bin" api statsquery --server=127.0.0.1:10085 2>/dev/null || true
 }
 
-# Compute per-email byte deltas from statsquery (Reset=false semantics, like 3x-ui #4202).
-# Sets USK_XRAY_DELTA_JSON and USK_XRAY_GRACE_CONN_JSON (email -> count within grace).
+# Build panel/xray email+uuid pairs list (tab-separated) into $1.
+usk_xray_build_pairs_file() {
+  local pairs_file="$1"
+  local panel_root="${PANEL_ROOT:-$(dirname "$(dirname "${BASH_SOURCE[0]}")")}"
+  local data_root="${DATA_ROOT:-${USK_DATA_ROOT:-/var/lib/unlimitsky}}"
+  : >"$pairs_file"
+  if [ -f "${XRAY_CFG:-}" ]; then
+    jq -r '.inbounds[]? | select(.protocol=="vless") | .settings.clients[]? | (.email // "") + "\t" + (.id // "")' \
+      "$XRAY_CFG" 2>/dev/null >>"$pairs_file" || true
+  fi
+  if [ -f "${data_root}/xray/clients.json" ]; then
+    jq -r '.[]? | (.username // "") + "\t" + (.uuid // "")' \
+      "${data_root}/xray/clients.json" 2>/dev/null >>"$pairs_file" || true
+  fi
+  if [ -f "${panel_root}/data/clients/xray.json" ]; then
+    jq -r '
+      if type == "object" then
+        to_entries[]? | select(.value | type == "object") |
+        ((.key // .value.username // "") | tostring) + "\t" + ((.value.uuid // .value.id // "") | tostring)
+      else empty end
+    ' "${panel_root}/data/clients/xray.json" 2>/dev/null >>"$pairs_file" || true
+  fi
+  sort -u "$pairs_file" -o "$pairs_file" 2>/dev/null || true
+}
+
+usk_xray_expand_map_from_pairs() {
+  local map_json="$1"
+  local pairs_file="$2"
+  if ! command -v jq >/dev/null 2>&1 || [ ! -s "$pairs_file" ]; then
+    echo "${map_json:-{}}"
+    return 0
+  fi
+  jq -nc --argjson m "${map_json:-{}}" --rawfile pairs "$pairs_file" '
+    ($pairs | split("\n") | map(select(length > 0) | split("\t")) |
+     map({email: (.[0] // ""), uuid: (.[1] // "")}) |
+     map(select(.email != ""))) as $rows |
+    reduce $rows[] as $r ($m;
+      ($m[$r.email] // 0) as $v |
+      . + {($r.email): $v} + (if ($r.uuid | length) > 0 then {($r.uuid): $v} else {} end)
+    )
+  ' 2>/dev/null || echo "${map_json:-{}}"
+}
+
+usk_xray_grace_conn_from_state() {
+  local pairs_file="$1"
+  local state_file now_ms grace
+  state_file=$(usk_xray_stats_state_path)
+  now_ms=$(($(date +%s) * 1000))
+  grace="${USK_XRAY_ONLINE_GRACE_MS:-90000}"
+  [ -f "$state_file" ] || { echo '{}'; return 0; }
+  if ! command -v jq >/dev/null 2>&1 || [ ! -s "$pairs_file" ]; then
+    echo '{}'
+    return 0
+  fi
+  jq -nc \
+    --argjson now "$now_ms" \
+    --argjson grace "$grace" \
+    --rawfile pairs "$pairs_file" \
+    --slurpfile st "$state_file" '
+    ($st[0].last_traffic_ms // {}) as $lt |
+    ($pairs | split("\n") | map(select(length > 0) | split("\t")) |
+     map({email: (.[0] // ""), uuid: (.[1] // "")}) | map(select(.email != ""))) as $rows |
+    reduce $rows[] as $r ({};
+      ($lt[$r.email] // 0 | tonumber) as $ts |
+      (if $ts > 0 and ($now - $ts) <= $grace then 1 else 0 end) as $c |
+      . + {($r.email): $c} + (if ($r.uuid | length) > 0 then {($r.uuid): $c} else {} end)
+    )
+  ' 2>/dev/null || echo '{}'
+}
+
+usk_xray_merge_connection_sources() {
+  local access_json="$1"
+  local grace_json="$2"
+  local state_grace_json="$3"
+  local stat_json="$4"
+  local pairs_file="$5"
+  jq -nc \
+    --argjson access "${access_json:-{}}" \
+    --argjson grace "${grace_json:-{}}" \
+    --argjson state_grace "${state_grace_json:-{}}" \
+    --argjson stat "${stat_json:-{}}" \
+    --rawfile pairs "$pairs_file" '
+    ($pairs | split("\n") | map(select(length > 0) | split("\t")) |
+     map({email: (.[0] // ""), uuid: (.[1] // "")}) | map(select(.email != ""))) as $rows |
+    reduce $rows[] as $r ({};
+      ($r.email) as $e |
+      ($r.uuid) as $u |
+      (
+        if (($access[$e] // 0) | tonumber) > 0 then ($access[$e] | tonumber)
+        elif (($stat[$e] // 0) | tonumber) > 0 then ($stat[$e] | tonumber)
+        elif (($state_grace[$e] // 0) | tonumber) > 0 then 1
+        elif (($grace[$e] // 0) | tonumber) > 0 then 1
+        else 0 end
+      ) as $cnt |
+      . + {($e): $cnt} + (if ($u | length) > 0 then {($u): $cnt} else {} end)
+    )
+  ' 2>/dev/null || echo '{}'
+}
+
 usk_xray_apply_traffic_deltas() {
   local raw="$1"
   USK_XRAY_DELTA_JSON='{}'
@@ -71,13 +168,15 @@ usk_xray_apply_traffic_deltas() {
       ($acc.counters[$name] // null) as $prev |
       ($acc.counters + {($name): $cur}) as $next_counters |
       if ($name | test("^user>>>[^>]+>>>traffic>>>")) then
+        ($name | capture("^user>>>(?<email>[^>]+)>>>traffic>>>")) as $cap |
         if ($prev != null and $cur >= $prev and ($cur - $prev) > 0) then
-          ($name | capture("^user>>>(?<email>[^>]+)>>>traffic>>>")) as $cap |
           ($acc.deltas[$cap.email] // 0) as $old |
           $acc
           | .deltas += {($cap.email): ($old + ($cur - $prev))}
           | .counters = $next_counters
           | .traffic_ms += {($cap.email): $now}
+        elif ($cur > 0) then
+          $acc | .counters = $next_counters | .traffic_ms += {($cap.email): $now}
         else
           $acc | .counters = $next_counters
         end
@@ -127,7 +226,6 @@ usk_xray_stats_prime_once() {
   USK_XRAY_STATS_PRIMED=1
 }
 
-# Count distinct source IPs per email from Xray access log (3x-ui IP-limit data source).
 usk_xray_access_log_ip_counts() {
   local log
   log=$(usk_xray_access_log_path "$XRAY_CFG")
@@ -135,22 +233,21 @@ usk_xray_access_log_ip_counts() {
     echo '{}'
     return 0
   fi
-  if ! command -v jq >/dev/null 2>&1; then
+  if [ ! -s "$log" ]; then
     echo '{}'
     return 0
   fi
 
   tail -n "$USK_XRAY_ACCESS_TAIL_LINES" "$log" 2>/dev/null | awk '
-    /email:/ && / from / {
+    /email:/ && / from / && /accepted/ {
       email = ""
       ip = ""
       for (i = 1; i <= NF; i++) {
-        if ($i == "email:" && (i + 1) <= NF) {
-          email = $(i + 1)
-        }
+        if ($i == "email:" && (i + 1) <= NF) email = $(i + 1)
         if ($i == "from" && (i + 1) <= NF) {
           split($(i + 1), parts, ":")
           ip = parts[1]
+          gsub(/^\[/, "", ip)
         }
       }
       if (email != "" && ip ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/) {
@@ -172,39 +269,6 @@ usk_xray_access_log_ip_counts() {
       }
       printf "}"
     }'
-}
-
-# Merge delta totals, grace online (0/1), and access-log IP counts into connection map.
-usk_xray_build_connections_map() {
-  local grace_json="$1"
-  local access_json="$2"
-  local pairs_file="$3"
-
-  if ! command -v jq >/dev/null 2>&1; then
-    echo '{}'
-    return 0
-  fi
-
-  jq -nc \
-    --argjson grace "${grace_json:-{}}" \
-    --argjson access "${access_json:-{}}" \
-    --rawfile pairs "$pairs_file" '
-    def pair_lines:
-      ($pairs | split("\n") | map(select(length > 0)) |
-       map(split("\t") | {email: .[0], uuid: (.[1] // "")}));
-    reduce pair_lines[] as $p (
-      {};
-      . as $m |
-      ($p.email) as $e |
-      ($p.uuid) as $u |
-      (
-        if ($access[$e] // 0) > 0 then ($access[$e] | tonumber)
-        elif ($grace[$e] // 0) > 0 then 1
-        else 0 end
-      ) as $cnt |
-      $m + {($e): $cnt} + (if ($u | length) > 0 then {($u): $cnt} else {} end)
-    )
-  ' 2>/dev/null || echo '{}'
 }
 
 usk_xray_access_log_ip_counts_for_email() {

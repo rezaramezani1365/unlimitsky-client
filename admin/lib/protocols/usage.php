@@ -355,7 +355,7 @@ class USK_ProtocolUsage
             return null;
         }
 
-        $cmd = 'sudo -n /bin/bash ' . escapeshellarg($script) . ' 2>&1';
+        $cmd = 'sudo -n /bin/bash ' . escapeshellarg($script) . ' 2>/dev/null';
         $raw = self::shell_with_timeout($cmd, 45);
         if ($raw === '') {
             self::$lastCollectMeta = array(
@@ -366,12 +366,7 @@ class USK_ProtocolUsage
             return null;
         }
 
-        $data = json_decode(trim($raw), true);
-        if (!is_array($data) || empty($data['ok'])) {
-            if (preg_match('/(\{.*\})/s', $raw, $jm)) {
-                $data = json_decode($jm[1], true);
-            }
-        }
+        $data = self::decode_collect_json($raw);
         if (!is_array($data) || empty($data['ok'])) {
             self::$lastCollectMeta = array(
                 'sudo_ok' => true,
@@ -379,16 +374,13 @@ class USK_ProtocolUsage
                 'source' => 'collect_script',
                 'collect_tail' => substr(trim($raw), -400),
             );
-            if (stripos($raw, 'password') !== false || stripos($raw, 'sudo:') !== false) {
-                self::$lastCollectMeta['sudo_ok'] = false;
-            }
             return self::maybe_fix_xray_stats_and_retry($script);
         }
 
         if (isset($data['_meta']) && is_array($data['_meta'])) {
-            self::$lastCollectMeta = array_merge(array('sudo_ok' => true, 'source' => 'collect_script'), $data['_meta']);
+            self::$lastCollectMeta = array_merge(array('sudo_ok' => true, 'parse_ok' => true, 'source' => 'collect_script'), $data['_meta']);
         } else {
-            self::$lastCollectMeta = array('sudo_ok' => true, 'source' => 'collect_script');
+            self::$lastCollectMeta = array('sudo_ok' => true, 'parse_ok' => true, 'source' => 'collect_script');
         }
 
         $maps = array(
@@ -424,23 +416,20 @@ class USK_ProtocolUsage
             self::shell_with_timeout('sudo -n /bin/bash ' . escapeshellarg($fix) . ' 2>&1', 60);
         }
 
-        $cmd = 'sudo -n /bin/bash ' . escapeshellarg($script) . ' 2>&1';
+        $cmd = 'sudo -n /bin/bash ' . escapeshellarg($script) . ' 2>/dev/null';
         $raw = self::shell_with_timeout($cmd, 45);
         if ($raw === '') {
             return null;
         }
-        $data = json_decode(trim($raw), true);
-        if (!is_array($data) && preg_match('/(\{.*"ok"\s*:\s*true.*\})/s', $raw, $m)) {
-            $data = json_decode($m[1], true);
-        }
+        $data = self::decode_collect_json($raw);
         if (!is_array($data) || empty($data['ok'])) {
             return null;
         }
 
         if (isset($data['_meta']) && is_array($data['_meta'])) {
-            self::$lastCollectMeta = array_merge(array('sudo_ok' => true, 'source' => 'collect_script', 'retried' => true), $data['_meta']);
+            self::$lastCollectMeta = array_merge(array('sudo_ok' => true, 'parse_ok' => true, 'source' => 'collect_script', 'retried' => true), $data['_meta']);
         } else {
-            self::$lastCollectMeta['retried'] = true;
+            self::$lastCollectMeta = array('sudo_ok' => true, 'parse_ok' => true, 'source' => 'collect_script', 'retried' => true);
         }
 
         return array(
@@ -455,6 +444,42 @@ class USK_ProtocolUsage
                 'openvpn' => self::normalize_int_map($data['connections']['openvpn'] ?? array()),
             ),
         );
+    }
+
+    /** @return array<string,mixed>|null */
+    private static function decode_collect_json($raw)
+    {
+        $raw = trim((string) $raw);
+        if ($raw === '') {
+            return null;
+        }
+        $data = json_decode($raw, true);
+        if (is_array($data) && !empty($data['ok'])) {
+            return $data;
+        }
+        if (preg_match('/(\{"wireguard".*"ok"\s*:\s*true[^}]*\})\s*$/s', $raw, $m)) {
+            $data = json_decode($m[1], true);
+            if (is_array($data) && !empty($data['ok'])) {
+                return $data;
+            }
+        }
+        if (preg_match('/(\{[^{}]*"ok"\s*:\s*true[^{}]*\})/s', $raw, $m)) {
+            $data = json_decode($m[1], true);
+            if (is_array($data) && !empty($data['ok'])) {
+                return $data;
+            }
+        }
+        $start = strrpos($raw, '{"wireguard"');
+        if ($start === false) {
+            $start = strrpos($raw, '{');
+        }
+        if ($start !== false) {
+            $data = json_decode(substr($raw, $start), true);
+            if (is_array($data) && !empty($data['ok'])) {
+                return $data;
+            }
+        }
+        return null;
     }
 
     private static function record_has_usage_bytes(array $rec)

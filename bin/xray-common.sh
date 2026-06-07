@@ -828,14 +828,26 @@ usk_xray_strip_bad_routing() {
   usk_xray_fix_perms "$cfg"
 }
 
+usk_xray_fix_access_log_perms() {
+  local log_path="$1"
+  local dir
+  [ -n "$log_path" ] || return 0
+  dir=$(dirname "$log_path")
+  mkdir -p "$dir" 2>/dev/null || true
+  touch "$log_path" 2>/dev/null || true
+  chmod 777 "$dir" 2>/dev/null || true
+  chmod 666 "$log_path" 2>/dev/null || true
+  chown nobody:nogroup "$log_path" 2>/dev/null || chown nobody:nobody "$log_path" 2>/dev/null || true
+  chown nobody:nogroup "$dir" 2>/dev/null || chown nobody:nobody "$dir" 2>/dev/null || true
+}
+
 usk_xray_ensure_access_log() {
   local cfg="$1"
   [ -f "$cfg" ] || return 1
   command -v jq >/dev/null 2>&1 || return 1
   local root="${DATA_ROOT:-${USK_DATA_ROOT:-/var/lib/unlimitsky}}"
   local log_path="${root}/xray/access.log"
-  mkdir -p "$(dirname "$log_path")" 2>/dev/null || true
-  touch "$log_path" 2>/dev/null || true
+  usk_xray_fix_access_log_perms "$log_path"
   local tmp
   tmp=$(mktemp)
   if ! jq --arg ap "$log_path" '
@@ -846,7 +858,7 @@ usk_xray_ensure_access_log() {
   fi
   mv "$tmp" "$cfg"
   usk_xray_fix_perms "$cfg"
-  usk_xray_fix_perms "$log_path" 2>/dev/null || true
+  usk_xray_fix_access_log_perms "$log_path"
 }
 
 usk_xray_ensure_stats_policy() {

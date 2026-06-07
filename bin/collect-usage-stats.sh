@@ -1,6 +1,6 @@
 #!/bin/bash
 # Collect live VPN traffic counters (run as root via sudo from panel).
-set -uo pipefail
+set -uo
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
@@ -73,14 +73,9 @@ wg_map_json() {
 }
 
 xray_map_json() {
-  local bin raw map='{}'
+  local bin map='{}' pairs_file
   bin=$(usk_xray_bin 2>/dev/null || command -v xray 2>/dev/null || true)
-  if [ -z "$bin" ] || [ ! -x "$bin" ]; then
-    echo '{}'
-    return 0
-  fi
-
-  if ! command -v jq >/dev/null 2>&1; then
+  if [ -z "$bin" ] || [ ! -x "$bin" ] || ! command -v jq >/dev/null 2>&1; then
     echo '{}'
     return 0
   fi
@@ -88,38 +83,11 @@ xray_map_json() {
   usk_xray_stats_prime_once
   map="${USK_XRAY_DELTA_JSON:-{}}"
 
-  local pairs_file uuid_map_file tmp_map
   pairs_file=$(mktemp)
-  uuid_map_file=$(mktemp)
-  : >"$pairs_file"
-  : >"$uuid_map_file"
-
-  if [ -f "$XRAY_CFG" ]; then
-    jq -r '.inbounds[]? | select(.protocol=="vless") | .settings.clients[]? | (.email // "") + "\t" + (.id // "")' \
-      "$XRAY_CFG" 2>/dev/null >>"$pairs_file" || true
-  fi
-  if [ -f "${DATA_ROOT}/xray/clients.json" ]; then
-    jq -r '.[]? | (.username // "") + "\t" + (.uuid // "")' \
-      "${DATA_ROOT}/xray/clients.json" 2>/dev/null >>"$pairs_file" || true
-  fi
-  usk_append_xray_pairs_from_panel "$pairs_file"
-  sort -u "$pairs_file" -o "$pairs_file" 2>/dev/null || true
-
-  tmp_map="$map"
-  while IFS=$'\t' read -r email uuid; do
-    email=$(echo "$email" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-    uuid=$(echo "$uuid" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-    [ -z "$email" ] && continue
-    local b
-    b=$(echo "$tmp_map" | jq -r --arg e "$email" '.[$e] // 0' 2>/dev/null || echo 0)
-    tmp_map=$(echo "$tmp_map" | jq -c --arg e "$email" '. + {($e): (.[$e] // 0)}' 2>/dev/null || echo "$tmp_map")
-    if [ -n "$uuid" ]; then
-      tmp_map=$(echo "$tmp_map" | jq -c --arg u "$uuid" --argjson b "${b:-0}" '. + {($u): $b}' 2>/dev/null || echo "$tmp_map")
-    fi
-  done <"$pairs_file"
-
-  rm -f "$pairs_file" "$uuid_map_file"
-  echo "$tmp_map"
+  usk_xray_build_pairs_file "$pairs_file"
+  map=$(usk_xray_expand_map_from_pairs "$map" "$pairs_file")
+  rm -f "$pairs_file"
+  echo "$map"
 }
 
 openvpn_map_json() {
@@ -213,13 +181,9 @@ wg_connections_map_json() {
 }
 
 xray_connections_map_json() {
-  local bin raw grace_json access_json pairs_file map
+  local bin grace_json access_json state_grace stat_json pairs_file map
   bin=$(usk_xray_bin 2>/dev/null || command -v xray 2>/dev/null || true)
-  if [ -z "$bin" ] || [ ! -x "$bin" ]; then
-    echo '{}'
-    return 0
-  fi
-  if ! command -v jq >/dev/null 2>&1; then
+  if [ -z "$bin" ] || [ ! -x "$bin" ] || ! command -v jq >/dev/null 2>&1; then
     echo '{}'
     return 0
   fi
@@ -227,25 +191,11 @@ xray_connections_map_json() {
   usk_xray_stats_prime_once
   grace_json="${USK_XRAY_GRACE_CONN_JSON:-{}}"
   access_json=$(usk_xray_access_log_ip_counts)
-
   pairs_file=$(mktemp)
-  : >"$pairs_file"
-  if [ -f "$XRAY_CFG" ]; then
-    jq -r '.inbounds[]? | select(.protocol=="vless") | .settings.clients[]? | (.email // "") + "\t" + (.id // "")' \
-      "$XRAY_CFG" 2>/dev/null >>"$pairs_file" || true
-  fi
-  if [ -f "${DATA_ROOT}/xray/clients.json" ]; then
-    jq -r '.[]? | (.username // "") + "\t" + (.uuid // "")' \
-      "${DATA_ROOT}/xray/clients.json" 2>/dev/null >>"$pairs_file" || true
-  fi
-  usk_append_xray_pairs_from_panel "$pairs_file"
-  sort -u "$pairs_file" -o "$pairs_file" 2>/dev/null || true
+  usk_xray_build_pairs_file "$pairs_file"
+  state_grace=$(usk_xray_grace_conn_from_state "$pairs_file")
 
-  map=$(usk_xray_build_connections_map "$grace_json" "$access_json" "$pairs_file")
-
-  # Fallback: statsonline only when access log and grace both empty for known emails.
-  local email cnt stat_map='{}'
-  stat_map=$("$bin" api statsonline --server=127.0.0.1:10085 2>/dev/null | jq -c '
+  stat_json=$("$bin" api statsonline --server=127.0.0.1:10085 2>/dev/null | jq -c '
     (.users // {}) | if type == "object" then
       to_entries | map({key: .key, value: (
         if (.value | type) == "array" then (.value | length)
@@ -255,24 +205,7 @@ xray_connections_map_json() {
     else {} end
   ' 2>/dev/null || echo '{}')
 
-  while IFS=$'\t' read -r email uuid; do
-    email=$(echo "$email" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-    uuid=$(echo "$uuid" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-    [ -z "$email" ] && continue
-    cnt=$(echo "$map" | jq -r --arg e "$email" '.[$e] // 0' 2>/dev/null || echo 0)
-    if [ "${cnt:-0}" -eq 0 ] 2>/dev/null; then
-      cnt=$(echo "$stat_map" | jq -r --arg e "$email" '.[$e] // 0' 2>/dev/null || echo 0)
-      if [ "${cnt:-0}" -eq 0 ] 2>/dev/null; then
-        cnt=$(usk_xray_user_online_count "$email")
-      fi
-      map=$(echo "$map" | jq -c --arg e "$email" --argjson c "${cnt:-0}" '. + {($e): $c}' 2>/dev/null || echo "$map")
-    fi
-    if [ -n "$uuid" ]; then
-      cnt=$(echo "$map" | jq -r --arg e "$email" '.[$e] // 0' 2>/dev/null || echo 0)
-      map=$(echo "$map" | jq -c --arg u "$uuid" --argjson c "${cnt:-0}" '. + {($u): $c}' 2>/dev/null || echo "$map")
-    fi
-  done <"$pairs_file"
-
+  map=$(usk_xray_merge_connection_sources "$access_json" "$grace_json" "$state_grace" "$stat_json" "$pairs_file")
   rm -f "$pairs_file"
   echo "$map"
 }
@@ -348,11 +281,14 @@ if [ -f "$XRAY_CFG" ] && command -v jq >/dev/null 2>&1; then
   XRAY_CFG_EMAILS=$(jq '[.inbounds[]? | select(.protocol=="vless") | .settings.clients[]?] | length' "$XRAY_CFG" 2>/dev/null || echo 0)
 fi
 XRAY_ACCESS_LOG_OK=0
+XRAY_ACCESS_LOG_BYTES=0
 _xray_access_log=$(usk_xray_access_log_path "$XRAY_CFG" 2>/dev/null || true)
 if [ -n "$_xray_access_log" ] && [ -r "$_xray_access_log" ]; then
   XRAY_ACCESS_LOG_OK=1
+  XRAY_ACCESS_LOG_BYTES=$(wc -c <"$_xray_access_log" 2>/dev/null || echo 0)
 fi
 
+_out_tmp=$(mktemp)
 if command -v jq >/dev/null 2>&1; then
   jq -nc \
     --argjson wireguard "$WG_JSON" \
@@ -371,6 +307,7 @@ if command -v jq >/dev/null 2>&1; then
     --argjson xray_cfg_clients "$XRAY_CFG_EMAILS" \
     --argjson xray_api_ok "$XRAY_API_OK" \
     --argjson xray_access_log_ok "$XRAY_ACCESS_LOG_OK" \
+    --argjson xray_access_log_bytes "$XRAY_ACCESS_LOG_BYTES" \
     '{
       wireguard: $wireguard,
       amnezia: $amnezia,
@@ -393,9 +330,16 @@ if command -v jq >/dev/null 2>&1; then
         xray_cfg_clients: $xray_cfg_clients,
         xray_api_ok: ($xray_api_ok == 1),
         xray_traffic_mode: "delta",
-        xray_access_log_ok: ($xray_access_log_ok == 1)
+        xray_access_log_ok: ($xray_access_log_ok == 1),
+        xray_access_log_bytes: ($xray_access_log_bytes | tonumber)
       }
-    }'
+    }' >"$_out_tmp" 2>/dev/null || true
+  if [ -s "$_out_tmp" ]; then
+    cat "$_out_tmp"
+  else
+    printf '{"ok":false,"error":"json_build_failed"}\n'
+  fi
+  rm -f "$_out_tmp"
 else
   printf '{"wireguard":%s,"amnezia":%s,"xray":%s,"openvpn":%s,"ok":true}\n' \
     "$WG_JSON" "$AWG_JSON" "$XRAY_JSON" "$OVPN_JSON"
