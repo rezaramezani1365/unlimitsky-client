@@ -156,6 +156,7 @@
   "home_install_db": "Install database",
   "home_tagline": "VPN reseller panel — connect your WooCommerce store",
   "login_failed": "Invalid username or password",
+  "login_username_note": "Enter the username you set in panel Settings — it may not be admin.",
   "login_locked": "Too many attempts. Try again in a few minutes.",
   "minutes": "min",
   "must_change_pass": "Please change the default password in Settings.",

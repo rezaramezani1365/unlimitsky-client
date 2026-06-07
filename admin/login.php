@@ -72,8 +72,11 @@ $dir = usk_dir();
                 <label class="form-label"><?= __('username') ?></label>
                 <div class="input-group">
                     <span class="input-group-text bg-transparent border-secondary"><i class="fa-solid fa-user"></i></span>
-                    <input class="form-control" type="text" name="username" required autofocus value="admin">
+                    <input class="form-control" type="text" name="username" required autofocus autocomplete="username"
+                        value="<?= usk_esc(trim($_POST['username'] ?? '')) ?>"
+                        placeholder="<?= usk_esc(__('username')) ?>">
                 </div>
+                <p class="form-text text-muted small mb-0"><?= __('login_username_note') ?></p>
             </div>
             <div class="mb-4">
                 <label class="form-label"><?= __('password') ?></label>
