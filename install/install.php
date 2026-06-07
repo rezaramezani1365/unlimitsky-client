@@ -198,7 +198,13 @@ if (!defined('USK_ROOT')) {
 }
 require_once $root . '/admin/lib/auth.php';
 require_once $root . '/admin/lib/license.php';
-USK_Admin_Auth::create_from_install($admin_user, $admin_pass, $lang, $must_change);
+if (!USK_Admin_Auth::create_from_install($admin_user, $admin_pass, $lang, $must_change)) {
+    usk_install_message(
+        $lang === 'en' ? '<h2>Could not create admin user</h2><p>Check MySQL and panel_admin table.</p>' : '<h2>ساخت کاربر admin ناموفق</h2><p>MySQL و جدول panel_admin را بررسی کنید.</p>',
+        false,
+        $lang
+    );
+}
 USK_License::register_with_vendor();
 
 $install_data = array(

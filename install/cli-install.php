@@ -136,7 +136,10 @@ if (!defined('USK_ROOT')) {
 }
 require_once $root . '/admin/lib/auth.php';
 require_once $root . '/admin/lib/license.php';
-USK_Admin_Auth::create_from_install($admin_user, $admin_pass, $lang, $must_change);
+if (!USK_Admin_Auth::create_from_install($admin_user, $admin_pass, $lang, $must_change)) {
+    fwrite(STDERR, "Failed to create panel admin user — check MySQL connection and panel_admin table.\n");
+    exit(1);
+}
 USK_License::register_with_vendor();
 
 $install_data = array(
