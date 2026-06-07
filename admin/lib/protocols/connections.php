@@ -31,4 +31,29 @@ class USK_ProtocolConnections
         $max = (int) ($rec['max_connections'] ?? ($rec['meta']['max_connections'] ?? 1));
         return max(1, min(99, $max));
     }
+
+    public static function last_run_file()
+    {
+        return USK_ROOT . '/data/clients/connections-last-run.json';
+    }
+
+    public static function save_last_run(array $report)
+    {
+        $dir = USK_ROOT . '/data/clients';
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+        $report['ran_at'] = date('c');
+        file_put_contents(self::last_run_file(), json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+    }
+
+    public static function get_last_run()
+    {
+        $f = self::last_run_file();
+        if (!is_file($f)) {
+            return null;
+        }
+        $data = json_decode((string) file_get_contents($f), true);
+        return is_array($data) ? $data : null;
+    }
 }

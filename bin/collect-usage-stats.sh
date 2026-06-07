@@ -208,6 +208,142 @@ openvpn_map_json() {
   echo "$map"
 }
 
+# Active session count maps (parallel to byte maps).
+wg_connections_map_json() {
+  local iface="$1"
+  local cmd="$2"
+  local now grace=180
+  now=$(date +%s)
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    echo '{}'
+    return 0
+  fi
+  if ! "$cmd" show "$iface" >/dev/null 2>&1; then
+    echo '{}'
+    return 0
+  fi
+  "$cmd" show "$iface" dump 2>/dev/null | awk -F'\t' -v now="$now" -v grace="$grace" '
+    NF >= 7 && $1 != "" {
+      hs = $5 + 0
+      if (hs > 0 && (now - hs) <= grace) data[$1] = 1
+    }
+    END {
+      printf "{"
+      first = 1
+      for (k in data) {
+        if (!first) printf ","
+        first = 0
+        gsub(/"/, "\\\"", k)
+        printf "\"%s\":1", k
+      }
+      printf "}"
+    }'
+}
+
+xray_connections_map_json() {
+  local bin raw map='{}'
+  bin=$(usk_xray_bin 2>/dev/null || command -v xray 2>/dev/null || true)
+  if [ -z "$bin" ] || [ ! -x "$bin" ]; then
+    echo '{}'
+    return 0
+  fi
+  if ! command -v jq >/dev/null 2>&1; then
+    echo '{}'
+    return 0
+  fi
+
+  raw=$("$bin" api statsonline --server=127.0.0.1:10085 2>/dev/null || true)
+  if [ -n "$raw" ]; then
+    map=$(echo "$raw" | jq -c '
+      (.users // {}) |
+      if type == "object" then
+        to_entries | map({
+          key: .key,
+          value: (
+            if (.value | type) == "array" then (.value | length)
+            elif (.value | type) == "object" then (.value | keys | length)
+            elif (.value | type) == "string" then 1
+            else (if .value then 1 else 0 end)
+          )
+        }) | from_entries
+      else {} end
+    ' 2>/dev/null || echo '{}')
+  fi
+
+  local pairs_file uuid_map_file email
+  pairs_file=$(mktemp)
+  uuid_map_file=$(mktemp)
+  : >"$pairs_file"
+  : >"$uuid_map_file"
+  if [ -f "$XRAY_CFG" ]; then
+    jq -r '.inbounds[]? | select(.protocol=="vless") | .settings.clients[]? | (.email // "") + "\t" + (.id // "")' \
+      "$XRAY_CFG" 2>/dev/null >>"$pairs_file" || true
+  fi
+  if [ -f "${DATA_ROOT}/xray/clients.json" ]; then
+    jq -r '.[]? | (.username // "") + "\t" + (.uuid // "")' \
+      "${DATA_ROOT}/xray/clients.json" 2>/dev/null >>"$pairs_file" || true
+  fi
+  sort -u "$pairs_file" -o "$pairs_file" 2>/dev/null || true
+  while IFS=$'\t' read -r email uuid; do
+    email=$(echo "$email" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    uuid=$(echo "$uuid" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    [ -z "$email" ] && continue
+    local cnt
+    cnt=$(echo "$map" | jq -r --arg e "$email" '.[$e] // empty' 2>/dev/null || true)
+    if [ -z "$cnt" ] || [ "${cnt:-0}" -eq 0 ] 2>/dev/null; then
+      cnt=$(usk_xray_user_online_count "$email")
+      map=$(echo "$map" | jq -c --arg e "$email" --argjson c "${cnt:-0}" '. + {($e): $c}' 2>/dev/null || echo "$map")
+    fi
+    if [ -n "$uuid" ]; then
+      cnt=$(echo "$map" | jq -r --arg e "$email" '.[$e] // 0' 2>/dev/null || echo 0)
+      map=$(echo "$map" | jq -c --arg u "$uuid" --argjson c "${cnt:-0}" '. + {($u): $c}' 2>/dev/null || echo "$map")
+    fi
+  done <"$pairs_file"
+  rm -f "$pairs_file" "$uuid_map_file"
+  echo "$map"
+}
+
+openvpn_connections_map_json() {
+  local args=() f
+  while IFS= read -r f; do
+    [ -n "$f" ] && args+=("$f")
+  done < <(usk_openvpn_discover_status_files 2>/dev/null || true)
+
+  if [ "${#args[@]}" -eq 0 ]; then
+    for f in \
+      "${OVPN_STATUS_DIR}/openvpn-udp-status.log" \
+      "${OVPN_STATUS_DIR}/openvpn-tcp-status.log" \
+      "${OVPN_STATUS_DIR}/openvpn-status.log" \
+      "/run/openvpn-server/status.log"; do
+      [ -r "$f" ] && args+=("$f")
+    done
+  fi
+
+  if [ "${#args[@]}" -eq 0 ]; then
+    echo '{}'
+    return 0
+  fi
+
+  awk -F',' '
+    /^CLIENT_LIST,/ {
+      user = $2
+      gsub(/^ +| +$/, "", user)
+      if (user == "" || user == "Common Name") next
+      c[user]++
+    }
+    END {
+      printf "{"
+      first = 1
+      for (u in c) {
+        if (!first) printf ","
+        first = 0
+        gsub(/"/, "\\\"", u)
+        printf "\"%s\":%d", u, c[u]
+      }
+      printf "}"
+    }' "${args[@]}" 2>/dev/null || echo '{}'
+}
+
 OVPN_STATUS_FILES=0
 while IFS= read -r _ovpn_f; do
   [ -n "$_ovpn_f" ] && OVPN_STATUS_FILES=$((OVPN_STATUS_FILES + 1))
@@ -217,6 +353,10 @@ WG_JSON=$(wg_map_json wg0 wg)
 AWG_JSON=$(wg_map_json awg0 awg)
 XRAY_JSON=$(xray_map_json)
 OVPN_JSON=$(openvpn_map_json)
+WG_CONN_JSON=$(wg_connections_map_json wg0 wg)
+AWG_CONN_JSON=$(wg_connections_map_json awg0 awg)
+XRAY_CONN_JSON=$(xray_connections_map_json)
+OVPN_CONN_JSON=$(openvpn_connections_map_json)
 
 XRAY_CFG_EMAILS=0
 XRAY_API_OK=0
@@ -234,6 +374,10 @@ if command -v jq >/dev/null 2>&1; then
     --argjson amnezia "$AWG_JSON" \
     --argjson xray "$XRAY_JSON" \
     --argjson openvpn "$OVPN_JSON" \
+    --argjson wg_conn "$WG_CONN_JSON" \
+    --argjson awg_conn "$AWG_CONN_JSON" \
+    --argjson xray_conn "$XRAY_CONN_JSON" \
+    --argjson ovpn_conn "$OVPN_CONN_JSON" \
     --argjson wg_peers "$(count_json_keys "$WG_JSON")" \
     --argjson awg_peers "$(count_json_keys "$AWG_JSON")" \
     --argjson xray_users "$(count_json_keys "$XRAY_JSON")" \
@@ -246,6 +390,12 @@ if command -v jq >/dev/null 2>&1; then
       amnezia: $amnezia,
       xray: $xray,
       openvpn: $openvpn,
+      connections: {
+        wireguard: $wg_conn,
+        amnezia: $awg_conn,
+        xray: $xray_conn,
+        openvpn: $ovpn_conn
+      },
       ok: true,
       collected_at: (now | todate),
       _meta: {

@@ -120,7 +120,13 @@ $lastSync = USK_ProtocolLimits::get_last_run();
             <?php endif; ?>
             </p>
         <?php endif; ?>
-        <?php if (!empty($client['max_connections'])) : ?>
+        <?php if ($usageStats && !empty($usageStats['connections_tracked'])) : ?>
+            <p><strong><?= __('services_connections_col') ?>:</strong>
+                <span id="usk-detail-connections-text" class="<?= !empty($usageStats['connections_near_limit']) ? 'text-danger' : (!empty($usageStats['connections_warning']) ? 'text-warning' : '') ?>">
+                <?= usk_esc((string) ($usageStats['connections_display'] ?? '')) ?> <?= __('plan_connections_unit') ?>
+                </span>
+            </p>
+        <?php elseif (!empty($client['max_connections'])) : ?>
             <p><strong><?= __('portal_max_connections') ?>:</strong> <?= (int) $client['max_connections'] ?> <?= __('plan_connections_unit') ?></p>
         <?php endif; ?>
         <?php if (($client['status'] ?? '') === 'expired' || ($client['status'] ?? '') === 'volume_exceeded') : ?>
@@ -284,6 +290,7 @@ $lastSync = USK_ProtocolLimits::get_last_run();
                     <th><?= __('server') ?></th>
                     <th><?= __('volume') ?>/<?= __('duration') ?></th>
                     <th><?= __('traffic_used') ?></th>
+                    <th><?= __('services_connections_col') ?></th>
                     <th><?= __('status') ?></th>
                     <th><?= __('portal_customer_link') ?></th>
                     <th></th>
@@ -291,7 +298,7 @@ $lastSync = USK_ProtocolLimits::get_last_run();
             </thead>
             <tbody>
             <?php if ($list_count === 0) : ?>
-                <tr><td colspan="7" class="text-muted text-center py-4"><?= __('services_empty') ?></td></tr>
+                <tr><td colspan="8" class="text-muted text-center py-4"><?= __('services_empty') ?></td></tr>
             <?php endif; ?>
             <?php while ($r = $list->fetch_assoc()) :
                 $row = usk_service_list_row($r);
@@ -310,6 +317,13 @@ $lastSync = USK_ProtocolLimits::get_last_run();
                                     <div class="progress-bar<?= (float) $row['usage_percent'] >= 90 ? ' bg-danger' : ((float) $row['usage_percent'] >= 70 ? ' bg-warning' : '') ?>" style="width:<?= min(100, (float) $row['usage_percent']) ?>%"></div>
                                 </div>
                             </div>
+                        <?php else : ?>
+                            <span class="text-muted">—</span>
+                        <?php endif; ?>
+                    </td>
+                    <td class="usk-live-connections" data-usk-code="<?= usk_esc($row['code']) ?>">
+                        <?php if ($row['connections_display'] !== null) : ?>
+                            <span class="small<?= !empty($row['connections_near_limit']) ? ' text-danger fw-semibold' : (!empty($row['connections_warning']) ? ' text-warning' : '') ?>"><?= usk_esc($row['connections_display']) ?></span>
                         <?php else : ?>
                             <span class="text-muted">—</span>
                         <?php endif; ?>
@@ -350,6 +364,7 @@ $lastSync = USK_ProtocolLimits::get_last_run();
 .usk-service-search-item:hover { background: rgba(255,255,255,0.03); }
 .usk-usage-progress { height: 6px; background: var(--usk-surface-3, #252b3a); }
 .usk-usage-cell { min-width: 120px; }
+.usk-connections-cell { min-width: 72px; white-space: nowrap; }
 </style>
 <script>
 (function () {
@@ -366,6 +381,7 @@ $lastSync = USK_ProtocolLimits::get_last_run();
         min: <?= json_encode(__('services_search_min_chars'), JSON_UNESCAPED_UNICODE) ?>,
         view: <?= json_encode(__('services_search_view'), JSON_UNESCAPED_UNICODE) ?>,
         usage: <?= json_encode(__('traffic_used'), JSON_UNESCAPED_UNICODE) ?>,
+        connections: <?= json_encode(__('services_connections_col'), JSON_UNESCAPED_UNICODE) ?>,
         days: <?= json_encode(__('days'), JSON_UNESCAPED_UNICODE) ?>,
         unlimited: <?= json_encode(__('plan_unlimited'), JSON_UNESCAPED_UNICODE) ?>,
     };
@@ -384,6 +400,12 @@ $lastSync = USK_ProtocolLimits::get_last_run();
             + '<div class="progress-bar' + barCls + '" style="width:' + p + '%"></div></div>';
     }
 
+    function renderConnectionsLine(item) {
+        if (!item.connections_display) return '';
+        var cls = item.connections_near_limit ? 'text-danger fw-semibold' : (item.connections_warning ? 'text-warning' : '');
+        return '<div class="small mb-2"><strong>' + esc(i18n.connections) + ':</strong> <span' + (cls ? ' class="' + cls + '"' : '') + '>' + esc(item.connections_display) + '</span></div>';
+    }
+
     function renderItem(item) {
         var proto = item.protocol && item.protocol !== 'null' ? ' · ' + esc(item.protocol) : '';
         var volGb = parseInt(item.volume, 10);
@@ -400,6 +422,7 @@ $lastSync = USK_ProtocolLimits::get_last_run();
             + '</div>'
             + '<div class="small text-muted mb-1">' + esc(item.location) + proto + ' · ' + vol + '</div>'
             + '<div class="small mb-2"><strong>' + esc(i18n.usage) + ':</strong> ' + esc(item.usage_display) + renderProgress(item.usage_percent) + '</div>'
+            + renderConnectionsLine(item)
             + '<a class="btn btn-sm btn-usk-primary" href="' + esc(item.view_url) + '"><i class="fa-solid fa-eye"></i> ' + esc(i18n.view) + '</a>'
             + portal
             + '</div>';
@@ -496,6 +519,16 @@ function uskSyncUsageSubmit(form) {
             + '<div class="progress-bar' + barCls + '" style="width:' + p + '%"></div></div>';
     }
 
+    function renderConnectionsCell(item) {
+        if (!item.connections_display) {
+            return '<span class="text-muted">—</span>';
+        }
+        var cls = 'small usk-connections-cell';
+        if (item.connections_near_limit) cls += ' text-danger fw-semibold';
+        else if (item.connections_warning) cls += ' text-warning';
+        return '<span class="' + cls + '">' + esc(item.connections_display) + '</span>';
+    }
+
     function renderUsageCell(item) {
         if (item.usage_needs_sync) {
             return '<span class="small text-warning">' + esc(i18n.pending) + '</span>';
@@ -522,10 +555,19 @@ function uskSyncUsageSubmit(form) {
         if (cell && item) {
             cell.innerHTML = renderUsageCell(item);
         }
+        var connCell = document.querySelector('.usk-live-connections[data-usk-code="' + code + '"]');
+        if (connCell && item) {
+            connCell.innerHTML = renderConnectionsCell(item);
+        }
         if (detailCode && detailCode === code && item) {
             var txt = document.getElementById('usk-detail-usage-text');
             if (txt && !item.usage_needs_sync && item.used_gb != null) {
                 txt.textContent = item.used_gb + ' GB / ' + item.limit_gb + ' GB (' + i18n.left + ': ' + (item.remaining_gb != null ? item.remaining_gb : '0') + ' GB)';
+            }
+            var connTxt = document.getElementById('usk-detail-connections-text');
+            if (connTxt && item.connections_display) {
+                connTxt.textContent = item.connections_display + ' ' + <?= json_encode(__('plan_connections_unit'), JSON_UNESCAPED_UNICODE) ?>;
+                connTxt.className = item.connections_near_limit ? 'text-danger fw-semibold' : (item.connections_warning ? 'text-warning' : '');
             }
             var synced = document.getElementById('usk-detail-synced-at');
             if (synced && item.synced_at) {

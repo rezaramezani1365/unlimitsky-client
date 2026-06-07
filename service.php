@@ -126,9 +126,23 @@ function portal_esc($s)
                 <div class="small text-muted mt-1" id="portal-usage-live-hint"><i class="fa-solid fa-signal"></i> <?= portal_esc(__('portal_stats_live')) ?></div>
                 <?php endif; ?>
             </div>
-            <div class="portal-stat">
+            <div class="portal-stat" id="portal-connections-block"
+                 data-stats-url="<?= portal_esc(($scriptDir === '' || $scriptDir === '.') ? '/portal-stats.php' : ($scriptDir . '/portal-stats.php')) ?>"
+                 data-code="<?= portal_esc($view['order']['code'] ?? '') ?>"
+                 data-token="<?= portal_esc($token) ?>"
+                 data-live="<?= !empty($usage['connections_tracked']) ? '1' : '0' ?>">
                 <div class="label"><?= portal_esc(__('portal_max_connections')) ?></div>
-                <div class="value"><?= (int) ($view['max_connections'] ?? 1) ?> <?= portal_esc(__('plan_connections_unit')) ?></div>
+                <div class="value" id="portal-connections-value"><?php
+                    $usageConn = $usage ?? array();
+                    if (!empty($usageConn['connections_tracked']) && !empty($usageConn['connections_display'])) {
+                        echo portal_esc((string) $usageConn['connections_display']) . ' ' . portal_esc(__('plan_connections_unit'));
+                    } else {
+                        echo (int) ($view['max_connections'] ?? 1) . ' ' . portal_esc(__('plan_connections_unit'));
+                    }
+                ?></div>
+                <?php if (!empty($usage['connections_tracked'])) : ?>
+                <div class="small text-muted mt-1"><i class="fa-solid fa-signal"></i> <?= portal_esc(__('portal_connections_live')) ?></div>
+                <?php endif; ?>
             </div>
             <div class="portal-stat">
                 <div class="label"><?= portal_esc(__('duration')) ?></div>
@@ -326,7 +340,8 @@ function portal_esc($s)
             })
                 .then(function (r) { return r.json(); })
                 .then(function (data) {
-                    if (!data || !data.ok || data.needs_sync) return;
+                    if (!data || !data.ok) return;
+                    if (data.needs_sync) return;
                     if (bar && data.percent != null) {
                         bar.style.width = Math.min(100, Math.max(0, Number(data.percent) || 0)) + '%';
                     }
@@ -340,6 +355,34 @@ function portal_esc($s)
         setInterval(refreshPortalUsage, 60000);
         document.addEventListener('visibilitychange', function () {
             if (!document.hidden) refreshPortalUsage();
+        });
+    }
+
+    var connBlock = document.getElementById('portal-connections-block');
+    if (connBlock && connBlock.getAttribute('data-live') === '1') {
+        var connStatsUrl = connBlock.getAttribute('data-stats-url');
+        var connCode = connBlock.getAttribute('data-code');
+        var connToken = connBlock.getAttribute('data-token');
+        var connValue = document.getElementById('portal-connections-value');
+        var connUnit = <?= json_encode(__('plan_connections_unit'), JSON_UNESCAPED_UNICODE) ?>;
+        function refreshPortalConnections() {
+            if (!connStatsUrl || !connCode || !connToken || !connValue) return;
+            fetch(connStatsUrl + '?code=' + encodeURIComponent(connCode) + '&t=' + encodeURIComponent(connToken), {
+                headers: { 'Accept': 'application/json' },
+                credentials: 'same-origin',
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (!data || !data.ok || !data.connections_display) return;
+                    connValue.textContent = data.connections_display + ' ' + connUnit;
+                    connValue.className = 'value' + (data.connections_near_limit ? ' text-danger' : (data.connections_warning ? ' text-warning' : ''));
+                })
+                .catch(function () {});
+        }
+        refreshPortalConnections();
+        setInterval(refreshPortalConnections, 60000);
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden) refreshPortalConnections();
         });
     }
 })();

@@ -186,6 +186,9 @@ function usk_service_list_row(array $order)
     $usageDisplay = '—';
     $usagePercent = null;
     $usageNeedsSync = false;
+    $connectionsDisplay = null;
+    $connectionsNearLimit = false;
+    $connectionsWarning = false;
     if ($usage && $volumeGb > 0) {
         if (!empty($usage['needs_sync'])) {
             $usageDisplay = __('services_usage_pending');
@@ -197,6 +200,12 @@ function usk_service_list_row(array $order)
     } elseif ($volumeGb > 0 && in_array((string) ($order['protocol'] ?? ''), array('wireguard', 'openvpn', 'xray'), true)) {
         $usageDisplay = __('services_usage_pending');
         $usageNeedsSync = true;
+    }
+
+    if ($usage && !empty($usage['connections_tracked'])) {
+        $connectionsDisplay = (string) ($usage['connections_display'] ?? '');
+        $connectionsNearLimit = !empty($usage['connections_near_limit']);
+        $connectionsWarning = !empty($usage['connections_warning']);
     }
 
     return array(
@@ -217,6 +226,11 @@ function usk_service_list_row(array $order)
         'usage_display' => $usageDisplay,
         'usage_percent' => $usagePercent,
         'usage_needs_sync' => $usageNeedsSync,
+        'connections_display' => $connectionsDisplay,
+        'connections_near_limit' => $connectionsNearLimit,
+        'connections_warning' => $connectionsWarning,
+        'active_connections' => $usage ? (int) ($usage['active_connections'] ?? 0) : 0,
+        'max_connections' => $usage ? (int) ($usage['max_connections'] ?? 1) : 1,
         'row_class' => in_array($status, array('expired', 'volume_exceeded'), true) ? 'table-warning' : '',
     );
 }

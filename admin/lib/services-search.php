@@ -74,6 +74,9 @@ class USK_ServicesSearch
             'usage_percent' => $row['usage_percent'],
             'used_gb' => $usage ? (float) ($usage['used_gb'] ?? 0) : null,
             'remaining_gb' => $usage ? $usage['remaining_gb'] : null,
+            'connections_display' => $row['connections_display'],
+            'connections_near_limit' => $row['connections_near_limit'],
+            'connections_warning' => $row['connections_warning'],
             'view_url' => $row['view_url'],
             'portal_url' => $row['portal_url'],
         );

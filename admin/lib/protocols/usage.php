@@ -70,6 +70,12 @@ class USK_ProtocolUsage
         $metered = in_array($protocol, array('wireguard', 'openvpn', 'xray'), true);
         $syncedAt = trim((string) ($rec['usage_synced_at'] ?? ($rec['meta']['usage_synced_at'] ?? '')));
 
+        require_once __DIR__ . '/connections.php';
+        $maxConn = USK_ProtocolConnections::max_connections_for($rec);
+        $activeConn = max(0, (int) ($rec['active_connections'] ?? ($rec['meta']['active_connections'] ?? 0)));
+        $connSyncedAt = trim((string) ($rec['connections_synced_at'] ?? ($rec['meta']['connections_synced_at'] ?? '')));
+        $connTracked = in_array($protocol, array('wireguard', 'openvpn', 'xray'), true);
+
         return array(
             'tracked' => $metered,
             'needs_sync' => $metered && $syncedAt === '' && $volumeGb > 0,
@@ -81,6 +87,13 @@ class USK_ProtocolUsage
             'percent' => $percent,
             'exceeded' => $limitBytes > 0 && $usedBytes >= $limitBytes,
             'used_label' => USK_ProtocolLimits::format_bytes($usedBytes),
+            'max_connections' => $maxConn,
+            'active_connections' => $activeConn,
+            'connections_synced_at' => $connSyncedAt,
+            'connections_tracked' => $connTracked,
+            'connections_display' => $connTracked ? ($activeConn . ' / ' . $maxConn) : null,
+            'connections_near_limit' => $connTracked && $activeConn >= $maxConn,
+            'connections_warning' => $connTracked && $maxConn > 0 && $activeConn >= max(1, $maxConn - 1) && $activeConn < $maxConn,
         );
     }
 
@@ -96,9 +109,11 @@ class USK_ProtocolUsage
             'xray' => count($maps['xray'] ?? array()),
             'openvpn' => count($maps['openvpn'] ?? array()),
         );
+        $connMaps = $maps['_connections'] ?? array();
 
         $updated = 0;
         $synced = 0;
+        $connUpdated = 0;
         foreach (array('wireguard', 'openvpn', 'xray', 'l2tp', 'cisco') as $protocol) {
             $clients = USK_ProtocolLimits::load_protocol_clients($protocol);
             $changed = false;
@@ -116,6 +131,16 @@ class USK_ProtocolUsage
                     $newBytes = (int) $ovpn['usage_bytes'];
                     $clients[$username]['usage_bytes'] = $newBytes;
                     $clients[$username]['ovpn_session_bytes'] = (int) $ovpn['ovpn_session_bytes'];
+                    $connActive = self::connections_from_maps($protocol, $username, $rec, $connMaps);
+                    if ($connActive !== null) {
+                        $prevConn = (int) ($rec['active_connections'] ?? 0);
+                        $clients[$username]['active_connections'] = $connActive;
+                        $clients[$username]['connections_synced_at'] = date('c');
+                        if ($connActive !== $prevConn || empty($rec['connections_synced_at'])) {
+                            $changed = true;
+                            $connUpdated++;
+                        }
+                    }
                     if ($newBytes !== $prev) {
                         $clients[$username]['usage_synced_at'] = date('c');
                         $changed = true;
@@ -148,6 +173,16 @@ class USK_ProtocolUsage
                     $changed = true;
                     $synced++;
                 }
+                $connActive = self::connections_from_maps($protocol, $username, $rec, $connMaps);
+                if ($connActive !== null) {
+                    $prevConn = (int) ($rec['active_connections'] ?? 0);
+                    if ($connActive !== $prevConn || empty($rec['connections_synced_at'])) {
+                        $clients[$username]['active_connections'] = $connActive;
+                        $clients[$username]['connections_synced_at'] = date('c');
+                        $changed = true;
+                        $connUpdated++;
+                    }
+                }
             }
             if ($changed) {
                 USK_ProtocolLimits::save_protocol_clients($protocol, $clients);
@@ -155,6 +190,7 @@ class USK_ProtocolUsage
         }
 
         self::$lastCollectMeta['usage_synced'] = $synced;
+        self::$lastCollectMeta['connections_synced'] = $connUpdated;
         self::$batchCache = null;
         return $updated;
     }
@@ -223,6 +259,12 @@ class USK_ProtocolUsage
             'amnezia' => self::normalize_int_map($data['amnezia'] ?? array()),
             'xray' => self::normalize_int_map($data['xray'] ?? array()),
             'openvpn' => self::normalize_int_map($data['openvpn'] ?? array()),
+            '_connections' => array(
+                'wireguard' => self::normalize_int_map($data['connections']['wireguard'] ?? array()),
+                'amnezia' => self::normalize_int_map($data['connections']['amnezia'] ?? array()),
+                'xray' => self::normalize_int_map($data['connections']['xray'] ?? array()),
+                'openvpn' => self::normalize_int_map($data['connections']['openvpn'] ?? array()),
+            ),
         );
     }
 
@@ -268,6 +310,34 @@ class USK_ProtocolUsage
                 }
             }
             return null;
+        }
+
+        return null;
+    }
+
+    private static function connections_from_maps($protocol, $username, array $rec, array $connMaps)
+    {
+        if ($protocol === 'wireguard') {
+            $pub = $rec['public_key'] ?? ($rec['meta']['public_key'] ?? '');
+            if ($pub !== '' && isset($connMaps['wireguard'][$pub])) {
+                return max(0, (int) $connMaps['wireguard'][$pub]);
+            }
+            return isset($connMaps['wireguard']) ? 0 : null;
+        }
+        if ($protocol === 'amnezia') {
+            $pub = $rec['public_key'] ?? ($rec['meta']['public_key'] ?? '');
+            if ($pub !== '' && isset($connMaps['amnezia'][$pub])) {
+                return max(0, (int) $connMaps['amnezia'][$pub]);
+            }
+            return isset($connMaps['amnezia']) ? 0 : null;
+        }
+        if ($protocol === 'xray' || $protocol === 'openvpn') {
+            foreach (self::usage_name_candidates($username, $rec) as $name) {
+                if (isset($connMaps[$protocol][$name])) {
+                    return max(0, (int) $connMaps[$protocol][$name]);
+                }
+            }
+            return isset($connMaps[$protocol]) ? 0 : null;
         }
 
         return null;

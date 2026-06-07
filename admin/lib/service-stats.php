@@ -35,6 +35,11 @@ class USK_ServiceStats
             'badge_class' => $row['badge_class'],
             'badge_label' => $row['badge_label'],
             'tracked' => !empty($usage['tracked']),
+            'connections_display' => $row['connections_display'],
+            'connections_near_limit' => !empty($row['connections_near_limit']),
+            'connections_warning' => !empty($row['connections_warning']),
+            'active_connections' => (int) ($usage['active_connections'] ?? 0),
+            'max_connections' => (int) ($usage['max_connections'] ?? 1),
         );
     }
 
@@ -102,6 +107,11 @@ class USK_ServiceStats
             'needs_sync' => !empty($usage['needs_sync']),
             'synced_at' => (string) ($usage['synced_at'] ?? ''),
             'tracked' => !empty($usage['tracked']),
+            'connections_display' => (string) ($usage['connections_display'] ?? ''),
+            'connections_near_limit' => !empty($usage['connections_near_limit']),
+            'connections_warning' => !empty($usage['connections_warning']),
+            'active_connections' => (int) ($usage['active_connections'] ?? 0),
+            'max_connections' => (int) ($usage['max_connections'] ?? ($view['max_connections'] ?? 1)),
             'server_time' => date('c'),
         );
     }
