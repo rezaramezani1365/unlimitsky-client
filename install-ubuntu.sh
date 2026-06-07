@@ -113,6 +113,7 @@ if [ "$AUTO" -eq 1 ] && usk_panel_is_installed "$WEB_ROOT"; then
     usk_ensure_php_zip || true
     usk_secure_app_files "$WEB_ROOT"
     usk_ensure_web_update_sudoers "$WEB_ROOT"
+    usk_ensure_usage_cron "$WEB_ROOT"
     usk_restart_php_fpm
     DEPLOY_REV=""
     [ -f "$WEB_ROOT/admin/data/.deploy-rev" ] && DEPLOY_REV="$(head -1 "$WEB_ROOT/admin/data/.deploy-rev" | cut -c1-12)"
@@ -270,6 +271,7 @@ file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_S
     usk_secure_app_files "$WEB_ROOT"
 
     usk_ensure_web_update_sudoers "$WEB_ROOT"
+    usk_ensure_usage_cron "$WEB_ROOT"
 
     usk_save_credentials "$CREDS_FILE" \
         echo "TYPE=client" \

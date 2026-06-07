@@ -73,6 +73,7 @@ if ($filter === 'active') {
 $list = $sql->query("SELECT * FROM `orders` WHERE $where ORDER BY `row` DESC LIMIT 200");
 $list_count = $list ? $list->num_rows : 0;
 $search_base = usk_admin_base() . '/services-search.php';
+$stats_base = usk_admin_base() . '/service-stats.php';
 $sync_action = usk_admin_base() . '/services-action.php';
 $lastSync = USK_ProtocolLimits::get_last_run();
 ?>
@@ -105,13 +106,19 @@ $lastSync = USK_ProtocolLimits::get_last_run();
         <?php endif; ?>
         <?php if ($usageStats && (int) ($s['volume'] ?? 0) > 0) : ?>
             <p><strong><?= __('traffic_used') ?>:</strong>
+                <span id="usk-detail-usage-text">
                 <?= usk_esc((string) ($usageStats['used_gb'] ?? 0)) ?> GB
                 / <?= usk_esc($s['volume']) ?> GB
                 (<?= usk_esc(__('portal_left')) ?>: <?= usk_esc((string) ($usageStats['remaining_gb'] ?? 0)) ?> GB)
+                </span>
             </p>
+            <p class="text-muted small mb-0" id="usk-detail-synced-at">
             <?php if (!empty($client['usage_synced_at'])) : ?>
-                <p class="text-muted small mb-0"><?= sprintf(__('services_usage_synced_at'), usk_esc(USK_ProtocolLimits::format_last_run_at($client['usage_synced_at']))) ?></p>
+                <?= sprintf(__('services_usage_synced_at'), usk_esc(USK_ProtocolLimits::format_last_run_at($client['usage_synced_at']))) ?>
+            <?php else : ?>
+                <?= usk_esc(__('stats_live_hint')) ?>
             <?php endif; ?>
+            </p>
         <?php endif; ?>
         <?php if (!empty($client['max_connections'])) : ?>
             <p><strong><?= __('portal_max_connections') ?>:</strong> <?= (int) $client['max_connections'] ?> <?= __('plan_connections_unit') ?></p>
@@ -268,7 +275,8 @@ $lastSync = USK_ProtocolLimits::get_last_run();
         <div class="usk-service-search-results d-none" id="uskServiceSearchResults" aria-live="polite"></div>
     </div>
 
-    <div class="table-responsive">
+    <div class="table-responsive" id="usk-services-live" data-stats-endpoint="<?= usk_esc($stats_base) ?>">
+        <p class="text-muted small mb-2"><i class="fa-solid fa-signal"></i> <?= __('stats_live_hint') ?></p>
         <table class="table table-sm">
             <thead>
                 <tr>
@@ -288,11 +296,11 @@ $lastSync = USK_ProtocolLimits::get_last_run();
             <?php while ($r = $list->fetch_assoc()) :
                 $row = usk_service_list_row($r);
             ?>
-                <tr class="<?= usk_esc($row['row_class']) ?>">
+                <tr class="<?= usk_esc($row['row_class']) ?>" data-usk-code="<?= usk_esc($row['code']) ?>">
                     <td><code class="usk-code"><?= usk_esc($row['code']) ?></code></td>
                     <td><?= usk_esc($row['location']) ?></td>
                     <td><?= usk_esc(usk_format_plan_limits($row['volume'], $row['date'])) ?></td>
-                    <td>
+                    <td class="usk-live-usage" data-usk-code="<?= usk_esc($row['code']) ?>">
                         <?php if (!empty($row['usage_needs_sync'])) : ?>
                             <span class="small text-warning"><?= usk_esc($row['usage_display']) ?></span>
                         <?php elseif ($row['usage_percent'] !== null) : ?>
@@ -462,4 +470,105 @@ function uskSyncUsageSubmit(form) {
     }
     return true;
 }
+
+(function () {
+    var root = document.getElementById('usk-services-live');
+    var detailCode = <?= json_encode(!empty($s) && !empty($usageStats) && (int) ($s['volume'] ?? 0) > 0 ? (string) ($s['code'] ?? '') : '') ?>;
+    var endpoint = root ? root.getAttribute('data-stats-endpoint') : <?= json_encode($stats_base, JSON_UNESCAPED_UNICODE) ?>;
+    if (!endpoint) return;
+
+    var i18n = {
+        pending: <?= json_encode(__('services_usage_pending'), JSON_UNESCAPED_UNICODE) ?>,
+        left: <?= json_encode(__('portal_left'), JSON_UNESCAPED_UNICODE) ?>,
+        synced: <?= json_encode(__('services_usage_synced_at'), JSON_UNESCAPED_UNICODE) ?>,
+    };
+
+    function esc(s) {
+        var d = document.createElement('div');
+        d.textContent = s == null ? '' : String(s);
+        return d.innerHTML;
+    }
+
+    function progressBar(percent) {
+        var p = Math.min(100, Math.max(0, Number(percent) || 0));
+        var barCls = p >= 90 ? ' bg-danger' : (p >= 70 ? ' bg-warning' : '');
+        return '<div class="progress usk-usage-progress mt-1" role="progressbar" aria-valuenow="' + p + '">'
+            + '<div class="progress-bar' + barCls + '" style="width:' + p + '%"></div></div>';
+    }
+
+    function renderUsageCell(item) {
+        if (item.usage_needs_sync) {
+            return '<span class="small text-warning">' + esc(i18n.pending) + '</span>';
+        }
+        if (item.usage_percent == null) {
+            return '<span class="text-muted">—</span>';
+        }
+        return '<div class="usk-usage-cell"><span class="small">' + esc(item.usage_display) + '</span>' + progressBar(item.usage_percent) + '</div>';
+    }
+
+    function formatSyncedAt(iso) {
+        if (!iso) return '';
+        try {
+            var d = new Date(iso);
+            if (isNaN(d.getTime())) return iso;
+            return d.toLocaleString();
+        } catch (e) {
+            return iso;
+        }
+    }
+
+    function applyItem(code, item) {
+        var cell = document.querySelector('.usk-live-usage[data-usk-code="' + code + '"]');
+        if (cell && item) {
+            cell.innerHTML = renderUsageCell(item);
+        }
+        if (detailCode && detailCode === code && item) {
+            var txt = document.getElementById('usk-detail-usage-text');
+            if (txt && !item.usage_needs_sync && item.used_gb != null) {
+                txt.textContent = item.used_gb + ' GB / ' + item.limit_gb + ' GB (' + i18n.left + ': ' + (item.remaining_gb != null ? item.remaining_gb : '0') + ' GB)';
+            }
+            var synced = document.getElementById('usk-detail-synced-at');
+            if (synced && item.synced_at) {
+                synced.textContent = i18n.synced.replace('%s', formatSyncedAt(item.synced_at));
+            }
+        }
+    }
+
+    function collectCodes() {
+        var codes = [];
+        if (detailCode) {
+            codes.push(detailCode);
+        }
+        if (root) {
+            root.querySelectorAll('tr[data-usk-code]').forEach(function (tr) {
+                var c = tr.getAttribute('data-usk-code');
+                if (c && codes.indexOf(c) === -1) codes.push(c);
+            });
+        }
+        return codes;
+    }
+
+    function refreshStats() {
+        var codes = collectCodes();
+        if (!codes.length) return;
+        fetch(endpoint + '?codes=' + encodeURIComponent(codes.join(',')), {
+            credentials: 'same-origin',
+            headers: { 'Accept': 'application/json' },
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data || !data.ok || !data.items) return;
+                Object.keys(data.items).forEach(function (code) {
+                    applyItem(code, data.items[code]);
+                });
+            })
+            .catch(function () {});
+    }
+
+    refreshStats();
+    setInterval(refreshStats, 30000);
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) refreshStats();
+    });
+})();
 </script>

@@ -58,6 +58,7 @@ php "$WEB_ROOT/install/cli-install.php" \
     $MC_FLAG
 
 usk_secure_app_files "$WEB_ROOT"
+usk_ensure_usage_cron "$WEB_ROOT"
 
 usk_save_credentials "/root/unlimitsky-client.credentials" \
     echo "TYPE=client" \

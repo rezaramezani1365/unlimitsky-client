@@ -114,12 +114,16 @@ function portal_esc($s)
                     }
                 ?></div>
             </div>
-            <div class="portal-stat">
+            <div class="portal-stat" id="portal-usage-block"
+                 data-stats-url="<?= portal_esc(($scriptDir === '' || $scriptDir === '.') ? '/portal-stats.php' : ($scriptDir . '/portal-stats.php')) ?>"
+                 data-code="<?= portal_esc($view['order']['code'] ?? '') ?>"
+                 data-token="<?= portal_esc($token) ?>">
                 <div class="label"><?= portal_esc(__('volume')) ?></div>
                 <div class="value"><?= (int) ($view['volume_gb'] ?? 0) ?> GB</div>
                 <?php if (($view['volume_gb'] ?? 0) > 0) : ?>
-                <div class="portal-progress"><div class="portal-progress-bar" style="width:<?= min(100, (float) ($usage['percent'] ?? 0)) ?>%"></div></div>
-                <div class="small text-muted mt-1"><?= portal_esc(__('portal_used')) ?>: <?= portal_esc((string) ($usage['used_gb'] ?? 0)) ?> GB · <?= portal_esc(__('portal_left')) ?>: <?= portal_esc((string) ($usage['remaining_gb'] ?? 0)) ?> GB</div>
+                <div class="portal-progress"><div class="portal-progress-bar" id="portal-usage-bar" style="width:<?= min(100, (float) ($usage['percent'] ?? 0)) ?>%"></div></div>
+                <div class="small text-muted mt-1" id="portal-usage-text"><?= portal_esc(__('portal_used')) ?>: <?= portal_esc((string) ($usage['used_gb'] ?? 0)) ?> GB · <?= portal_esc(__('portal_left')) ?>: <?= portal_esc((string) ($usage['remaining_gb'] ?? 0)) ?> GB</div>
+                <div class="small text-muted mt-1" id="portal-usage-live-hint"><i class="fa-solid fa-signal"></i> <?= portal_esc(__('portal_stats_live')) ?></div>
                 <?php endif; ?>
             </div>
             <div class="portal-stat">
@@ -303,6 +307,40 @@ function portal_esc($s)
     var linkEl = document.getElementById('portal-primary-link');
     if (qrCanvas && linkEl && typeof QRCode !== 'undefined') {
         QRCode.toCanvas(qrCanvas, linkEl.value, { width: 220, margin: 2 }, function () {});
+    }
+
+    var usageLive = document.getElementById('portal-usage-block');
+    if (usageLive) {
+        var statsUrl = usageLive.getAttribute('data-stats-url');
+        var pCode = usageLive.getAttribute('data-code');
+        var pToken = usageLive.getAttribute('data-token');
+        var bar = document.getElementById('portal-usage-bar');
+        var usageText = document.getElementById('portal-usage-text');
+        var usedLbl = <?= json_encode(__('portal_used'), JSON_UNESCAPED_UNICODE) ?>;
+        var leftLbl = <?= json_encode(__('portal_left'), JSON_UNESCAPED_UNICODE) ?>;
+        function refreshPortalUsage() {
+            if (!statsUrl || !pCode || !pToken) return;
+            fetch(statsUrl + '?code=' + encodeURIComponent(pCode) + '&t=' + encodeURIComponent(pToken), {
+                headers: { 'Accept': 'application/json' },
+                credentials: 'same-origin',
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (!data || !data.ok || data.needs_sync) return;
+                    if (bar && data.percent != null) {
+                        bar.style.width = Math.min(100, Math.max(0, Number(data.percent) || 0)) + '%';
+                    }
+                    if (usageText && data.used_gb != null) {
+                        usageText.textContent = usedLbl + ': ' + data.used_gb + ' GB · ' + leftLbl + ': ' + (data.remaining_gb != null ? data.remaining_gb : '0') + ' GB';
+                    }
+                })
+                .catch(function () {});
+        }
+        refreshPortalUsage();
+        setInterval(refreshPortalUsage, 60000);
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden) refreshPortalUsage();
+        });
     }
 })();
 </script>

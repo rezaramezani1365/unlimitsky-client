@@ -61,6 +61,10 @@ else
     usk_restart_php_fpm 2>/dev/null || true
 fi
 
+if declare -F usk_ensure_usage_cron >/dev/null 2>&1; then
+    usk_ensure_usage_cron "$WEB_ROOT"
+fi
+
 echo "[*] Done. Open: ${WEB_ROOT%/}/admin/index.php?page=updates"
 echo "    Backup page: ${WEB_ROOT%/}/admin/index.php?page=backup"
 echo "    Health:      ${WEB_ROOT%/}/admin/check.php"

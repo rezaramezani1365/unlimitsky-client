@@ -52,6 +52,7 @@ if [ -f "$LIB" ]; then
     # shellcheck source=/dev/null
     source "$LIB"
     usk_ensure_web_update_sudoers "$WEB_ROOT"
+    usk_ensure_usage_cron "$WEB_ROOT"
 fi
 
 echo "[*] Panel update complete ($COMMIT)"

@@ -166,13 +166,14 @@ unset($_pk, $s);
     <div class="usk-card-header"><?= __('limits_cron_title') ?></div>
     <div class="p-3 text-muted small">
         <p><?= __('limits_cron_intro') ?></p>
+        <p class="alert alert-usk-info small py-2 px-3 mb-2"><?= __('limits_cron_auto_note') ?></p>
         <ul>
             <li><?= __('limits_cron_expiry') ?></li>
             <li><?= __('limits_cron_volume') ?></li>
             <li><?= __('limits_cron_connections') ?></li>
         </ul>
         <p class="text-muted small"><?= __('limits_cron_manual_note') ?></p>
-        <pre class="usk-code p-2" style="white-space:pre-wrap;direction:ltr;text-align:left">*/15 * * * * php <?= usk_esc(USK_ROOT) ?>/cron/native-limits.php >> /var/log/unlimitsky-limits.log 2>&1</pre>
+        <pre class="usk-code p-2" style="white-space:pre-wrap;direction:ltr;text-align:left">*/2 * * * * php <?= usk_esc(USK_ROOT) ?>/cron/native-limits.php >> /var/log/unlimitsky-limits.log 2>&1</pre>
         <pre class="usk-code p-2 mt-2" style="white-space:pre-wrap;direction:ltr;text-align:left">www-data ALL=(root) NOPASSWD: /bin/bash <?= usk_esc(USK_ROOT) ?>/bin/disable-user-*.sh *
 www-data ALL=(root) NOPASSWD: /bin/bash <?= usk_esc(USK_ROOT) ?>/bin/enable-user-*.sh *
 www-data ALL=(root) NOPASSWD: /bin/bash <?= usk_esc(USK_ROOT) ?>/bin/remove-user-*.sh *</pre>

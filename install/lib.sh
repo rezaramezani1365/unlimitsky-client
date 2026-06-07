@@ -409,6 +409,26 @@ usk_ensure_web_update_sudoers() {
     chmod 440 "$sudoers" 2>/dev/null || true
 }
 
+# Auto usage/limit sync — no manual cron setup for resellers.
+usk_ensure_usage_cron() {
+    local web_root="$1"
+    local php_bin
+    php_bin="$(command -v php 2>/dev/null || true)"
+    [ -n "$php_bin" ] || return 0
+    [ -f "${web_root}/cron/native-limits.php" ] || return 0
+
+    local cron_file="/etc/cron.d/unlimitsky-limits"
+    cat > "$cron_file" <<EOF
+# unlimitsky — usage sync & limit enforcement (managed by panel install/update)
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+*/2 * * * * root ${php_bin} ${web_root}/cron/native-limits.php >> /var/log/unlimitsky-limits.log 2>&1
+EOF
+    chmod 644 "$cron_file" 2>/dev/null || true
+    touch /var/log/unlimitsky-limits.log 2>/dev/null || true
+    chmod 644 /var/log/unlimitsky-limits.log 2>/dev/null || true
+}
+
 usk_write_deploy_stamp() {
     local web_root="$1"
     local src_dir="$2"
