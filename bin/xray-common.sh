@@ -220,10 +220,10 @@ usk_xray_write_config() {
       stats: {},
       api: {
         tag: "api",
-        services: ["StatsService"]
+        services: ["StatsService", "HandlerService"]
       },
       policy: {
-        levels: { "0": { statsUserUplink: true, statsUserDownlink: true } },
+        levels: { "0": { statsUserUplink: true, statsUserDownlink: true, statsUserOnline: true } },
         system: { statsInboundUplink: true, statsInboundDownlink: true }
       },
       inbounds: [
@@ -437,6 +437,37 @@ usk_xray_remove_client() {
   usk_xray_fix_perms "$cfg"
 }
 
+usk_xray_vless_inbound_tag() {
+  local cfg="$1"
+  jq -r '.inbounds[]? | select(.protocol=="vless") | .tag // empty' "$cfg" 2>/dev/null | head -1
+}
+
+usk_xray_user_online_count() {
+  local email="$1"
+  local bin val
+  bin=$(usk_xray_bin 2>/dev/null) || { echo 0; return 0; }
+  val=$("$bin" api stats --server=127.0.0.1:10085 -name "user>>>${email}>>>online" 2>/dev/null \
+    | jq -r '.stat.value // .value // 0' 2>/dev/null || echo 0)
+  echo "${val:-0}"
+}
+
+usk_xray_kick_inbound_user() {
+  local email="$1"
+  local cfg="${2:-$XRAY_CFG}"
+  local bin tag uuid user_json
+  bin=$(usk_xray_bin 2>/dev/null) || return 1
+  tag=$(usk_xray_vless_inbound_tag "$cfg")
+  [ -n "$tag" ] || tag="vless-reality-in"
+  uuid=$(jq -r --arg e "$email" '.inbounds[]? | select(.protocol=="vless") | .settings.clients[]? | select(.email==$e) | .id // empty' "$cfg" 2>/dev/null | head -1)
+  "$bin" api rmu --server=127.0.0.1:10085 -tag="$tag" -email="$email" >/dev/null 2>&1 \
+    || return 1
+  if [ -n "$uuid" ]; then
+    user_json=$(jq -nc --arg id "$uuid" --arg email "$email" '{id:$id,email:$email,flow:"xtls-rprx-vision",level:0}')
+    "$bin" api adu --server=127.0.0.1:10085 -tag="$tag" -user="$user_json" >/dev/null 2>&1 || true
+  fi
+  return 0
+}
+
 usk_xray_ensure_stats_policy() {
   local cfg="$1"
   [ -f "$cfg" ] || return 1
@@ -445,11 +476,11 @@ usk_xray_ensure_stats_policy() {
   tmp=$(mktemp)
   if ! jq '
     .stats = (.stats // {}) |
-    .api = { tag: "api", services: ["StatsService"] } |
+    .api = { tag: "api", services: ["StatsService", "HandlerService"] } |
     .policy = (.policy // {}) |
     .policy.levels = (.policy.levels // {}) |
-    .policy.levels["0"] = (.policy.levels["0"] // {statsUserUplink:true,statsUserDownlink:true}) |
-    .policy.system = (.policy.system // {statsInboundUplink:true,statsInboundDownlink:true}) |
+    .policy.levels["0"] = ((.policy.levels["0"] // {}) + {statsUserUplink:true, statsUserDownlink:true, statsUserOnline:true}) |
+    .policy.system = (.policy.system // {statsInboundUplink:true, statsInboundDownlink:true}) |
     .inbounds = (
       if ([.inbounds[]? | select(.tag == "api")] | length) > 0 then
         .inbounds

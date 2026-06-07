@@ -184,3 +184,61 @@ usk_openvpn_verify_status_logs() {
   done < <(usk_openvpn_discover_status_files)
   [ "$n" -gt 0 ]
 }
+
+usk_openvpn_ensure_management() {
+  usk_openvpn_prepare_status_dir
+  local cfg name port=7505 mgmt changed=0
+  for cfg in /etc/openvpn/server-udp.conf /etc/openvpn/server-tcp.conf /etc/openvpn/server.conf; do
+    [ -f "$cfg" ] || continue
+    name=$(basename "$cfg" .conf)
+    if grep -qE '^management[[:space:]]' "$cfg" 2>/dev/null; then
+      continue
+    fi
+    mgmt="127.0.0.1 ${port}"
+    {
+      echo ""
+      echo "# unlimitsky — per-client connection limit enforcement"
+      echo "management ${mgmt}"
+    } >> "$cfg"
+    changed=1
+    port=$((port + 1))
+  done
+  if [ "$changed" = 1 ]; then
+    systemctl restart openvpn@server-udp 2>/dev/null || true
+    systemctl restart openvpn@server-tcp 2>/dev/null || true
+    systemctl restart openvpn@server 2>/dev/null || true
+  fi
+}
+
+usk_openvpn_management_port_for_status() {
+  local status_file="$1"
+  local cfg port=7505 mgmt_file mgmt_host mgmt_port
+  for cfg in /etc/openvpn/server-udp.conf /etc/openvpn/server-tcp.conf /etc/openvpn/server.conf; do
+    [ -f "$cfg" ] || continue
+    mgmt_file=$(awk '/^status[[:space:]]+/ { print $2; exit }' "$cfg" 2>/dev/null || true)
+    if [ -n "$mgmt_file" ] && [ "$mgmt_file" = "$status_file" ]; then
+      mgmt_host=$(awk '/^management[[:space:]]+/ { print $2; exit }' "$cfg" 2>/dev/null || true)
+      mgmt_port=$(awk '/^management[[:space:]]+/ { print $3; exit }' "$cfg" 2>/dev/null || true)
+      if [ -n "$mgmt_host" ] && [ -n "$mgmt_port" ]; then
+        echo "$mgmt_port"
+        return 0
+      fi
+    fi
+    port=$((port + 1))
+  done
+  echo "$port"
+}
+
+usk_openvpn_mgmt_kill() {
+  local port="$1"
+  local cn="$2"
+  local addr="$3"
+  [ -n "$port" ] && [ -n "$cn" ] && [ -n "$addr" ] || return 1
+  if command -v nc >/dev/null 2>&1; then
+    { printf 'kill %s:%s\nquit\n' "$cn" "$addr"; sleep 0.15; } | nc -w2 127.0.0.1 "$port" >/dev/null 2>&1 || true
+    return 0
+  fi
+  if command -v timeout >/dev/null 2>&1 && command -v bash >/dev/null 2>&1; then
+    timeout 2 bash -c "exec 3<>/dev/tcp/127.0.0.1/${port}; printf 'kill %s:%s\nquit\n' '$cn' '$addr' >&3; sleep 0.15" 2>/dev/null || true
+  fi
+}

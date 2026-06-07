@@ -80,7 +80,11 @@ try {
         (int) ($report['usage_updated'] ?? 0),
         (int) ($report['checked'] ?? 0),
         (int) ($report['disabled'] ?? 0)
-    ) . usk_services_sync_diag($report));
+    ) . usk_services_sync_diag($report) . (
+        ((int) ($report['connections_trimmed'] ?? 0)) > 0
+            ? ' ' . sprintf(__('services_sync_connections_trimmed'), (int) $report['connections_trimmed'])
+            : ''
+    ));
 } catch (Throwable $e) {
     error_log('USK services sync_usage: ' . $e->getMessage());
     usk_flash(__('services_sync_failed'), 'error');

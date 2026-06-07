@@ -397,6 +397,9 @@ usk_ensure_web_update_sudoers() {
     if ! grep -qF 'collect-usage-stats.sh' "$sudoers" 2>/dev/null; then
         echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/collect-usage-stats.sh" >> "$sudoers"
     fi
+    if ! grep -qF 'enforce-connection-limits.sh' "$sudoers" 2>/dev/null; then
+        echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/enforce-connection-limits.sh" >> "$sudoers"
+    fi
     if ! grep -qF 'panel-self-update.sh' "$sudoers" 2>/dev/null; then
         echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/scripts/panel-self-update.sh *" >> "$sudoers"
     fi

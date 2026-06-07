@@ -169,6 +169,7 @@ unset($_pk, $s);
         <ul>
             <li><?= __('limits_cron_expiry') ?></li>
             <li><?= __('limits_cron_volume') ?></li>
+            <li><?= __('limits_cron_connections') ?></li>
         </ul>
         <p class="text-muted small"><?= __('limits_cron_manual_note') ?></p>
         <pre class="usk-code p-2" style="white-space:pre-wrap;direction:ltr;text-align:left">*/15 * * * * php <?= usk_esc(USK_ROOT) ?>/cron/native-limits.php >> /var/log/unlimitsky-limits.log 2>&1</pre>

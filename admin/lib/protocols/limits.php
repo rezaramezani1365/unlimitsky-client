@@ -151,6 +151,25 @@ class USK_ProtocolLimits
         return $report;
     }
 
+    /** Enforce plan max_connections (concurrent session slots). */
+    public static function enforce_connection_limits()
+    {
+        require_once __DIR__ . '/connections.php';
+        return USK_ProtocolConnections::enforce_all();
+    }
+
+    public static function enforce_all_with_connections()
+    {
+        $report = self::enforce_all();
+        $conn = self::enforce_connection_limits();
+        $report['connections'] = is_array($conn) ? $conn : array('ok' => false);
+        $report['connections_trimmed'] = (int) ($conn['trimmed'] ?? ($conn['connections_trimmed'] ?? 0));
+        if (!empty($conn['details']) && is_array($conn['details'])) {
+            $report['details'] = array_merge($report['details'] ?? array(), $conn['details']);
+        }
+        return $report;
+    }
+
     /** Admin button — prefer CLI worker (no PHP-FPM timeout); fallback to in-process. */
     public static function sync_usage_and_enforce()
     {
@@ -159,7 +178,7 @@ class USK_ProtocolLimits
             return $report;
         }
 
-        $report = self::enforce_all();
+        $report = self::enforce_all_with_connections();
         self::save_last_run($report);
         return $report;
     }
