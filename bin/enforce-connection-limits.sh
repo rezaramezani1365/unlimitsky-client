@@ -1,5 +1,6 @@
 #!/bin/bash
-# Enforce per-service max concurrent connections (plan slot limit).
+# OPTIONAL: Enforce plan max_connections — do NOT run from usage sync (manual/cron only).
+# Usage sync must only update volume/expiry; this script can break Xray if misconfigured.
 set -uo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

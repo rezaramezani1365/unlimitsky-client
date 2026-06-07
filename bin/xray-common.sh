@@ -484,6 +484,25 @@ usk_xray_slot_chain_reset() {
     || iptables -A USK_XRAY_CONN -p tcp --dport "$port" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 }
 
+usk_xray_clear_slot_iptables() {
+  local port="${1:-}"
+  if ! command -v iptables >/dev/null 2>&1; then
+    return 0
+  fi
+  while iptables -C INPUT -j USK_XRAY_CONN 2>/dev/null; do
+    iptables -D INPUT -j USK_XRAY_CONN 2>/dev/null || break
+  done
+  if iptables -L USK_XRAY_CONN >/dev/null 2>&1; then
+    iptables -F USK_XRAY_CONN 2>/dev/null || true
+    iptables -X USK_XRAY_CONN 2>/dev/null || true
+  fi
+  if [ -n "$port" ]; then
+    while iptables -S INPUT 2>/dev/null | grep -q "USK_XRAY_CONN"; do
+      iptables -D INPUT -j USK_XRAY_CONN 2>/dev/null || break
+    done
+  fi
+}
+
 usk_xray_reject_ip_on_port() {
   local ip="$1"
   local port="$2"
@@ -564,6 +583,17 @@ usk_xray_rebuild_clients_in_config() {
     return 1
   fi
 
+  local current_count new_count
+  current_count=$(jq '[.inbounds[]? | select(.protocol=="vless") | .settings.clients[]?] | length' "$cfg" 2>/dev/null || echo 0)
+  new_count=$(echo "$clients_json" | jq 'length' 2>/dev/null || echo 0)
+  if [ "${new_count:-0}" -lt 1 ]; then
+    return 1
+  fi
+  if [ "${current_count:-0}" -gt 0 ] && [ "${new_count:-0}" -lt "${current_count:-0}" ]; then
+    echo "USK_WARN: rebuild skipped (would remove clients: ${current_count} -> ${new_count})" >&2
+    return 1
+  fi
+
   local tmp
   tmp=$(mktemp)
   if ! jq --argjson clients "$clients_json" '
@@ -584,15 +614,24 @@ usk_xray_ensure_stats_policy() {
   local cfg="$1"
   [ -f "$cfg" ] || return 1
   command -v jq >/dev/null 2>&1 || return 1
-  local tmp
+  local tmp vless_tag
+  vless_tag=$(jq -r '(.inbounds[]? | select(.protocol=="vless") | .tag) // "vless-reality-in"' "$cfg" 2>/dev/null | head -1)
+  [ -n "$vless_tag" ] || vless_tag="vless-reality-in"
   tmp=$(mktemp)
-  if ! jq '
+  if ! jq --arg vt "$vless_tag" '
     .stats = (.stats // {}) |
     .api = ((.api // {tag:"api"}) + {tag:"api", services: ((.api.services // ["StatsService"]) | map(select(. == "StatsService")) | if length == 0 then ["StatsService"] else . end)}) |
     .policy = (.policy // {}) |
     .policy.levels = (.policy.levels // {}) |
     .policy.levels["0"] = ((.policy.levels["0"] // {}) + {statsUserUplink:true, statsUserDownlink:true, statsUserOnline:true}) |
     .policy.system = (.policy.system // {statsInboundUplink:true, statsInboundDownlink:true}) |
+    .outbounds = (
+      if ([.outbounds[]? | select(.tag == "direct")] | length) > 0 then
+        .outbounds
+      else
+        [{protocol:"freedom", tag:"direct", settings:{domainStrategy:"UseIPv4"}}] + (.outbounds // [])
+      end
+    ) |
     .outbounds = (
       if ([.outbounds[]? | select(.tag == "api")] | length) > 0 then
         .outbounds
@@ -620,10 +659,10 @@ usk_xray_ensure_stats_policy() {
       else
         [{ type: "field", inboundTag: ["api"], outboundTag: "api" }] + (.routing.rules // [])
       end) as $r1 |
-      if ([$r1[]? | select(.inboundTag? != null and (.inboundTag | index("vless-reality-in")))] | length) > 0 then
+      if ([$r1[]? | select(.inboundTag? != null and (.inboundTag | index($vt)))] | length) > 0 then
         $r1
       else
-        $r1 + [{ type: "field", inboundTag: ["vless-reality-in"], outboundTag: "direct" }]
+        $r1 + [{ type: "field", inboundTag: [$vt], outboundTag: "direct" }]
       end
     ) |
     .inbounds |= map(

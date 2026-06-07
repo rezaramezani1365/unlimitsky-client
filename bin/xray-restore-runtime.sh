@@ -16,6 +16,10 @@ fi
 PANEL_ROOT="${PANEL_ROOT:-$(dirname "$DIR")}"
 cp "$XRAY_CFG" "${XRAY_CFG}.bak.$(date +%s)" 2>/dev/null || true
 
+port=$(usk_xray_vless_port_from_config "$XRAY_CFG" 2>/dev/null || echo 443)
+echo "[*] Removing connection-limit iptables (USK_XRAY_CONN)..."
+usk_xray_clear_slot_iptables "${port:-443}"
+
 usk_xray_ensure_stats_policy "$XRAY_CFG" || { echo "USK_ERR: stats_policy_failed" >&2; exit 1; }
 usk_xray_rebuild_clients_in_config "$XRAY_CFG" "$PANEL_ROOT" || echo "USK_WARN: client_rebuild_skipped" >&2
 

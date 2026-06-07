@@ -8,7 +8,7 @@ require_once USK_ROOT . '/admin/lib/protocols/manager.php';
 require_once USK_ROOT . '/admin/lib/protocols/limits.php';
 
 try {
-    $report = USK_ProtocolLimits::enforce_all_with_connections();
+    $report = USK_ProtocolLimits::enforce_all();
     USK_ProtocolLimits::save_last_run($report);
 } catch (Throwable $e) {
     $report = array(

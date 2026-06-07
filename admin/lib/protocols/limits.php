@@ -178,7 +178,7 @@ class USK_ProtocolLimits
             return $report;
         }
 
-        $report = self::enforce_all_with_connections();
+        $report = self::enforce_all();
         self::save_last_run($report);
         return $report;
     }
