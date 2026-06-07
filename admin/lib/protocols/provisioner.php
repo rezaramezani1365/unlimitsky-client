@@ -40,14 +40,18 @@ class USK_ProtocolProvisioner
             return array('ok' => false, 'error' => 'invalid_protocol');
         }
 
-        $status = USK_ProtocolManager::get_status($protocol);
-        if (!USK_ProtocolManager::is_installed($protocol)) {
-            return array('ok' => false, 'error' => 'protocol_not_installed');
-        }
-
         $username = preg_replace('/[^a-zA-Z0-9_-]/', '', $username);
         if ($username === '') {
             return array('ok' => false, 'error' => 'invalid_username');
+        }
+
+        $nodeId = preg_replace('/[^a-z0-9]/', '', (string) ($meta['node_id'] ?? ''));
+        if ($nodeId !== '') {
+            return self::create_on_node($protocol, $username, $volume_gb, $duration_days, $meta, $nodeId);
+        }
+
+        if (!USK_ProtocolManager::is_installed($protocol)) {
+            return array('ok' => false, 'error' => 'protocol_not_installed');
         }
 
         $clientDns = USK_ClientDns::resolve((string) ($meta['client_dns'] ?? ''), $protocol);
@@ -163,6 +167,112 @@ class USK_ProtocolProvisioner
         );
     }
 
+    private static function create_on_node($protocol, $username, $volume_gb, $duration_days, array $meta, $nodeId)
+    {
+        $check = USK_Nodes::assert_can_use_nodes();
+        if (empty($check['ok'])) {
+            return $check;
+        }
+
+        $node = USK_Nodes::get($nodeId);
+        if (!$node) {
+            return array('ok' => false, 'error' => 'node_not_found');
+        }
+
+        if ($protocol !== 'xray') {
+            return array('ok' => false, 'error' => 'nodes_xray_only');
+        }
+
+        $clientDns = USK_ClientDns::resolve((string) ($meta['client_dns'] ?? ''), $protocol);
+        $connectHost = USK_Nodes::connect_host_for_node($node);
+        $scriptArgs = array(
+            $username,
+            (string) (int) $volume_gb,
+            (string) (int) $duration_days,
+            $clientDns,
+            $connectHost,
+        );
+
+        $remote = USK_NodeSsh::run_script($node, 'add-user-xray.sh', $scriptArgs, 240);
+        $out = (string) ($remote['log'] ?? '');
+
+        if (empty($remote['ok'])) {
+            USK_Nodes::mark_seen($nodeId, 'offline', $remote['error'] ?? 'remote_failed');
+            return array(
+                'ok' => false,
+                'error' => self::interpret_output($out, $remote['error'] ?? 'provision_failed'),
+                'log' => $out,
+            );
+        }
+
+        if (!preg_match('/USK_JSON:(.+)$/s', $out, $m)) {
+            USK_Nodes::mark_seen($nodeId, 'offline', 'invalid_provision_output');
+            return array(
+                'ok' => false,
+                'error' => self::interpret_output($out, 'invalid_provision_output'),
+                'log' => $out,
+            );
+        }
+
+        $data = json_decode(trim($m[1]), true);
+        if (!is_array($data) || empty($data['ok'])) {
+            USK_Nodes::mark_seen($nodeId, 'offline', 'provision_parse_error');
+            return array('ok' => false, 'error' => 'provision_parse_error', 'log' => $out);
+        }
+
+        USK_Nodes::mark_seen($nodeId, 'online');
+
+        $config = $data['config'] ?? ($data['links'] ?? '');
+        $links = $data['links'] ?? $config;
+        $vpnUri = trim((string) ($data['vpn_uri'] ?? ''));
+        $subscription = $vpnUri !== '' ? $vpnUri : ($data['subscription_url'] ?? $links);
+        $vlessLink = trim((string) ($data['vless'] ?? ''));
+        if ($vlessLink !== '') {
+            $subscription = $vlessLink;
+        }
+
+        self::save_client_record($protocol, $username, array(
+            'volume_gb' => (int) $volume_gb,
+            'duration_days' => (int) $duration_days,
+            'expires_at' => !empty($data['expires_at']) ? $data['expires_at'] : ($duration_days > 0 ? date('c', strtotime('+' . (int) $duration_days . ' days')) : null),
+            'meta' => $data,
+            'public_key' => $data['public_key'] ?? null,
+            'uuid' => $data['uuid'] ?? null,
+            'status' => 'active',
+            'source' => $meta['source'] ?? 'admin',
+            'wc_order_id' => $meta['wc_order_id'] ?? null,
+            'max_connections' => max(1, (int) ($meta['max_connections'] ?? 1)),
+            'vpn_uri' => $vpnUri !== '' ? $vpnUri : null,
+            'qr_conf_png' => $data['qr_conf_png'] ?? '',
+            'node_id' => $nodeId,
+            'server_ip' => $connectHost,
+        ));
+
+        return array(
+            'ok' => true,
+            'username' => $username,
+            'protocol' => $protocol,
+            'config' => $config,
+            'links' => $links,
+            'subscription' => $subscription,
+            'vpn_uri' => $vpnUri,
+            'wg_conf' => $data['wg_conf'] ?? '',
+            'qr_png' => $data['qr_png'] ?? '',
+            'download_token' => $data['download_token'] ?? '',
+            'conf_filename' => $data['conf_filename'] ?? '',
+            'json_filename' => $data['json_filename'] ?? '',
+            'client_dns' => $data['client_dns'] ?? '',
+            'client_json' => $data['client_json'] ?? '',
+            'vless' => $data['vless'] ?? '',
+            'expires_at' => $data['expires_at'] ?? null,
+            'volume_gb' => (int) $volume_gb,
+            'duration_days' => (int) $duration_days,
+            'raw' => $data,
+            'node_id' => $nodeId,
+            'node_name' => $node['name'] ?? $nodeId,
+        );
+    }
+
     public static function save_client_record($protocol, $username, array $record)
     {
         $dir = USK_ROOT . '/data/clients';
@@ -196,7 +306,11 @@ class USK_ProtocolProvisioner
         global $sql;
         $code = (string) rand(111111, 999999);
         $from_id = $wc_order_id ? ('wc-' . (int) $wc_order_id) : ('native-' . $username);
-        $location = $sql->real_escape_string(strtoupper($protocol) . ' Native');
+        $locationLabel = strtoupper($protocol) . ' Native';
+        if (!empty($extra['node_name'])) {
+            $locationLabel = (string) $extra['node_name'] . ' / ' . strtoupper($protocol);
+        }
+        $location = $sql->real_escape_string($locationLabel);
         $volume = $sql->real_escape_string((string) $volume_gb);
         $date = $sql->real_escape_string((string) $duration_days);
         $link_esc = $sql->real_escape_string($link);
@@ -214,6 +328,9 @@ class USK_ProtocolProvisioner
             $clients[$username]['order_code'] = $code;
             if (!empty($extra['max_connections'])) {
                 $clients[$username]['max_connections'] = max(1, (int) $extra['max_connections']);
+            }
+            if (!empty($extra['node_id'])) {
+                $clients[$username]['node_id'] = (string) $extra['node_id'];
             }
             self::save_protocol_clients($protocol, $clients);
         }
@@ -331,6 +448,11 @@ class USK_ProtocolProvisioner
             'l2tp_not_installed' => 'err_l2tp_not_installed',
             'provision_failed' => 'err_provision_failed',
             'invalid_provision_output' => 'err_sudo_denied',
+            'node_not_found' => 'nodes_not_found',
+            'nodes_xray_only' => 'nodes_xray_only',
+            'nodes_pro_required' => 'nodes_pro_required',
+            'sshpass_missing' => 'nodes_sshpass_missing',
+            'ssh_connect_failed' => 'nodes_test_failed',
         );
         $key = isset($map[$code]) ? $map[$code] : 'create_failed';
         return __($key, $code);

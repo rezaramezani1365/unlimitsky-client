@@ -13,6 +13,8 @@ require_once dirname(__DIR__) . '/admin/lib/connect-host.php';
 require_once dirname(__DIR__) . '/admin/lib/panel-access.php';
 require_once dirname(__DIR__) . '/admin/lib/api-keys.php';
 require_once dirname(__DIR__) . '/admin/lib/license.php';
+require_once dirname(__DIR__) . '/admin/lib/nodes.php';
+require_once dirname(__DIR__) . '/admin/lib/node-ssh.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -242,6 +244,7 @@ if ($action === 'create-service') {
         'wireguard_transport' => $wgTransport,
         'client_dns' => preg_replace('/[^0-9a-zA-Z.,;:\- _]/', '', trim((string) ($body['client_dns'] ?? ''))),
         'max_connections' => $max_connections,
+        'node_id' => preg_replace('/[^a-z0-9]/', '', (string) ($body['node_id'] ?? '')),
     ));
 
     if (empty($created['ok'])) {

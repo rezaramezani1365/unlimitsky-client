@@ -19,6 +19,8 @@ require_once __DIR__ . '/protocols/provisioner.php';
 require_once __DIR__ . '/client-dns.php';
 require_once __DIR__ . '/connect-host.php';
 require_once __DIR__ . '/panel-access.php';
+require_once __DIR__ . '/nodes.php';
+require_once __DIR__ . '/node-ssh.php';
 require_once __DIR__ . '/woocommerce-shop.php';
 require_once __DIR__ . '/backup.php';
 require_once __DIR__ . '/migration.php';
@@ -120,6 +122,7 @@ function usk_admin_nav()
         'dashboard' => array('icon' => 'fa-gauge-high', 'label' => __('nav_dashboard')),
         'protocols' => array('icon' => 'fa-network-wired', 'label' => __('nav_protocols')),
         'panels' => array('icon' => 'fa-server', 'label' => __('nav_panels')),
+        'nodes' => array('icon' => 'fa-sitemap', 'label' => __('nav_nodes')),
         'guides' => array('icon' => 'fa-book', 'label' => __('nav_guides')),
         'api-keys' => array('icon' => 'fa-key', 'label' => __('nav_api_keys')),
         'plans' => array('icon' => 'fa-tags', 'label' => __('nav_plans')),

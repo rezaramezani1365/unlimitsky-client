@@ -5,6 +5,8 @@ require_once dirname(__DIR__) . '/lib/protocols/provisioner.php';
 $GLOBALS['page_title'] = __('nav_create');
 $GLOBALS['active_nav'] = 'create-service';
 $canUsePanels = USK_License::can_use_external_panels();
+$canUseNodes = USK_Nodes::can_use_nodes();
+$nodeList = $canUseNodes ? USK_Nodes::list_for_select() : array();
 
 $result = null;
 if (!empty($_GET['created']) && !empty($_SESSION['usk_create_result'])) {
@@ -82,6 +84,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $provisionMeta['client_dns'] = preg_replace('/[^0-9a-zA-Z.,;:\- _]/', '', $clientDns);
                 }
                 $provisionMeta['max_connections'] = $max_connections;
+                $nodeId = preg_replace('/[^a-z0-9]/', '', (string) ($_POST['node_id'] ?? ''));
+                $nodeBlocked = false;
+                if ($nodeId !== '') {
+                    if (!$canUseNodes) {
+                        usk_flash(__('nodes_pro_required'), 'error');
+                        $nodeBlocked = true;
+                    } elseif (!USK_Nodes::get($nodeId)) {
+                        usk_flash(__('nodes_not_found'), 'error');
+                        $nodeBlocked = true;
+                    } elseif ($protocol !== 'xray') {
+                        usk_flash(__('nodes_xray_only'), 'error');
+                        $nodeBlocked = true;
+                    } else {
+                        $provisionMeta['node_id'] = $nodeId;
+                    }
+                }
+                if (!$nodeBlocked) {
                 $created = USK_Service::create_native($protocol, $volume_gb, $duration_days, $username, $provisionMeta);
 
                 if (!$created['ok']) {
@@ -96,7 +115,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $created['links'] ?: $created['subscription'],
                         'admin',
                         null,
-                        array('max_connections' => $max_connections)
+                        array(
+                            'max_connections' => $max_connections,
+                            'node_name' => $created['node_name'] ?? '',
+                            'node_id' => $created['node_id'] ?? '',
+                        )
                     );
                     if (empty($order['ok'])) {
                         usk_flash(__('create_order_save_failed') . ' (' . ($order['error'] ?? '') . ')', 'error');
@@ -136,6 +159,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         header('Location: ' . usk_admin_url('create-service', array('created' => '1')));
                         exit;
                     }
+                }
                 }
             }
         } else {
@@ -249,6 +273,22 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
                         <option value="<?= (int) $pl['row'] ?>"><?= usk_esc($pl['name']) ?> — <?= usk_esc(usk_format_plan_limits($pl['limit'], $pl['date'])) ?></option>
                     <?php endwhile; ?>
                 </select>
+            </div>
+            <div class="form-group native-field" id="create-node-wrap" style="display:none;">
+                <label><?= __('create_node_select') ?></label>
+                <select class="form-control" name="node_id" id="create-node-select">
+                    <option value=""><?= __('create_node_main') ?></option>
+                    <?php foreach ($nodeList as $n) : ?>
+                        <option value="<?= usk_esc($n['id']) ?>"><?= usk_esc($n['name']) ?> — <?= usk_esc($n['connect_host']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <?php if ($canUseNodes && empty($nodeList)) : ?>
+                    <p class="text-muted small mt-1"><a href="<?= usk_admin_url('nodes') ?>"><?= __('nav_nodes') ?></a></p>
+                <?php elseif (!$canUseNodes) : ?>
+                    <p class="text-muted small mt-1"><?= __('nodes_pro_required') ?></p>
+                <?php else : ?>
+                    <p class="text-muted small mt-1 mb-0"><?= __('create_node_hint') ?></p>
+                <?php endif; ?>
             </div>
             <div class="form-group native-field">
                 <label><?= __('protocol') ?></label>
