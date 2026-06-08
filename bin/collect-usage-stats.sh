@@ -26,7 +26,7 @@ usk_append_xray_pairs_from_panel() {
   jq -r '
     if type == "object" then
       to_entries[]? | select(.value | type == "object") |
-      ((.key // .value.username // "") | tostring) + "\t" + ((.value.uuid // .value.id // "") | tostring)
+      ((.value.xray_email // .value.usage_id // .value.email // .value.username // .key // "") | tostring) + "\t" + ((.value.uuid // .value.id // "") | tostring)
     else empty end
   ' "$f" 2>/dev/null >>"$pairs_file" || true
 }
@@ -310,7 +310,7 @@ OVPN_CONN_JSON=$(usk_sanitize_json_obj "$OVPN_CONN_JSON")
 XRAY_CFG_EMAILS=0
 XRAY_API_OK=0
 XRAY_BIN=$(usk_xray_bin 2>/dev/null || command -v xray 2>/dev/null || true)
-if [ -n "$XRAY_BIN" ] && "$XRAY_BIN" api statsquery --server=127.0.0.1:10085 >/dev/null 2>&1; then
+if [ -n "$XRAY_BIN" ] && "$XRAY_BIN" api statsquery --server=127.0.0.1:10085 -reset=false >/dev/null 2>&1; then
   XRAY_API_OK=1
 fi
 if [ -f "$XRAY_CFG" ] && command -v jq >/dev/null 2>&1; then
@@ -328,6 +328,10 @@ COLLECTED_AT=$(date -Iseconds 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)
 WG_PEERS=$(usk_sanitize_json_int "$(count_json_keys "$WG_JSON")")
 AWG_PEERS=$(usk_sanitize_json_int "$(count_json_keys "$AWG_JSON")")
 XRAY_USERS=$(usk_sanitize_json_int "$(count_json_keys "$XRAY_JSON")")
+XRAY_POSITIVE_USERS=0
+if command -v jq >/dev/null 2>&1; then
+  XRAY_POSITIVE_USERS=$(usk_sanitize_json_int "$(printf '%s' "$XRAY_JSON" | jq '[to_entries[]? | select((.value | tonumber) > 0)] | length' 2>/dev/null || echo 0)")
+fi
 OVPN_USERS=$(usk_sanitize_json_int "$(count_json_keys "$OVPN_JSON")")
 XRAY_CFG_EMAILS=$(usk_sanitize_json_int "$XRAY_CFG_EMAILS")
 XRAY_API_OK=$(usk_sanitize_json_int "$XRAY_API_OK")
@@ -349,6 +353,7 @@ if command -v python3 >/dev/null 2>&1; then
      USK_COLLECT_WG_PEERS="$WG_PEERS" \
      USK_COLLECT_AWG_PEERS="$AWG_PEERS" \
      USK_COLLECT_XRAY_USERS="$XRAY_USERS" \
+     USK_COLLECT_XRAY_POSITIVE_USERS="$XRAY_POSITIVE_USERS" \
      USK_COLLECT_OVPN_USERS="$OVPN_USERS" \
      USK_COLLECT_OVPN_STATUS_FILES="$OVPN_STATUS_FILES" \
      USK_COLLECT_XRAY_CFG_CLIENTS="$XRAY_CFG_EMAILS" \
@@ -389,6 +394,7 @@ out = {
         "wg_peers": num("USK_COLLECT_WG_PEERS"),
         "awg_peers": num("USK_COLLECT_AWG_PEERS"),
         "xray_users": num("USK_COLLECT_XRAY_USERS"),
+        "xray_positive_users": num("USK_COLLECT_XRAY_POSITIVE_USERS"),
         "ovpn_users": num("USK_COLLECT_OVPN_USERS"),
         "ovpn_status_files": num("USK_COLLECT_OVPN_STATUS_FILES"),
         "xray_cfg_clients": num("USK_COLLECT_XRAY_CFG_CLIENTS"),
@@ -422,6 +428,7 @@ if [ "$_emit_ok" -eq 0 ] && command -v jq >/dev/null 2>&1; then
     --argjson wg_peers "$WG_PEERS" \
     --argjson awg_peers "$AWG_PEERS" \
     --argjson xray_users "$XRAY_USERS" \
+    --argjson xray_positive_users "$XRAY_POSITIVE_USERS" \
     --argjson ovpn_users "$OVPN_USERS" \
     --argjson ovpn_status_files "$OVPN_STATUS_FILES" \
     --argjson xray_cfg_clients "$XRAY_CFG_EMAILS" \
@@ -445,6 +452,7 @@ if [ "$_emit_ok" -eq 0 ] && command -v jq >/dev/null 2>&1; then
         wg_peers: $wg_peers,
         awg_peers: $awg_peers,
         xray_users: $xray_users,
+        xray_positive_users: $xray_positive_users,
         ovpn_users: $ovpn_users,
         ovpn_status_files: $ovpn_status_files,
         xray_cfg_clients: $xray_cfg_clients,

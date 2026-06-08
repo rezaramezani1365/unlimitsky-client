@@ -109,9 +109,10 @@ class USK_Order_Handler
 
             $code     = USK_generate_code();
             $username = USK_service_username($order_id, $item_id, $code);
+            $customer_email = sanitize_email((string) $order->get_billing_email());
 
             $extCode = ($panel['type'] === 'unlimitsky' && $provision_mode === 'external') ? $external_panel_code : '';
-            $result = USK_Service_Creator::create($panel, $volume_gb, $duration_days, $username, $protocol, $order_id, $plan_code, $openvpn_proto, $wireguard_transport, $extCode);
+            $result = USK_Service_Creator::create($panel, $volume_gb, $duration_days, $username, $protocol, $order_id, $plan_code, $openvpn_proto, $wireguard_transport, $extCode, $customer_email);
             $result = USK_Service_Creator::apply_dns_wrap($result);
 
             if (!$result['success']) {
@@ -136,6 +137,9 @@ class USK_Order_Handler
                 'proxy_token'               => $result['proxy_token'] ?? '',
                 'service_username'          => $result['username'],
                 'service_code'              => !empty($result['service_code']) ? $result['service_code'] : $code,
+                'customer_email'            => $customer_email,
+                'usage_id'                  => $result['usage_id'] ?? '',
+                'xray_email'                => $result['xray_email'] ?? '',
                 'price'                     => $item->get_total(),
                 'openvpn_proto'             => $result['openvpn_proto'] ?? ($protocol === 'openvpn' ? $openvpn_proto : ''),
                 'wireguard_transport'       => $result['wireguard_transport'] ?? ($protocol === 'wireguard' ? $wireguard_transport : ''),

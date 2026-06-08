@@ -39,7 +39,7 @@ usk_xray_statsquery_raw() {
   local bin="$1"
   local ep
   ep=$(usk_xray_stats_api_endpoint)
-  "$bin" api statsquery --server="$ep" 2>/dev/null || true
+  "$bin" api statsquery --server="$ep" -reset=false 2>/dev/null || true
 }
 
 # Cumulative uplink+downlink per client email from Xray StatsService (same data as xray-exporter).
@@ -94,14 +94,14 @@ usk_xray_build_pairs_file() {
       "$XRAY_CFG" 2>/dev/null >>"$pairs_file" || true
   fi
   if [ -f "${data_root}/xray/clients.json" ]; then
-    jq -r '.[]? | (.username // "") + "\t" + (.uuid // "")' \
+    jq -r '.[]? | ((.xray_email // .usage_id // .email // .username // "") | tostring) + "\t" + ((.uuid // .id // "") | tostring)' \
       "${data_root}/xray/clients.json" 2>/dev/null >>"$pairs_file" || true
   fi
   if [ -f "${panel_root}/data/clients/xray.json" ]; then
     jq -r '
       if type == "object" then
         to_entries[]? | select(.value | type == "object") |
-        ((.key // .value.username // "") | tostring) + "\t" + ((.value.uuid // .value.id // "") | tostring)
+        ((.value.xray_email // .value.usage_id // .value.email // .value.username // .key // "") | tostring) + "\t" + ((.value.uuid // .value.id // "") | tostring)
       else empty end
     ' "${panel_root}/data/clients/xray.json" 2>/dev/null >>"$pairs_file" || true
   fi

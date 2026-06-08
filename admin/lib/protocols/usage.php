@@ -742,8 +742,12 @@ class USK_ProtocolUsage
     {
         $names = array(
             trim((string) $username),
+            trim((string) ($rec['xray_email'] ?? '')),
+            trim((string) ($rec['usage_id'] ?? '')),
             trim((string) ($rec['username'] ?? '')),
             trim((string) ($rec['email'] ?? '')),
+            trim((string) ($rec['meta']['xray_email'] ?? '')),
+            trim((string) ($rec['meta']['usage_id'] ?? '')),
             trim((string) ($rec['meta']['username'] ?? '')),
             trim((string) ($rec['meta']['email'] ?? '')),
         );
@@ -940,7 +944,7 @@ class USK_ProtocolUsage
                             continue;
                         }
                         $id = trim((string) ($rec['uuid'] ?? ($rec['id'] ?? '')));
-                        $email = trim((string) ($rec['email'] ?? $username));
+                        $email = trim((string) ($rec['xray_email'] ?? ($rec['usage_id'] ?? ($rec['email'] ?? $username))));
                         if ($id !== '' && $email !== '') {
                             self::$xrayUuidEmailCache[$id] = $email;
                         }
@@ -1004,7 +1008,7 @@ class USK_ProtocolUsage
             return $map;
         }
 
-        $cmd = escapeshellarg($xray) . ' api statsquery --server=127.0.0.1:10085 2>/dev/null';
+        $cmd = escapeshellarg($xray) . ' api statsquery --server=127.0.0.1:10085 -reset=false 2>/dev/null';
         $raw = self::shell_with_timeout($cmd, 8);
         if ($raw !== '') {
             $data = json_decode(trim($raw), true);
@@ -1065,7 +1069,7 @@ class USK_ProtocolUsage
         foreach (array('downlink', 'uplink') as $dir) {
             $statName = 'user>>>' . $email . '>>>traffic>>>' . $dir;
             $cmd = escapeshellarg($xray) . ' api stats --server=127.0.0.1:10085 -name '
-                . escapeshellarg($statName) . ' 2>/dev/null';
+                . escapeshellarg($statName) . ' -reset=false 2>/dev/null';
             $raw = self::shell_with_timeout($cmd, 3);
             if ($raw === '') {
                 continue;

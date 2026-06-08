@@ -364,7 +364,7 @@ usk_xray_collect_all_clients_json() {
   [ -f "$panel_file" ] && panel_json=$(jq -c '
     to_entries | map({
       id: (.value.uuid // .value.id // .value.meta.uuid // ""),
-      email: (.value.username // .key // "user"),
+      email: (.value.xray_email // .value.usage_id // .value.email // .value.username // .key // "user"),
       flow: "xtls-rprx-vision",
       level: 0,
       status: (.value.status // "active")
@@ -374,19 +374,19 @@ usk_xray_collect_all_clients_json() {
     if type == "array" then
       map(select(.uuid? // .id? // "") != "") | map({
         id: (.uuid // .id // ""),
-        email: (.username // .email // "user"),
+        email: (.xray_email // .usage_id // .email // .username // "user"),
         flow: "xtls-rprx-vision",
         level: 0,
         status: (.status // "active")
       })
     elif type == "object" then
-      to_entries | map(select(.value.uuid? // .value.id? // "") != "") | {
+      to_entries | map(select(.value.uuid? // .value.id? // "") != "") | map({
         id: (.value.uuid // .value.id // ""),
-        email: (.key),
+        email: (.value.xray_email // .value.usage_id // .value.email // .value.username // .key),
         flow: "xtls-rprx-vision",
         level: 0,
         status: (.value.status // "active")
-      }
+      })
     else [] end
   ' "$reg_file" 2>/dev/null || echo '[]')
 
@@ -748,7 +748,7 @@ usk_xray_rebuild_clients_in_config() {
     ($p + $r) | to_entries | map(select(.value.status? // "active" == "active")) |
     map({
       id: (.value.uuid // .value.id // .value.meta.uuid // ""),
-      email: (.value.username // .key // "user"),
+      email: (.value.xray_email // .value.usage_id // .value.email // .value.username // .key // "user"),
       flow: "xtls-rprx-vision",
       level: 0
     }) | map(select(.id != "" and .email != ""))

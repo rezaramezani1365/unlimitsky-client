@@ -36,6 +36,9 @@ class USK_Service
             'vpn_uri' => $created['vpn_uri'] ?? '',
             'wg_conf' => $created['wg_conf'] ?? '',
             'expires_at' => $created['expires_at'] ?? null,
+            'customer_email' => $created['customer_email'] ?? '',
+            'usage_id' => $created['usage_id'] ?? '',
+            'xray_email' => $created['xray_email'] ?? '',
             'raw' => $created['raw'] ?? array(),
         );
     }

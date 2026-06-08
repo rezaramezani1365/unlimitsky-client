@@ -113,6 +113,9 @@ if ($action === 'create-service') {
     $server_ip = USK_ConnectHost::sanitize(trim((string) ($body['server_ip'] ?? '')));
     $plan_code = preg_replace('/[^0-9]/', '', (string) ($body['plan_code'] ?? ''));
     $max_connections = max(1, (int) ($body['max_connections'] ?? 1));
+    $customer_email = USK_ProtocolProvisioner::sanitize_customer_email($body['customer_email'] ?? '');
+    $usage_id_raw = trim((string) ($body['usage_id'] ?? ''));
+    $usage_id = $usage_id_raw !== '' ? USK_ProtocolProvisioner::sanitize_usage_id($usage_id_raw, (string) ($body['username'] ?? '')) : '';
 
     if ($plan_code !== '') {
         $planRow = USK_License::get_plan_by_code($plan_code);
@@ -243,6 +246,8 @@ if ($action === 'create-service') {
         'openvpn_proto' => $ovpnProto,
         'wireguard_transport' => $wgTransport,
         'client_dns' => preg_replace('/[^0-9a-zA-Z.,;:\- _]/', '', trim((string) ($body['client_dns'] ?? ''))),
+        'customer_email' => $customer_email,
+        'usage_id' => $usage_id,
         'max_connections' => $max_connections,
         'node_id' => preg_replace('/[^a-z0-9]/', '', (string) ($body['node_id'] ?? '')),
     ));
@@ -262,7 +267,13 @@ if ($action === 'create-service') {
         $created['links'] ?: $created['config'],
         'api',
         $wc_order_id,
-        array('max_connections' => $max_connections)
+        array(
+            'max_connections' => $max_connections,
+            'customer_email' => $created['customer_email'] ?? $customer_email,
+            'usage_id' => $created['usage_id'] ?? $usage_id,
+            'xray_email' => $created['xray_email'] ?? '',
+            'email' => $created['xray_email'] ?? ($created['customer_email'] ?? $customer_email),
+        )
     );
 
     if (empty($order['ok'])) {
@@ -327,6 +338,9 @@ if ($action === 'create-service') {
         'json_filename' => $raw['json_filename'] ?? '',
         'conf_filename' => $raw['conf_filename'] ?? '',
         'client_dns' => $raw['client_dns'] ?? '',
+        'customer_email' => $created['customer_email'] ?? $customer_email,
+        'usage_id' => $created['usage_id'] ?? $usage_id,
+        'xray_email' => $created['xray_email'] ?? '',
         'connect_host' => USK_ConnectHost::resolve($server_ip !== '' ? $server_ip : null) ?: USK_ConnectHost::detect_ip(),
         'vless' => $raw['vless'] ?? '',
         'transport' => $raw['transport'] ?? '',

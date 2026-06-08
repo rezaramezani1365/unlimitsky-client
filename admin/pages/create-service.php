@@ -68,6 +68,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $code = (string) rand(111111, 999999);
                 $username = usk_service_name($code, 'admin');
                 $provisionMeta = array();
+                $nodeBlocked = false;
+                $rawCustomerEmail = trim((string) ($_POST['customer_email'] ?? ''));
+                $customerEmail = USK_ProtocolProvisioner::sanitize_customer_email($rawCustomerEmail);
+                if ($rawCustomerEmail !== '' && $customerEmail === '') {
+                    usk_flash(__('create_customer_email_invalid'), 'error');
+                    $nodeBlocked = true;
+                } elseif ($customerEmail !== '') {
+                    $provisionMeta['customer_email'] = $customerEmail;
+                }
                 if ($protocol !== 'xray' && !empty($_POST['custom_port'])) {
                     $provisionMeta['port'] = (int) $_POST['custom_port'];
                 }
@@ -85,7 +94,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $provisionMeta['max_connections'] = $max_connections;
                 $nodeId = preg_replace('/[^a-z0-9]/', '', (string) ($_POST['node_id'] ?? ''));
-                $nodeBlocked = false;
                 if ($nodeId !== '') {
                     if (!$canUseNodes) {
                         usk_flash(__('nodes_pro_required'), 'error');
@@ -119,6 +127,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             'max_connections' => $max_connections,
                             'node_name' => $created['node_name'] ?? '',
                             'node_id' => $created['node_id'] ?? '',
+                            'customer_email' => $created['customer_email'] ?? ($provisionMeta['customer_email'] ?? ''),
+                            'usage_id' => $created['usage_id'] ?? '',
+                            'xray_email' => $created['xray_email'] ?? '',
+                            'email' => $created['xray_email'] ?? ($created['customer_email'] ?? ''),
                         )
                     );
                     if (empty($order['ok'])) {
@@ -151,6 +163,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $result['max_connections'] = $max_connections;
                         $result['ovpn_filename'] = $raw['ovpn_filename'] ?? ($raw['json_filename'] ?? ($raw['conf_filename'] ?? ($username . ($protocol === 'xray' ? '.json' : '.ovpn'))));
                         $result['client_dns'] = $raw['client_dns'] ?? ($provisionMeta['client_dns'] ?? '');
+                        $result['customer_email'] = $created['customer_email'] ?? ($provisionMeta['customer_email'] ?? '');
+                        $result['usage_id'] = $created['usage_id'] ?? '';
+                        $result['xray_email'] = $created['xray_email'] ?? '';
                         $result['vless'] = $raw['vless'] ?? ($created['subscription'] ?? '');
                         $result['openvpn_proto'] = $raw['proto'] ?? ($provisionMeta['openvpn_proto'] ?? 'tcp');
                         $result['wireguard_transport'] = $raw['wireguard_transport'] ?? ($provisionMeta['wireguard_transport'] ?? '');
@@ -302,6 +317,11 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
                     <p class="text-muted small mt-1"><?= __('create_no_protocols') ?> <a href="<?= usk_admin_url('protocols') ?>"><?= __('nav_protocols') ?></a></p>
                 <?php endif; ?>
             </div>
+            <div class="form-group native-field" id="create-customer-email-wrap">
+                <label><?= __('create_customer_email') ?></label>
+                <input type="email" class="form-control" name="customer_email" id="customer-email-input" placeholder="<?= __('create_customer_email_placeholder') ?>" dir="ltr" style="text-align:left;">
+                <p class="text-muted small mt-1 mb-0"><?= __('create_customer_email_hint') ?></p>
+            </div>
             <div class="form-group native-field" id="create-port-fields" style="display:none;">
                 <label><?= __('create_config_port') ?></label>
                 <div id="create-port-single" style="display:none;">
@@ -385,6 +405,8 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         var l2tpWarn = document.getElementById('create-l2tp-warning');
         var xrayHint = document.getElementById('create-xray-hint');
         var dnsWrap = document.getElementById('create-client-dns-wrap');
+        var customerEmail = document.getElementById('customer-email-input');
+        if (customerEmail) customerEmail.required = (proto === 'xray');
         if (!wrap || !proto || !protocolPorts[proto]) {
             if (wrap) wrap.style.display = 'none';
             if (openvpnProto) openvpnProto.style.display = 'none';
@@ -392,6 +414,7 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
             if (l2tpWarn) l2tpWarn.style.display = 'none';
             if (xrayHint) xrayHint.style.display = 'none';
             if (dnsWrap) dnsWrap.style.display = 'none';
+            if (customerEmail) customerEmail.required = false;
             return;
         }
         wrap.style.display = '';
@@ -489,6 +512,12 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
     <?php endif; ?>
     <?php if (!empty($result['client_dns'])) : ?>
         <p><strong><?= __('create_client_dns') ?>:</strong> <code><?= usk_esc($result['client_dns']) ?></code></p>
+    <?php endif; ?>
+    <?php if (!empty($result['customer_email'])) : ?>
+        <p><strong><?= __('create_customer_email') ?>:</strong> <code><?= usk_esc($result['customer_email']) ?></code></p>
+    <?php endif; ?>
+    <?php if (!empty($result['xray_email']) && ($result['protocol'] ?? '') === 'xray') : ?>
+        <p><strong><?= __('create_xray_usage_id') ?>:</strong> <code><?= usk_esc($result['xray_email']) ?></code></p>
     <?php endif; ?>
     <?php if (!empty($result['vless']) && ($result['protocol'] ?? '') === 'xray') : ?>
         <p class="mt-2"><strong><?= __('xray_vless_link') ?>:</strong></p>

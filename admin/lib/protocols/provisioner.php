@@ -33,6 +33,40 @@ class USK_ProtocolProvisioner
         return $fallback;
     }
 
+    public static function sanitize_customer_email($email)
+    {
+        $email = trim((string) $email);
+        if ($email === '') {
+            return '';
+        }
+        $email = filter_var($email, FILTER_SANITIZE_EMAIL);
+        return filter_var($email, FILTER_VALIDATE_EMAIL) ? $email : '';
+    }
+
+    public static function sanitize_usage_id($value, $fallback = '')
+    {
+        $value = trim((string) $value);
+        $value = preg_replace('/[^a-zA-Z0-9@._+\-]/', '_', $value);
+        $value = trim((string) $value, '._-');
+        if ($value === '') {
+            $value = preg_replace('/[^a-zA-Z0-9@._+\-]/', '_', (string) $fallback);
+            $value = trim((string) $value, '._-');
+        }
+        return substr($value !== '' ? $value : 'user', 0, 96);
+    }
+
+    private static function usage_id_for($protocol, $username, $customerEmail, array $meta)
+    {
+        $explicit = trim((string) ($meta['usage_id'] ?? ($meta['xray_email'] ?? '')));
+        if ($explicit !== '') {
+            return self::sanitize_usage_id($explicit, $username);
+        }
+        if ($protocol === 'xray' && $customerEmail !== '') {
+            return self::sanitize_usage_id($customerEmail, $username);
+        }
+        return self::sanitize_usage_id($username, $username);
+    }
+
     public static function create($protocol, $username, $volume_gb = 0, $duration_days = 0, array $meta = array())
     {
         $allowed = array_keys(USK_ProtocolManager::list());
@@ -56,6 +90,8 @@ class USK_ProtocolProvisioner
 
         $clientDns = USK_ClientDns::resolve((string) ($meta['client_dns'] ?? ''), $protocol);
         $meta['client_dns'] = $clientDns;
+        $customerEmail = self::sanitize_customer_email($meta['customer_email'] ?? '');
+        $usageId = self::usage_id_for($protocol, $username, $customerEmail, $meta);
 
         $connectHost = USK_ConnectHost::resolve(
             isset($meta['server_ip']) && (string) $meta['server_ip'] !== ''
@@ -91,6 +127,7 @@ class USK_ProtocolProvisioner
         } elseif ($protocol === 'xray') {
             $scriptArgs[] = $clientDns;
             $scriptArgs[] = $connectHost;
+            $scriptArgs[] = $usageId;
         } elseif ($protocol !== 'openvpn') {
             $scriptArgs[] = $connectHost;
         }
@@ -139,6 +176,10 @@ class USK_ProtocolProvisioner
             'status' => 'active',
             'source' => $meta['source'] ?? 'admin',
             'wc_order_id' => $meta['wc_order_id'] ?? null,
+            'customer_email' => $customerEmail !== '' ? $customerEmail : null,
+            'usage_id' => $usageId,
+            'xray_email' => $protocol === 'xray' ? $usageId : null,
+            'email' => $protocol === 'xray' ? $usageId : ($customerEmail !== '' ? $customerEmail : null),
             'max_connections' => max(1, (int) ($meta['max_connections'] ?? 1)),
             'vpn_uri' => $vpnUri !== '' ? $vpnUri : null,
             'qr_conf_png' => $data['qr_conf_png'] ?? '',
@@ -163,6 +204,9 @@ class USK_ProtocolProvisioner
             'expires_at' => $data['expires_at'] ?? null,
             'volume_gb' => (int) $volume_gb,
             'duration_days' => (int) $duration_days,
+            'customer_email' => $customerEmail,
+            'usage_id' => $usageId,
+            'xray_email' => $protocol === 'xray' ? $usageId : '',
             'raw' => $data,
         );
     }
@@ -185,12 +229,15 @@ class USK_ProtocolProvisioner
 
         $clientDns = USK_ClientDns::resolve((string) ($meta['client_dns'] ?? ''), $protocol);
         $connectHost = USK_Nodes::connect_host_for_node($node);
+        $customerEmail = self::sanitize_customer_email($meta['customer_email'] ?? '');
+        $usageId = self::usage_id_for($protocol, $username, $customerEmail, $meta);
         $scriptArgs = array(
             $username,
             (string) (int) $volume_gb,
             (string) (int) $duration_days,
             $clientDns,
             $connectHost,
+            $usageId,
         );
 
         $remote = USK_NodeSsh::run_script($node, 'add-user-xray.sh', $scriptArgs, 240);
@@ -241,6 +288,10 @@ class USK_ProtocolProvisioner
             'status' => 'active',
             'source' => $meta['source'] ?? 'admin',
             'wc_order_id' => $meta['wc_order_id'] ?? null,
+            'customer_email' => $customerEmail !== '' ? $customerEmail : null,
+            'usage_id' => $usageId,
+            'xray_email' => $usageId,
+            'email' => $usageId,
             'max_connections' => max(1, (int) ($meta['max_connections'] ?? 1)),
             'vpn_uri' => $vpnUri !== '' ? $vpnUri : null,
             'qr_conf_png' => $data['qr_conf_png'] ?? '',
@@ -267,6 +318,9 @@ class USK_ProtocolProvisioner
             'expires_at' => $data['expires_at'] ?? null,
             'volume_gb' => (int) $volume_gb,
             'duration_days' => (int) $duration_days,
+            'customer_email' => $customerEmail,
+            'usage_id' => $usageId,
+            'xray_email' => $usageId,
             'raw' => $data,
             'node_id' => $nodeId,
             'node_name' => $node['name'] ?? $nodeId,
@@ -291,7 +345,7 @@ class USK_ProtocolProvisioner
             $record['status'] = 'active';
         }
         if (!empty($record['meta']) && is_array($record['meta'])) {
-            foreach (array('public_key', 'client_ip', 'uuid', 'password', 'psk', 'config', 'qr_png', 'vpn_uri', 'wg_conf', 'endpoint', 'download_token', 'ovpn_filename', 'conf_filename', 'json_filename', 'client_dns', 'client_json', 'vless', 'proto', 'port', 'server_ip', 'max_connections') as $k) {
+            foreach (array('public_key', 'client_ip', 'uuid', 'password', 'psk', 'config', 'qr_png', 'vpn_uri', 'wg_conf', 'endpoint', 'download_token', 'ovpn_filename', 'conf_filename', 'json_filename', 'client_dns', 'client_json', 'vless', 'proto', 'port', 'server_ip', 'max_connections', 'customer_email', 'usage_id', 'xray_email', 'email') as $k) {
                 if (isset($record['meta'][$k]) && $record['meta'][$k] !== '') {
                     $record[$k] = $record['meta'][$k];
                 }
@@ -331,6 +385,11 @@ class USK_ProtocolProvisioner
             }
             if (!empty($extra['node_id'])) {
                 $clients[$username]['node_id'] = (string) $extra['node_id'];
+            }
+            foreach (array('customer_email', 'usage_id', 'xray_email', 'email') as $k) {
+                if (isset($extra[$k]) && (string) $extra[$k] !== '') {
+                    $clients[$username][$k] = (string) $extra[$k];
+                }
             }
             self::save_protocol_clients($protocol, $clients);
         }

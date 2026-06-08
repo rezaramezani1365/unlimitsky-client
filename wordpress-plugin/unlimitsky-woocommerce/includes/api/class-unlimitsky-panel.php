@@ -111,7 +111,7 @@ class USK_UnlimitSky_Panel
     /**
      * @return array{success:bool, subscription_url?:string, config_links?:string, username?:string, error?:string}
      */
-    public static function create_service(array $panel, int $volume_gb, int $duration_days, string $username, string $protocol = '', int $wc_order_id = 0, string $plan_code = '', string $openvpn_proto = 'tcp', string $wireguard_transport = 'tcp', string $external_panel_code = ''): array
+    public static function create_service(array $panel, int $volume_gb, int $duration_days, string $username, string $protocol = '', int $wc_order_id = 0, string $plan_code = '', string $openvpn_proto = 'tcp', string $wireguard_transport = 'tcp', string $external_panel_code = '', string $customer_email = ''): array
     {
         $api_key = $panel['token'] ?? '';
         if ($api_key === '') {
@@ -128,6 +128,10 @@ class USK_UnlimitSky_Panel
                 'username'      => $username,
                 'wc_order_id'   => $wc_order_id,
             ];
+            $customer_email = sanitize_email($customer_email);
+            if ($customer_email !== '') {
+                $payload['customer_email'] = $customer_email;
+            }
             if ($plan_code !== '') {
                 $payload['plan_code'] = $plan_code;
             }
@@ -168,6 +172,10 @@ class USK_UnlimitSky_Panel
             'username'      => $username,
             'wc_order_id'   => $wc_order_id,
         ];
+        $customer_email = sanitize_email($customer_email);
+        if ($customer_email !== '') {
+            $payload['customer_email'] = $customer_email;
+        }
 
         if (!empty($panel['backend_ip'])) {
             $payload['server_ip'] = $panel['backend_ip'];
@@ -215,6 +223,9 @@ class USK_UnlimitSky_Panel
             'wireguard_transport' => $data['wireguard_transport'] ?? '',
             'tcp_client_cmd'      => $data['tcp_client_cmd'] ?? '',
             'username'         => $data['username'] ?? $username,
+            'customer_email'   => $data['customer_email'] ?? $customer_email,
+            'usage_id'         => $data['usage_id'] ?? '',
+            'xray_email'       => $data['xray_email'] ?? '',
             'panel'            => $panel,
             'protocol'         => $data['protocol'] ?? $protocol,
             'qr_png'           => $data['qr_png'] ?? '',

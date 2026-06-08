@@ -15,6 +15,8 @@ $batchMethod = $ref->getMethod('batch_usage_maps');
 $batchMethod->setAccessible(true);
 $bytesMethod = $ref->getMethod('bytes_from_maps');
 $bytesMethod->setAccessible(true);
+$candidatesMethod = $ref->getMethod('usage_name_candidates');
+$candidatesMethod->setAccessible(true);
 
 $maps = $batchMethod->invoke(null);
 
@@ -38,6 +40,12 @@ foreach (array('xray', 'wireguard', 'openvpn') as $protocol) {
         'loaded_keys_sample' => array_slice(array_keys($clients), 0, 5),
         'map_count' => count($map),
         'map_keys_sample' => array_slice(array_keys($map), 0, 5),
+        'positive_map_count' => count(array_filter($map, function ($v) {
+            return (int) $v > 0;
+        })),
+        'positive_map_keys_sample' => array_slice(array_keys(array_filter($map, function ($v) {
+            return (int) $v > 0;
+        })), 0, 10),
     );
 
     $samples = array();
@@ -52,6 +60,7 @@ foreach (array('xray', 'wireguard', 'openvpn') as $protocol) {
             'rec_username' => (string) ($rec['username'] ?? ''),
             'uuid' => (string) ($rec['uuid'] ?? ''),
             'order_code' => (string) ($rec['order_code'] ?? ''),
+            'candidates' => $candidatesMethod->invoke(null, $username, $rec),
             'bytes_matched' => $bytes,
         );
         $i++;
@@ -60,5 +69,19 @@ foreach (array('xray', 'wireguard', 'openvpn') as $protocol) {
 }
 
 $out['collect_meta'] = USK_ProtocolUsage::last_collect_meta();
+
+if (is_readable('/var/lib/unlimitsky/xray/access.log')) {
+    $cmd = "awk '/email:/ && /accepted/ {for(i=1;i<=NF;i++) if(\$i==\"email:\" && (i+1)<=NF) print \$(i+1)}' /var/lib/unlimitsky/xray/access.log 2>/dev/null | sort | uniq -c | sort -nr | head -10";
+    $rawAccess = trim((string) @shell_exec($cmd));
+    $access = array();
+    foreach (explode("\n", $rawAccess) as $line) {
+        $line = trim($line);
+        if ($line === '' || !preg_match('/^(\d+)\s+(.+)$/', $line, $m)) {
+            continue;
+        }
+        $access[] = array('hits' => (int) $m[1], 'email' => $m[2]);
+    }
+    $out['xray_access_email_top'] = $access;
+}
 
 echo json_encode($out, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) . PHP_EOL;

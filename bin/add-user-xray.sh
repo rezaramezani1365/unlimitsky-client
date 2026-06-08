@@ -10,7 +10,10 @@ VOLUME_GB="${2:-0}"
 DURATION_DAYS="${3:-0}"
 CLIENT_DNS="${4:-}"
 USK_CONNECT_HOST_ARG="${5:-}"
+XRAY_EMAIL="${6:-$USERNAME}"
 if [ -z "$USERNAME" ]; then usk_json_fail "username_required"; fi
+XRAY_EMAIL=$(printf '%s' "$XRAY_EMAIL" | tr -c 'a-zA-Z0-9@._+-' '_' | cut -c1-96)
+[ -n "$XRAY_EMAIL" ] || XRAY_EMAIL="$USERNAME"
 
 EXPIRES=""
 if [ "$DURATION_DAYS" -gt 0 ] 2>/dev/null; then
@@ -44,7 +47,7 @@ SERVER_IP=$(usk_xray_resolve_connect_host "$PANEL_ROOT" 2>/dev/null || true)
 CFG_BAK=$(mktemp)
 cp "$XRAY_CFG" "$CFG_BAK"
 
-if ! usk_xray_add_client "$XRAY_CFG" "$UUID" "$USERNAME"; then
+if ! usk_xray_add_client "$XRAY_CFG" "$UUID" "$XRAY_EMAIL"; then
   rm -f "$CFG_BAK"
   usk_json_fail "xray_config_update_failed"
 fi
@@ -114,10 +117,10 @@ REGISTRY="$DATA_ROOT/xray/clients.json"
 mkdir -p "$(dirname "$REGISTRY")"
 [ -f "$REGISTRY" ] || echo "[]" > "$REGISTRY"
 tmp2=$(mktemp)
-if ! jq --arg u "$USERNAME" --arg id "$UUID" --arg ts "$(date -Iseconds)" --arg exp "$EXPIRES" \
+if ! jq --arg u "$USERNAME" --arg id "$UUID" --arg email "$XRAY_EMAIL" --arg ts "$(date -Iseconds)" --arg exp "$EXPIRES" \
    --arg dns "$CLIENT_DNS" --arg token "$DOWNLOAD_TOKEN" --arg vless "$VLESS" \
    --argjson vol "$VOLUME_GB" --argjson days "$DURATION_DAYS" \
-  '. += [{"username":$u,"uuid":$id,"created":$ts,"volume_gb":$vol,"duration_days":$days,"expires_at":$exp,"status":"active","client_dns":$dns,"download_token":$token,"vless":$vless}]' \
+  '. += [{"username":$u,"uuid":$id,"email":$email,"xray_email":$email,"usage_id":$email,"created":$ts,"volume_gb":$vol,"duration_days":$days,"expires_at":$exp,"status":"active","client_dns":$dns,"download_token":$token,"vless":$vless}]' \
   "$REGISTRY" > "$tmp2"; then
   rm -f "$tmp2"
   usk_json_fail "xray_registry_failed"
@@ -127,6 +130,7 @@ mv "$tmp2" "$REGISTRY"
 echo -n "USK_JSON:"
 jq -cn \
   --arg u "$USERNAME" \
+  --arg email "$XRAY_EMAIL" \
   --arg cfg "$CONFIG" \
   --arg links "$LINKS" \
   --arg vless "$VLESS" \
@@ -144,5 +148,5 @@ jq -cn \
   --argjson days "$DURATION_DAYS" \
   --argjson port "$VLESS_PORT" \
   --arg transport "reality" \
-  '{ok:true, username:$u, protocol:"xray", config:$cfg, links:$links, subscription_url:$vless, uuid:$id, vless:$vless, client_json:$json, vless_port:$port, transport:$transport, reality_sni:$sni, fingerprint:$fp, client_dns:$dns, download_token:$token, json_filename:$fname, profile_path:$file, expires_at:$exp, volume_gb:$vol, duration_days:$days, qr_png:$qr}'
+  '{ok:true, username:$u, email:$email, xray_email:$email, usage_id:$email, protocol:"xray", config:$cfg, links:$links, subscription_url:$vless, uuid:$id, vless:$vless, client_json:$json, vless_port:$port, transport:$transport, reality_sni:$sni, fingerprint:$fp, client_dns:$dns, download_token:$token, json_filename:$fname, profile_path:$file, expires_at:$exp, volume_gb:$vol, duration_days:$days, qr_png:$qr}'
 exit 0
