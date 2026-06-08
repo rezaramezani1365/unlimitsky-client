@@ -58,12 +58,11 @@ usk_xray_cumulative_traffic_map() {
   echo "$raw" | jq -c '
     reduce ((.stat // .stats // [])[]? | select(.name? != null)) as $s ({};
       ($s.name | tostring) as $name |
-      if ($name | test("^user>>>[^>]+>>>traffic>>>")) then
-        ($name | capture("^user>>>(?<email>[^>]+)>>>traffic>>>")) as $cap |
-        if ($cap.email | length) > 0 then
-          . + {($cap.email): ((.[$cap.email] // 0) + (($s.value // 0) | tonumber))}
-        else .
-        end
+      if ($name | startswith("user>>>")) and ($name | contains(">>>traffic>>>")) then
+        ($name | split(">>>")) as $p |
+        if ($p | length) >= 4 and ($p[1] | length) > 0 then
+          . + {($p[1]): ((.[$p[1]] // 0) + (($s.value // 0) | tonumber))}
+        else . end
       else . end
     )
   ' 2>/dev/null || echo '{}'

@@ -1,6 +1,7 @@
 #!/bin/bash
 # Collect live VPN traffic counters (run as root via sudo from panel).
-set -uo
+# stdout = single JSON object only (safe to pipe to jq).
+set -o pipefail
 export BASH_ENV=
 export ENV=
 
@@ -323,10 +324,92 @@ if [ -n "$_xray_access_log" ] && [ -r "$_xray_access_log" ]; then
   XRAY_ACCESS_LOG_BYTES=$(usk_sanitize_json_int "$(wc -c <"$_xray_access_log" 2>/dev/null || echo 0)")
 fi
 
-_out_tmp=$(mktemp)
-_jq_err=$(mktemp)
-if command -v jq >/dev/null 2>&1; then
-  if ! jq -nc \
+COLLECTED_AT=$(date -Iseconds 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)
+WG_PEERS=$(usk_sanitize_json_int "$(count_json_keys "$WG_JSON")")
+AWG_PEERS=$(usk_sanitize_json_int "$(count_json_keys "$AWG_JSON")")
+XRAY_USERS=$(usk_sanitize_json_int "$(count_json_keys "$XRAY_JSON")")
+OVPN_USERS=$(usk_sanitize_json_int "$(count_json_keys "$OVPN_JSON")")
+XRAY_CFG_EMAILS=$(usk_sanitize_json_int "$XRAY_CFG_EMAILS")
+XRAY_API_OK=$(usk_sanitize_json_int "$XRAY_API_OK")
+XRAY_ACCESS_LOG_OK=$(usk_sanitize_json_int "$XRAY_ACCESS_LOG_OK")
+XRAY_ACCESS_LOG_BYTES=$(usk_sanitize_json_int "$XRAY_ACCESS_LOG_BYTES")
+OVPN_STATUS_FILES=$(usk_sanitize_json_int "$OVPN_STATUS_FILES")
+
+_emit_ok=0
+if command -v python3 >/dev/null 2>&1; then
+  if USK_COLLECT_JSON_WG="$WG_JSON" \
+     USK_COLLECT_JSON_AWG="$AWG_JSON" \
+     USK_COLLECT_JSON_XRAY="$XRAY_JSON" \
+     USK_COLLECT_JSON_OVPN="$OVPN_JSON" \
+     USK_COLLECT_JSON_WG_CONN="$WG_CONN_JSON" \
+     USK_COLLECT_JSON_AWG_CONN="$AWG_CONN_JSON" \
+     USK_COLLECT_JSON_XRAY_CONN="$XRAY_CONN_JSON" \
+     USK_COLLECT_JSON_OVPN_CONN="$OVPN_CONN_JSON" \
+     USK_COLLECT_AT="$COLLECTED_AT" \
+     USK_COLLECT_WG_PEERS="$WG_PEERS" \
+     USK_COLLECT_AWG_PEERS="$AWG_PEERS" \
+     USK_COLLECT_XRAY_USERS="$XRAY_USERS" \
+     USK_COLLECT_OVPN_USERS="$OVPN_USERS" \
+     USK_COLLECT_OVPN_STATUS_FILES="$OVPN_STATUS_FILES" \
+     USK_COLLECT_XRAY_CFG_CLIENTS="$XRAY_CFG_EMAILS" \
+     USK_COLLECT_XRAY_API_OK="$XRAY_API_OK" \
+     USK_COLLECT_XRAY_ACCESS_LOG_OK="$XRAY_ACCESS_LOG_OK" \
+     USK_COLLECT_XRAY_ACCESS_LOG_BYTES="$XRAY_ACCESS_LOG_BYTES" \
+     python3 - <<'PY'
+import json, os
+
+def obj(name, default="{}"):
+    raw = os.environ.get(name, default) or default
+    try:
+        val = json.loads(raw)
+        return val if isinstance(val, dict) else {}
+    except Exception:
+        return {}
+
+def num(name, default=0):
+    try:
+        return int(os.environ.get(name, str(default)) or default)
+    except Exception:
+        return default
+
+out = {
+    "wireguard": obj("USK_COLLECT_JSON_WG"),
+    "amnezia": obj("USK_COLLECT_JSON_AWG"),
+    "xray": obj("USK_COLLECT_JSON_XRAY"),
+    "openvpn": obj("USK_COLLECT_JSON_OVPN"),
+    "connections": {
+        "wireguard": obj("USK_COLLECT_JSON_WG_CONN"),
+        "amnezia": obj("USK_COLLECT_JSON_AWG_CONN"),
+        "xray": obj("USK_COLLECT_JSON_XRAY_CONN"),
+        "openvpn": obj("USK_COLLECT_JSON_OVPN_CONN"),
+    },
+    "ok": True,
+    "collected_at": os.environ.get("USK_COLLECT_AT", ""),
+    "_meta": {
+        "wg_peers": num("USK_COLLECT_WG_PEERS"),
+        "awg_peers": num("USK_COLLECT_AWG_PEERS"),
+        "xray_users": num("USK_COLLECT_XRAY_USERS"),
+        "ovpn_users": num("USK_COLLECT_OVPN_USERS"),
+        "ovpn_status_files": num("USK_COLLECT_OVPN_STATUS_FILES"),
+        "xray_cfg_clients": num("USK_COLLECT_XRAY_CFG_CLIENTS"),
+        "xray_api_ok": num("USK_COLLECT_XRAY_API_OK") == 1,
+        "xray_traffic_mode": "cumulative",
+        "xray_stats_api": "127.0.0.1:10085",
+        "xray_access_log_ok": num("USK_COLLECT_XRAY_ACCESS_LOG_OK") == 1,
+        "xray_access_log_bytes": num("USK_COLLECT_XRAY_ACCESS_LOG_BYTES"),
+    },
+}
+print(json.dumps(out, ensure_ascii=False))
+PY
+  then
+    _emit_ok=1
+  fi
+fi
+
+if [ "$_emit_ok" -eq 0 ] && command -v jq >/dev/null 2>&1; then
+  _out_tmp=$(mktemp)
+  _jq_err=$(mktemp)
+  if jq -nc \
     --argjson wireguard "$WG_JSON" \
     --argjson amnezia "$AWG_JSON" \
     --argjson xray "$XRAY_JSON" \
@@ -335,15 +418,16 @@ if command -v jq >/dev/null 2>&1; then
     --argjson awg_conn "$AWG_CONN_JSON" \
     --argjson xray_conn "$XRAY_CONN_JSON" \
     --argjson ovpn_conn "$OVPN_CONN_JSON" \
-    --argjson wg_peers "$(usk_sanitize_json_int "$(count_json_keys "$WG_JSON")")" \
-    --argjson awg_peers "$(usk_sanitize_json_int "$(count_json_keys "$AWG_JSON")")" \
-    --argjson xray_users "$(usk_sanitize_json_int "$(count_json_keys "$XRAY_JSON")")" \
-    --argjson ovpn_users "$(usk_sanitize_json_int "$(count_json_keys "$OVPN_JSON")")" \
-    --argjson ovpn_status_files "$(usk_sanitize_json_int "$OVPN_STATUS_FILES")" \
-    --argjson xray_cfg_clients "$(usk_sanitize_json_int "$XRAY_CFG_EMAILS")" \
-    --argjson xray_api_ok "$(usk_sanitize_json_int "$XRAY_API_OK")" \
-    --argjson xray_access_log_ok "$(usk_sanitize_json_int "$XRAY_ACCESS_LOG_OK")" \
-    --argjson xray_access_log_bytes "$(usk_sanitize_json_int "$XRAY_ACCESS_LOG_BYTES")" \
+    --arg collected_at "$COLLECTED_AT" \
+    --argjson wg_peers "$WG_PEERS" \
+    --argjson awg_peers "$AWG_PEERS" \
+    --argjson xray_users "$XRAY_USERS" \
+    --argjson ovpn_users "$OVPN_USERS" \
+    --argjson ovpn_status_files "$OVPN_STATUS_FILES" \
+    --argjson xray_cfg_clients "$XRAY_CFG_EMAILS" \
+    --argjson xray_api_ok "$XRAY_API_OK" \
+    --argjson xray_access_log_ok "$XRAY_ACCESS_LOG_OK" \
+    --argjson xray_access_log_bytes "$XRAY_ACCESS_LOG_BYTES" \
     '{
       wireguard: $wireguard,
       amnezia: $amnezia,
@@ -356,7 +440,7 @@ if command -v jq >/dev/null 2>&1; then
         openvpn: $ovpn_conn
       },
       ok: true,
-      collected_at: (now | todate),
+      collected_at: $collected_at,
       _meta: {
         wg_peers: $wg_peers,
         awg_peers: $awg_peers,
@@ -371,20 +455,14 @@ if command -v jq >/dev/null 2>&1; then
         xray_access_log_bytes: $xray_access_log_bytes
       }
     }' >"$_out_tmp" 2>"$_jq_err"; then
-    _jq_fail=1
-  else
-    _jq_fail=0
-  fi
-  if [ "${_jq_fail:-1}" -eq 0 ] && [ -s "$_out_tmp" ]; then
-    cat "$_out_tmp"
-  else
-    _err_line=$(tr '\n' ' ' <"$_jq_err" 2>/dev/null | head -c 200 || true)
-    jq -nc --arg err "${_err_line:-unknown}" \
-      '{ok:false, error:"json_build_failed", jq_error:$err}' 2>/dev/null \
-      || printf '{"ok":false,"error":"json_build_failed"}\n'
+    if [ -s "$_out_tmp" ]; then
+      cat "$_out_tmp"
+      _emit_ok=1
+    fi
   fi
   rm -f "$_out_tmp" "$_jq_err"
-else
-  printf '{"wireguard":%s,"amnezia":%s,"xray":%s,"openvpn":%s,"ok":true}\n' \
-    "$WG_JSON" "$AWG_JSON" "$XRAY_JSON" "$OVPN_JSON"
+fi
+
+if [ "$_emit_ok" -eq 0 ]; then
+  printf '{"ok":false,"error":"json_build_failed"}\n'
 fi
