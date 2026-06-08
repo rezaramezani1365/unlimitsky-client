@@ -344,7 +344,7 @@ $lastSync = USK_ProtocolLimits::get_last_run();
                     <td><?= usk_esc(usk_format_plan_limits($row['volume'], $row['date'])) ?></td>
                     <td class="usk-live-usage" data-usk-code="<?= usk_esc($row['code']) ?>">
                         <?php if (!empty($row['usage_needs_sync'])) : ?>
-                            <span class="small text-warning"><?= usk_esc($row['usage_display']) ?></span>
+                            <span class="small text-muted"><?= usk_esc($row['usage_display']) ?></span>
                         <?php elseif ($row['usage_percent'] !== null) : ?>
                             <div class="usk-usage-cell">
                                 <span class="small"><?= usk_esc($row['usage_display']) ?></span>
