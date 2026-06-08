@@ -121,7 +121,7 @@ usk_xray_expand_map_from_pairs() {
      map(select(.email != ""))) as $rows |
     reduce $rows[] as $r ($m;
       ($m[$r.email] // 0) as $v |
-      . + {($r.email): ((.[$r.email] // $v) | tonumber)}
+      . + {($r.email): ([((.[$r.email] // 0) | tonumber), ($v | tonumber)] | max)}
       | if ($r.uuid | length) > 0 then
           . + {($r.uuid): ([((.[$r.uuid] // 0) | tonumber), ($v | tonumber)] | max)}
         else . end
