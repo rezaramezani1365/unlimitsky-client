@@ -58,7 +58,7 @@ usk_xray_cumulative_traffic_map() {
   echo "$raw" | jq -c '
     reduce ((.stat // .stats // [])[]? | select(.name? != null)) as $s ({};
       ($s.name | tostring) as $name |
-      if ($name | startswith("user>>>")) and ($name | contains(">>>traffic>>>")) then
+      if ($name | test("^user>>>[^>]+>>>traffic>>>")) then
         ($name | split(">>>")) as $p |
         if ($p | length) >= 4 and ($p[1] | length) > 0 then
           . + {($p[1]): ((.[$p[1]] // 0) + (($s.value // 0) | tonumber))}
@@ -120,10 +120,14 @@ usk_xray_expand_map_from_pairs() {
      map({email: (.[0] // ""), uuid: (.[1] // "")}) |
      map(select(.email != ""))) as $rows |
     reduce $rows[] as $r ($m;
-      ($m[$r.email] // 0) as $v |
-      . + {($r.email): ([((.[$r.email] // 0) | tonumber), ($v | tonumber)] | max)}
+      (($m[$r.email] // 0) | tonumber) as $v |
+      ((.[$r.email] // 0) | tonumber) as $curr_e |
+      (if $v > $curr_e then $v else $curr_e end) as $max_e |
+      . + {($r.email): $max_e}
       | if ($r.uuid | length) > 0 then
-          . + {($r.uuid): ([((.[$r.uuid] // 0) | tonumber), ($v | tonumber)] | max)}
+          ((.[$r.uuid] // 0) | tonumber) as $curr_u |
+          (if $v > $curr_u then $v else $curr_u end) as $max_u |
+          . + {($r.uuid): $max_u}
         else . end
     )
   ' 2>/dev/null || echo "${map_json:-{}}"
@@ -180,9 +184,13 @@ usk_xray_merge_connection_sources() {
         elif (($grace[$e] // 0) | tonumber) > 0 then 1
         else 0 end
       ) as $cnt |
-      . + {($e): ([((.[$e] // 0) | tonumber), $cnt] | max)}
+      ((.[$e] // 0) | tonumber) as $curr_e |
+      (if $cnt > $curr_e then $cnt else $curr_e end) as $max_e |
+      . + {($e): $max_e}
       | if ($u | length) > 0 then
-          . + {($u): ([((.[$u] // 0) | tonumber), $cnt] | max)}
+          ((.[$u] // 0) | tonumber) as $curr_u |
+          (if $cnt > $curr_u then $cnt else $curr_u end) as $max_u |
+          . + {($u): $max_u}
         else . end
     )
   ' 2>/dev/null || echo '{}'
