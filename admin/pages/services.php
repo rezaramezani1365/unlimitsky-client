@@ -229,6 +229,15 @@ $lastSync = USK_ProtocolLimits::get_last_run();
             <div>
                 <strong><i class="fa-solid fa-gauge-high"></i> <?= __('services_sync_title') ?></strong>
                 <p class="text-muted small mb-0 mt-1"><?= sprintf(__('services_sync_hint'), $usageSyncInterval) ?></p>
+                <?php
+                $deployRev = '';
+                $revFile = USK_ROOT . '/admin/data/.deploy-rev';
+                if (is_readable($revFile)) {
+                    $deployRev = substr(trim((string) file_get_contents($revFile)), 0, 7);
+                }
+                if ($deployRev !== '') : ?>
+                    <p class="text-muted small mb-0 mt-1"><?= sprintf(__('services_sync_panel_build'), usk_esc($deployRev)) ?></p>
+                <?php endif; ?>
                 <?php if (is_array($lastSync) && !empty($lastSync['ran_at'])) : ?>
                     <p class="text-muted small mb-0 mt-1"><?= sprintf(
                         __('services_sync_last'),

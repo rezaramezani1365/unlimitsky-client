@@ -522,6 +522,9 @@ class USK_ProtocolUsage
         if (empty($rec['usage_synced_at'])) {
             return true;
         }
+        if ((int) $newBytes !== (int) $prevBytes) {
+            return true;
+        }
         return (int) $newBytes > (int) $prevBytes;
     }
 

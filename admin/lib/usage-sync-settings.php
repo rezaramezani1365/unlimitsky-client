@@ -202,6 +202,55 @@ class USK_UsageSyncSettings
         return $report;
     }
 
+    /**
+     * Admin button — run sync immediately (same job as cron gate).
+     *
+     * @return array<string, mixed>
+     */
+    public static function run_manual_sync()
+    {
+        $lockFp = self::acquire_lock();
+        if ($lockFp === false) {
+            $last = array();
+            if (is_file(USK_ROOT . '/admin/lib/protocols/limits.php')) {
+                require_once USK_ROOT . '/admin/lib/protocols/limits.php';
+                $last = USK_ProtocolLimits::get_last_run();
+            }
+            if (!is_array($last)) {
+                $last = array();
+            }
+            return array_merge($last, array(
+                'ok' => false,
+                'skipped' => true,
+                'queued' => false,
+                'error' => 'already_running',
+                'usage_updated' => (int) ($last['usage_updated'] ?? 0),
+                'checked' => (int) ($last['checked'] ?? 0),
+                'disabled' => (int) ($last['disabled'] ?? 0),
+                'details' => array(),
+            ));
+        }
+
+        try {
+            $report = self::run_sync_job();
+            $report['queued'] = false;
+            $report['ok'] = empty($report['error']);
+            return $report;
+        } catch (Throwable $e) {
+            return array(
+                'ok' => false,
+                'queued' => false,
+                'error' => $e->getMessage(),
+                'usage_updated' => 0,
+                'checked' => 0,
+                'disabled' => 0,
+                'details' => array(),
+            );
+        } finally {
+            self::release_lock($lockFp);
+        }
+    }
+
     /** Status for settings page. @return array<string, mixed> */
     public static function status()
     {

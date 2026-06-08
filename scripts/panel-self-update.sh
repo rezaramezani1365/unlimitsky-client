@@ -47,6 +47,11 @@ fi
 
 bash "$UPDATE_SH" "$WEB_ROOT" "$INSTALL_DIR"
 
+if [ -f "/usr/local/etc/xray/config.json" ] && [ -f "$WEB_ROOT/bin/xray-fix-stats-api.sh" ]; then
+    echo "[*] Ensuring Xray Stats API (usage metering)..."
+    bash "$WEB_ROOT/bin/xray-fix-stats-api.sh" >/dev/null 2>&1 || true
+fi
+
 LIB="${INSTALL_DIR}/install/lib.sh"
 if [ -f "$LIB" ]; then
     # shellcheck source=/dev/null

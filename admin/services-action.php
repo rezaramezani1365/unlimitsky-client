@@ -38,8 +38,12 @@ function usk_services_sync_diag(array $report)
     }
     $xrayCfg = (int) ($meta['xray_cfg_clients'] ?? 0);
     $xrayUsers = (int) ($meta['xray_users'] ?? ($meta['map_counts']['xray'] ?? 0));
+    $xrayApiOk = !empty($meta['xray_api_ok']);
     if ($xrayCfg > 0 && $xrayUsers === 0) {
         $parts[] = __('services_sync_diag_xray_stats');
+    } elseif ($xrayCfg > 0 && $xrayApiOk && $xrayUsers > 0) {
+        $mode = (string) ($meta['xray_traffic_mode'] ?? 'cumulative');
+        $parts[] = '(Xray Stats API: ' . $mode . ', ' . $xrayUsers . ' user(s))';
     }
     $ovpnStatusFiles = (int) ($meta['ovpn_status_files'] ?? 0);
     $ovpnUsers = (int) ($meta['ovpn_users'] ?? ($meta['map_counts']['openvpn'] ?? 0));
@@ -75,8 +79,8 @@ if ($returnView > 0) {
 }
 
 try {
-    @set_time_limit(30);
-    @ini_set('max_execution_time', '30');
+    @set_time_limit(180);
+    @ini_set('max_execution_time', '180');
 
     if (!method_exists('USK_ProtocolLimits', 'sync_usage_and_enforce')) {
         throw new RuntimeException('sync_not_available');
@@ -87,8 +91,10 @@ try {
         throw new RuntimeException('sync_empty_report');
     }
 
-    if (!empty($report['queued'])) {
-        usk_flash(__('services_sync_queued'));
+    if (!empty($report['skipped']) && ($report['error'] ?? '') === 'already_running') {
+        usk_flash(__('services_sync_busy'), 'warning');
+    } elseif (empty($report['ok']) && !empty($report['error'])) {
+        usk_flash(__('services_sync_failed') . ' (' . $report['error'] . ')', 'error');
     } else {
         usk_flash(sprintf(
             __('services_sync_ok'),

@@ -210,26 +210,11 @@ class USK_ProtocolLimits
         return $report;
     }
 
-    /** Admin button — queue force sync for next gate run (no extra PHP process). */
+    /** Admin button — sync usage now (reads live VPN stats, saves to panel). */
     public static function sync_usage_and_enforce()
     {
         require_once __DIR__ . '/../usage-sync-settings.php';
-        USK_UsageSyncSettings::request_force_sync();
-
-        $last = self::get_last_run();
-        $cfg = USK_UsageSyncSettings::get();
-
-        return array(
-            'queued' => true,
-            'usage_updated' => (int) ($last['usage_updated'] ?? 0),
-            'checked' => (int) ($last['checked'] ?? 0),
-            'disabled' => (int) ($last['disabled'] ?? 0),
-            'details' => array(),
-            'usage_meta' => is_array($last['usage_meta'] ?? null) ? $last['usage_meta'] : array(
-                'source' => 'cron',
-                'interval_minutes' => (int) ($cfg['interval_minutes'] ?? 5),
-            ),
-        );
+        return USK_UsageSyncSettings::run_manual_sync();
     }
 
     /**
