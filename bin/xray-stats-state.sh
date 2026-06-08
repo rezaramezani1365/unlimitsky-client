@@ -58,7 +58,7 @@ usk_xray_cumulative_traffic_map() {
   echo "$raw" | jq -c '
     reduce ((.stat // .stats // [])[]? | select(.name? != null)) as $s ({};
       ($s.name | tostring) as $name |
-      if ($name | test("^user>>>[^>]+>>>traffic>>>")) then
+      if ($name | startswith("user>>>")) and ($name | contains(">>>traffic>>>")) then
         ($name | split(">>>")) as $p |
         if ($p | length) >= 4 and ($p[1] | length) > 0 then
           . + {($p[1]): ((.[$p[1]] // 0) + (($s.value // 0) | tonumber))}
@@ -228,16 +228,18 @@ usk_xray_apply_traffic_deltas() {
       (($s.value // 0) | tonumber) as $cur |
       ($acc.counters[$name] // null) as $prev |
       ($acc.counters + {($name): $cur}) as $next_counters |
-      if ($name | test("^user>>>[^>]+>>>traffic>>>")) then
-        ($name | capture("^user>>>(?<email>[^>]+)>>>traffic>>>")) as $cap |
-        if ($prev != null and $cur >= $prev and ($cur - $prev) > 0) then
-          ($acc.deltas[$cap.email] // 0) as $old |
+      if ($name | startswith("user>>>")) and ($name | contains(">>>traffic>>>")) then
+        (($name | split(">>>"))[1] // "") as $email |
+        if ($email | length) == 0 then
+          $acc | .counters = $next_counters
+        elif ($prev != null and $cur >= $prev and ($cur - $prev) > 0) then
+          ($acc.deltas[$email] // 0) as $old |
           $acc
-          | .deltas += {($cap.email): ($old + ($cur - $prev))}
+          | .deltas += {($email): ($old + ($cur - $prev))}
           | .counters = $next_counters
-          | .traffic_ms += {($cap.email): $now}
+          | .traffic_ms += {($email): $now}
         elif ($cur > 0) then
-          $acc | .counters = $next_counters | .traffic_ms += {($cap.email): $now}
+          $acc | .counters = $next_counters | .traffic_ms += {($email): $now}
         else
           $acc | .counters = $next_counters
         end

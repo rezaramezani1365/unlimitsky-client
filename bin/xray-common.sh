@@ -179,7 +179,8 @@ usk_xray_load_clients() {
   jq -c '
     [.inbounds[]? | select(.protocol == "vless") | .settings.clients[]?
      | select(.id != null and (.id | type) == "string"
-       and (.id | test("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")))
+       and (.id | length) == 36
+       and ((.id | split("-") | map(length)) == [8,4,4,4,12]))
      | {id, email: ((.email // "user") | tostring), flow: ((.flow // "xtls-rprx-vision") | tostring)}
     ] | unique_by(.id)
   ' "$cfg" 2>/dev/null || echo '[]'
