@@ -45,6 +45,9 @@ class USK_ProtocolUsage
         }
 
         if ($live !== null) {
+            if (self::is_cumulative_counter_protocol($protocol)) {
+                return self::cumulative_total($rec, (int) $live);
+            }
             return (int) $live;
         }
 
@@ -170,14 +173,32 @@ class USK_ProtocolUsage
 
                 $prev = self::record_usage_bytes($rec);
                 if ($bytes !== null) {
-                    $newBytes = self::merge_usage_bytes($protocol, $prev, (int) $bytes);
-                    if (self::should_persist_usage($rec, $newBytes, $prev)) {
-                        $clients[$username]['usage_bytes'] = $newBytes;
-                        $clients[$username]['usage_synced_at'] = date('c');
-                        $changed = true;
-                        $synced++;
-                        if ($newBytes > $prev) {
-                            $updated++;
+                    if (self::is_cumulative_counter_protocol($protocol)) {
+                        $acc = self::accumulate_cumulative_bytes($rec, (int) $bytes);
+                        $newBytes = (int) $acc['usage_bytes'];
+                        $newRaw = (int) $acc['usage_raw_bytes'];
+                        $prevRaw = array_key_exists('usage_raw_bytes', $rec) ? (int) $rec['usage_raw_bytes'] : null;
+                        $rawChanged = ($prevRaw === null) || ($prevRaw !== $newRaw);
+                        if ($rawChanged || self::should_persist_usage($rec, $newBytes, $prev)) {
+                            $clients[$username]['usage_bytes'] = $newBytes;
+                            $clients[$username]['usage_raw_bytes'] = $newRaw;
+                            $clients[$username]['usage_synced_at'] = date('c');
+                            $changed = true;
+                            $synced++;
+                            if ($newBytes > $prev) {
+                                $updated++;
+                            }
+                        }
+                    } else {
+                        $newBytes = self::merge_usage_bytes($protocol, $prev, (int) $bytes);
+                        if (self::should_persist_usage($rec, $newBytes, $prev)) {
+                            $clients[$username]['usage_bytes'] = $newBytes;
+                            $clients[$username]['usage_synced_at'] = date('c');
+                            $changed = true;
+                            $synced++;
+                            if ($newBytes > $prev) {
+                                $updated++;
+                            }
                         }
                     }
                 }
@@ -570,6 +591,50 @@ class USK_ProtocolUsage
     private static function record_usage_bytes(array $rec)
     {
         return self::record_has_usage_bytes($rec) ? (int) $rec['usage_bytes'] : 0;
+    }
+
+    /** Cumulative counters (Xray/WireGuard) reset to 0 when the service restarts. */
+    private static function is_cumulative_counter_protocol($protocol)
+    {
+        return in_array((string) $protocol, array('xray', 'wireguard', 'amnezia'), true);
+    }
+
+    /**
+     * Reset-safe running total for cumulative counters.
+     * Adds only the delta since the last observed raw counter; when the raw
+     * counter drops below the stored baseline (service restart), the current
+     * raw value is treated as fresh traffic so nothing is lost or double-counted.
+     *
+     * @return int
+     */
+    private static function cumulative_total(array $rec, $rawBytes)
+    {
+        $rawBytes = max(0, (int) $rawBytes);
+        $prevTotal = self::record_usage_bytes($rec);
+        $hasBaseline = array_key_exists('usage_raw_bytes', $rec)
+            && $rec['usage_raw_bytes'] !== null && $rec['usage_raw_bytes'] !== '';
+
+        if (!$hasBaseline) {
+            if ($prevTotal <= 0) {
+                return $prevTotal + $rawBytes;
+            }
+            return $prevTotal;
+        }
+
+        $prevRaw = (int) $rec['usage_raw_bytes'];
+        if ($rawBytes >= $prevRaw) {
+            return $prevTotal + ($rawBytes - $prevRaw);
+        }
+        return $prevTotal + $rawBytes;
+    }
+
+    /** @return array{usage_bytes:int,usage_raw_bytes:int} */
+    private static function accumulate_cumulative_bytes(array $rec, $rawBytes)
+    {
+        return array(
+            'usage_bytes' => self::cumulative_total($rec, $rawBytes),
+            'usage_raw_bytes' => max(0, (int) $rawBytes),
+        );
     }
 
     /** @return int */
