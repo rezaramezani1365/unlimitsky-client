@@ -32,7 +32,7 @@ usk_append_xray_pairs_from_panel() {
 }
 
 usk_sanitize_json_obj() {
-  local j="${1:-{}}"
+  local j="$1"
   if [ -z "$j" ]; then
     echo '{}'
     return 0
@@ -107,7 +107,8 @@ xray_map_json() {
   # Update grace/online state (last_traffic_ms) — traffic totals use cumulative API below.
   usk_xray_stats_prime_once
   cumulative=$(usk_xray_cumulative_traffic_map "$bin")
-  map="${cumulative:-{}}"
+  map="$cumulative"
+  [ -n "$map" ] || map='{}'
 
   pairs_file=$(mktemp)
   usk_xray_build_pairs_file "$pairs_file"
@@ -216,7 +217,8 @@ xray_connections_map_json() {
   fi
 
   usk_xray_stats_prime_once
-  grace_json="${USK_XRAY_GRACE_CONN_JSON:-{}}"
+  grace_json="$USK_XRAY_GRACE_CONN_JSON"
+  [ -n "$grace_json" ] || grace_json='{}'
   access_json=$(usk_xray_access_log_ip_counts)
   pairs_file=$(mktemp)
   usk_xray_build_pairs_file "$pairs_file"

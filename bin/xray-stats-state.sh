@@ -111,11 +111,12 @@ usk_xray_build_pairs_file() {
 usk_xray_expand_map_from_pairs() {
   local map_json="$1"
   local pairs_file="$2"
+  [ -n "$map_json" ] || map_json='{}'
   if ! command -v jq >/dev/null 2>&1 || [ ! -s "$pairs_file" ]; then
-    echo "${map_json:-{}}"
+    echo "$map_json"
     return 0
   fi
-  jq -nc --argjson m "${map_json:-{}}" --rawfile pairs "$pairs_file" '
+  jq -nc --argjson m "$map_json" --rawfile pairs "$pairs_file" '
     ($pairs | split("\n") | map(select(length > 0) | split("\t")) |
      map({email: (.[0] // ""), uuid: (.[1] // "")}) |
      map(select(.email != ""))) as $rows |
@@ -130,7 +131,7 @@ usk_xray_expand_map_from_pairs() {
           . + {($r.uuid): $max_u}
         else . end
     )
-  ' 2>/dev/null || echo "${map_json:-{}}"
+  ' 2>/dev/null || echo "$map_json"
 }
 
 usk_xray_grace_conn_from_state() {
@@ -166,11 +167,15 @@ usk_xray_merge_connection_sources() {
   local state_grace_json="$3"
   local stat_json="$4"
   local pairs_file="$5"
+  [ -n "$access_json" ] || access_json='{}'
+  [ -n "$grace_json" ] || grace_json='{}'
+  [ -n "$state_grace_json" ] || state_grace_json='{}'
+  [ -n "$stat_json" ] || stat_json='{}'
   jq -nc \
-    --argjson access "${access_json:-{}}" \
-    --argjson grace "${grace_json:-{}}" \
-    --argjson state_grace "${state_grace_json:-{}}" \
-    --argjson stat "${stat_json:-{}}" \
+    --argjson access "$access_json" \
+    --argjson grace "$grace_json" \
+    --argjson state_grace "$state_grace_json" \
+    --argjson stat "$stat_json" \
     --rawfile pairs "$pairs_file" '
     ($pairs | split("\n") | map(select(length > 0) | split("\t")) |
      map({email: (.[0] // ""), uuid: (.[1] // "")}) | map(select(.email != ""))) as $rows |
