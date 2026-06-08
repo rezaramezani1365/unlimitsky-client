@@ -121,7 +121,10 @@ usk_xray_expand_map_from_pairs() {
      map(select(.email != ""))) as $rows |
     reduce $rows[] as $r ($m;
       ($m[$r.email] // 0) as $v |
-      . + {($r.email): $v} + (if ($r.uuid | length) > 0 then {($r.uuid): $v} else {} end)
+      . + {($r.email): ((.[$r.email] // $v) | tonumber)}
+      | if ($r.uuid | length) > 0 then
+          . + {($r.uuid): ([((.[$r.uuid] // 0) | tonumber), ($v | tonumber)] | max)}
+        else . end
     )
   ' 2>/dev/null || echo "${map_json:-{}}"
 }
@@ -177,7 +180,10 @@ usk_xray_merge_connection_sources() {
         elif (($grace[$e] // 0) | tonumber) > 0 then 1
         else 0 end
       ) as $cnt |
-      . + {($e): $cnt} + (if ($u | length) > 0 then {($u): $cnt} else {} end)
+      . + {($e): ([((.[$e] // 0) | tonumber), $cnt] | max)}
+      | if ($u | length) > 0 then
+          . + {($u): ([((.[$u] // 0) | tonumber), $cnt] | max)}
+        else . end
     )
   ' 2>/dev/null || echo '{}'
 }

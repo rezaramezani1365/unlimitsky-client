@@ -671,9 +671,14 @@ class USK_ProtocolUsage
         if ($map === array()) {
             return null;
         }
+        $zeroMatch = null;
         foreach (self::usage_name_candidates($username, $rec) as $name) {
             if (array_key_exists($name, $map)) {
-                return (int) $map[$name];
+                $val = (int) $map[$name];
+                if ($val > 0) {
+                    return $val;
+                }
+                $zeroMatch = 0;
             }
         }
         $uuid = trim((string) ($rec['uuid'] ?? ($rec['meta']['uuid'] ?? '')));
@@ -681,7 +686,11 @@ class USK_ProtocolUsage
             foreach ($map as $key => $val) {
                 $key = (string) $key;
                 if ($key === $uuid || stripos($key, $uuid) !== false) {
-                    return (int) $val;
+                    $val = (int) $val;
+                    if ($val > 0) {
+                        return $val;
+                    }
+                    $zeroMatch = 0;
                 }
             }
         }
@@ -689,11 +698,15 @@ class USK_ProtocolUsage
         if ($user !== '') {
             foreach ($map as $key => $val) {
                 if ((string) $key === $user) {
-                    return (int) $val;
+                    $val = (int) $val;
+                    if ($val > 0) {
+                        return $val;
+                    }
+                    $zeroMatch = 0;
                 }
             }
         }
-        return null;
+        return $zeroMatch;
     }
 
     private static function connections_from_maps($protocol, $username, array $rec, array $connMaps)
