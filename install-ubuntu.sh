@@ -137,7 +137,7 @@ fi
 export DEBIAN_FRONTEND=noninteractive
 echo "[*] Installing packages (nginx, mysql, php)..."
 apt-get update -qq
-apt-get install -y nginx mysql-server php-cli php-fpm php-mysql php-curl php-json php-mbstring php-xml unzip curl sudo rsync openssl git
+apt-get install -y nginx mysql-server php-cli php-fpm php-mysql php-curl php-json php-mbstring php-xml unzip curl sudo rsync openssl git jq
 
 echo "[*] Starting MySQL..."
 usk_mysql_ensure
