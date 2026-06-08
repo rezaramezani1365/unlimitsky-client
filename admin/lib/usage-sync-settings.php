@@ -207,6 +207,57 @@ class USK_UsageSyncSettings
      *
      * @return array<string, mixed>
      */
+    /** @return array<string, mixed>|null */
+    private static function run_sync_via_root_wrapper()
+    {
+        $script = USK_ROOT . '/bin/run-native-limits.sh';
+        if (!is_file($script)) {
+            return null;
+        }
+
+        require_once __DIR__ . '/protocols/limits.php';
+        $cmd = 'sudo -n /bin/bash ' . escapeshellarg($script) . ' 2>&1';
+        $raw = @shell_exec($cmd);
+        if ($raw === null || trim($raw) === '') {
+            return null;
+        }
+
+        $raw = trim($raw);
+        $report = json_decode($raw, true);
+        if (!is_array($report) && preg_match('/(\{.*\})/s', $raw, $m)) {
+            $report = json_decode($m[1], true);
+        }
+        if (!is_array($report)) {
+            return null;
+        }
+
+        $report['queued'] = false;
+        $report['ok'] = empty($report['error']) || !empty($report['skipped']);
+        $report['retried_as_root'] = true;
+        return $report;
+    }
+
+    private static function should_retry_sync_as_root(array $report)
+    {
+        if (!empty($report['skipped'])) {
+            return false;
+        }
+        $meta = $report['usage_meta'] ?? array();
+        if (!is_array($meta)) {
+            return true;
+        }
+        if (empty($meta['sudo_ok']) && ($meta['source'] ?? '') === 'collect_script') {
+            return true;
+        }
+        if (isset($meta['parse_ok']) && $meta['parse_ok'] === false) {
+            return true;
+        }
+        if ((int) ($meta['usage_synced'] ?? 0) === 0 && (int) ($report['checked'] ?? 0) > 0) {
+            return true;
+        }
+        return false;
+    }
+
     public static function run_manual_sync()
     {
         $lockFp = self::acquire_lock();
@@ -233,6 +284,21 @@ class USK_UsageSyncSettings
 
         try {
             $report = self::run_sync_job();
+            if (self::should_retry_sync_as_root($report)) {
+                self::release_lock($lockFp);
+                $lockFp = false;
+                $rootReport = self::run_sync_via_root_wrapper();
+                if (is_array($rootReport)) {
+                    return $rootReport;
+                }
+                $lockFp = self::acquire_lock();
+                if ($lockFp === false) {
+                    $report['queued'] = false;
+                    $report['ok'] = empty($report['error']);
+                    $report['root_retry_failed'] = true;
+                    return $report;
+                }
+            }
             $report['queued'] = false;
             $report['ok'] = empty($report['error']);
             return $report;

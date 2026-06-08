@@ -191,6 +191,17 @@ class USK_ProtocolUsage
                         $connUpdated++;
                     }
                 }
+
+                if ($bytes === null && $connActive !== null && self::collect_maps_ok()) {
+                    $prev = self::record_usage_bytes($rec);
+                    $newBytes = $prev;
+                    if (self::should_persist_usage($rec, $newBytes, $prev) || empty($rec['usage_synced_at'])) {
+                        $clients[$username]['usage_bytes'] = $newBytes;
+                        $clients[$username]['usage_synced_at'] = date('c');
+                        $changed = true;
+                        $synced++;
+                    }
+                }
             }
             if ($changed) {
                 USK_ProtocolLimits::save_protocol_clients($protocol, $clients);
@@ -207,6 +218,64 @@ class USK_ProtocolUsage
         return $updated;
     }
 
+    private static function is_metered_protocol($protocol)
+    {
+        return in_array((string) $protocol, array('wireguard', 'openvpn', 'xray'), true);
+    }
+
+    private static function collect_maps_ok()
+    {
+        if (self::$lastCollectMeta === array()) {
+            return false;
+        }
+        if (empty(self::$lastCollectMeta['sudo_ok']) && (self::$lastCollectMeta['source'] ?? '') === 'collect_script') {
+            return false;
+        }
+        if (isset(self::$lastCollectMeta['parse_ok']) && self::$lastCollectMeta['parse_ok'] === false) {
+            return false;
+        }
+        return true;
+    }
+
+    /** Ensure every panel client has a map entry (0 bytes baseline) like collect-usage-stats.sh. */
+    private static function expand_maps_with_panel_clients(array $maps)
+    {
+        if (!isset($maps['_connections']) || !is_array($maps['_connections'])) {
+            $maps['_connections'] = array(
+                'wireguard' => array(),
+                'amnezia' => array(),
+                'xray' => array(),
+                'openvpn' => array(),
+            );
+        }
+
+        foreach (array('wireguard', 'amnezia', 'xray', 'openvpn') as $protocol) {
+            if (!isset($maps[$protocol]) || !is_array($maps[$protocol])) {
+                $maps[$protocol] = array();
+            }
+            $clients = USK_ProtocolLimits::load_protocol_clients($protocol);
+            foreach ($clients as $username => $rec) {
+                if (!is_array($rec)) {
+                    continue;
+                }
+                if ($protocol === 'wireguard' || $protocol === 'amnezia') {
+                    $pub = self::client_public_key($rec);
+                    if ($pub !== '' && !array_key_exists($pub, $maps[$protocol])) {
+                        $maps[$protocol][$pub] = 0;
+                    }
+                    continue;
+                }
+                foreach (self::usage_name_candidates($username, $rec) as $name) {
+                    if ($name !== '' && !array_key_exists($name, $maps[$protocol])) {
+                        $maps[$protocol][$name] = 0;
+                    }
+                }
+            }
+        }
+
+        return $maps;
+    }
+
     /** @return array<string, mixed> */
     private static function batch_usage_maps()
     {
@@ -216,16 +285,16 @@ class USK_ProtocolUsage
 
         $fromSudo = self::batch_usage_maps_via_sudo();
         if (is_array($fromSudo)) {
-            self::$batchCache = self::merge_node_usage_maps($fromSudo);
+            self::$batchCache = self::expand_maps_with_panel_clients(self::merge_node_usage_maps($fromSudo));
             return self::$batchCache;
         }
 
-        self::$batchCache = array(
+        self::$batchCache = self::expand_maps_with_panel_clients(array(
             'wireguard' => self::batch_wg_dump('wg0', 'wg'),
             'amnezia' => self::batch_wg_dump('awg0', 'awg'),
             'xray' => self::batch_xray_user_bytes(),
             'openvpn' => self::batch_openvpn_user_bytes(),
-        );
+        ));
         if (self::$lastCollectMeta === array()) {
             self::$lastCollectMeta = array(
                 'sudo_ok' => false,
@@ -354,13 +423,18 @@ class USK_ProtocolUsage
             return null;
         }
 
-        $cmd = 'sudo -n /bin/bash ' . escapeshellarg($script) . ' 2>/dev/null';
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            $cmd = '/bin/bash ' . escapeshellarg($script) . ' 2>/dev/null';
+        } else {
+            $cmd = 'sudo -n /bin/bash ' . escapeshellarg($script) . ' 2>/dev/null';
+        }
         $raw = self::shell_with_timeout($cmd, 45);
         if ($raw === '') {
             self::$lastCollectMeta = array(
                 'sudo_ok' => false,
                 'source' => 'collect_script',
                 'collect_error' => 'empty_output',
+                'collect_uid' => function_exists('posix_geteuid') ? (int) posix_geteuid() : -1,
             );
             return null;
         }
@@ -415,7 +489,11 @@ class USK_ProtocolUsage
             self::shell_with_timeout('sudo -n /bin/bash ' . escapeshellarg($fix) . ' 2>&1', 60);
         }
 
-        $cmd = 'sudo -n /bin/bash ' . escapeshellarg($script) . ' 2>/dev/null';
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            $cmd = '/bin/bash ' . escapeshellarg($script) . ' 2>/dev/null';
+        } else {
+            $cmd = 'sudo -n /bin/bash ' . escapeshellarg($script) . ' 2>/dev/null';
+        }
         $raw = self::shell_with_timeout($cmd, 45);
         if ($raw === '') {
             return null;

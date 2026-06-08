@@ -140,10 +140,12 @@ class USK_ProtocolLimits
         if (!is_dir($dir)) {
             @mkdir($dir, 0755, true);
         }
+        $file = $dir . '/' . $protocol . '.json';
         file_put_contents(
-            $dir . '/' . $protocol . '.json',
+            $file,
             json_encode($clients, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
         );
+        @chmod($file, 0664);
     }
 
     /**

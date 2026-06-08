@@ -399,6 +399,9 @@ usk_ensure_web_update_sudoers() {
     if ! grep -qF 'collect-usage-stats.sh' "$sudoers" 2>/dev/null; then
         echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/collect-usage-stats.sh" >> "$sudoers"
     fi
+    if ! grep -qF 'run-native-limits.sh' "$sudoers" 2>/dev/null; then
+        echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/run-native-limits.sh" >> "$sudoers"
+    fi
     if ! grep -qF 'xray-fix-stats-api.sh' "$sudoers" 2>/dev/null; then
         echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/xray-fix-stats-api.sh" >> "$sudoers"
     fi
