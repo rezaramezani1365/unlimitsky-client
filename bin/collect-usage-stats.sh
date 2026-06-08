@@ -95,18 +95,22 @@ wg_map_json() {
 }
 
 xray_map_json() {
-  local bin map='{}' pairs_file
+  local bin map='{}' pairs_file cumulative
   bin=$(usk_xray_bin 2>/dev/null || command -v xray 2>/dev/null || true)
   if [ -z "$bin" ] || [ ! -x "$bin" ] || ! command -v jq >/dev/null 2>&1; then
     echo '{}'
     return 0
   fi
 
+  usk_xray_ensure_stats_api_if_needed
+  # Update grace/online state (last_traffic_ms) — traffic totals use cumulative API below.
   usk_xray_stats_prime_once
-  map="${USK_XRAY_DELTA_JSON:-{}}"
+  cumulative=$(usk_xray_cumulative_traffic_map "$bin")
+  map="${cumulative:-{}}"
 
   pairs_file=$(mktemp)
   usk_xray_build_pairs_file "$pairs_file"
+  usk_append_xray_pairs_from_panel "$pairs_file"
   map=$(usk_xray_expand_map_from_pairs "$map" "$pairs_file")
   rm -f "$pairs_file"
   echo "$map"
@@ -361,7 +365,8 @@ if command -v jq >/dev/null 2>&1; then
         ovpn_status_files: $ovpn_status_files,
         xray_cfg_clients: $xray_cfg_clients,
         xray_api_ok: ($xray_api_ok == 1),
-        xray_traffic_mode: "delta",
+        xray_traffic_mode: "cumulative",
+        xray_stats_api: "127.0.0.1:10085",
         xray_access_log_ok: ($xray_access_log_ok == 1),
         xray_access_log_bytes: $xray_access_log_bytes
       }

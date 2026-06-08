@@ -229,6 +229,19 @@ sudo tail -20 /var/log/unlimitsky-limits.log
 sudo -u www-data php /var/www/unlimitsky/cron/native-limits.php
 ```
 
+### مصرف Xray (Stats API — داخل پنل، بدون Prometheus)
+
+برای **Xray/VLESS** پنل همان داده‌ای را می‌خواند که [xray-exporter](https://github.com/anatolykopyl/xray-exporter) از **StatsService** می‌گیرد: API روی `127.0.0.1:10085` (`stats` + `policy` در `config.json`). **email** هر کلاینت در Xray باید با نام کاربری سرویس یکی باشد (موقع ساخت کانفیگ خودکار تنظیم می‌شود).
+
+| مورد | روش |
+|------|-----|
+| sync پنل | `collect-usage-stats.sh` → حجم تجمعی هر کاربر → **سرویس‌ها** |
+| نصب / تعمیر API | خودکار با نصب Xray؛ دستی: `sudo bash /var/www/unlimitsky/bin/xray-fix-stats-api.sh` |
+| عیب‌یابی | `sudo php /var/www/unlimitsky/cron/diagnose-usage-sync.php` |
+| Grafana اختیاری | `sudo bash /var/www/unlimitsky/bin/optional-install-xray-exporter.sh` (فقط Prometheus — پنل به آن نیاز ندارد) |
+
+اگر مصرف Xray **۰ GB** ماند: `xray-fix-stats-api.sh` بزن، بعد **بروزرسانی مصرف همه**. تست API: `xray api statsquery --server=127.0.0.1:10085 | head`
+
 ### تعداد اتصال (پلن چندکاربره)
 
 پلن می‌تواند **۱، ۲، … N دستگاه همزمان** (IP متفاوت) داشته باشد. محدودیت **هنگام اتصال** اعمال می‌شود — نه با polling. در پورتال مشتری برچسب «تک‌کاربره» یا «۲ کاربره» دیده می‌شود.

@@ -510,7 +510,7 @@ class USK_ProtocolUsage
 
     private static function xray_traffic_mode_is_delta()
     {
-        $mode = trim((string) (self::$lastCollectMeta['xray_traffic_mode'] ?? ''));
+        $mode = trim((string) (self::$lastCollectMeta['xray_traffic_mode'] ?? 'cumulative'));
         return $mode === 'delta';
     }
 

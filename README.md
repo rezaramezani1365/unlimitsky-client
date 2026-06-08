@@ -229,6 +229,19 @@ Manual test:
 sudo -u www-data php /var/www/unlimitsky/cron/native-limits.php
 ```
 
+### Xray usage (Stats API — built-in, no Prometheus required)
+
+For **Xray/VLESS**, the panel reads the same data as [xray-exporter](https://github.com/anatolykopyl/xray-exporter): Xray **StatsService** on `127.0.0.1:10085` (`stats` + `policy.statsUserUplink/Downlink` in `config.json`). Each client’s **email** in Xray must match the service username (set automatically when creating configs).
+
+| What | How |
+|------|-----|
+| Panel sync | `bin/collect-usage-stats.sh` → cumulative bytes per user → **Services** |
+| Install / fix API | Automatic on Xray install; manual: `sudo bash /var/www/unlimitsky/bin/xray-fix-stats-api.sh` |
+| Diagnose | `sudo php /var/www/unlimitsky/cron/diagnose-usage-sync.php` |
+| Optional Grafana | `sudo bash /var/www/unlimitsky/bin/optional-install-xray-exporter.sh` (Prometheus only — panel does not need it) |
+
+If Xray usage stays **0 GB**: run `xray-fix-stats-api.sh`, then **Update all usage**. Check API: `xray api statsquery --server=127.0.0.1:10085 | head`.
+
 ### Connection slots (multi-device plans)
 
 Plans can allow **1, 2, … N simultaneous devices** (different IP addresses). Limits are enforced **when the user connects** — not by polling. The customer portal shows a label like “Single-user” or “2-user”, not live “1/2” counts.

@@ -31,9 +31,57 @@ usk_xray_access_log_path() {
   echo "${root}/xray/access.log"
 }
 
+usk_xray_stats_api_endpoint() {
+  echo "127.0.0.1:10085"
+}
+
 usk_xray_statsquery_raw() {
   local bin="$1"
-  "$bin" api statsquery --server=127.0.0.1:10085 2>/dev/null || true
+  local ep
+  ep=$(usk_xray_stats_api_endpoint)
+  "$bin" api statsquery --server="$ep" 2>/dev/null || true
+}
+
+# Cumulative uplink+downlink per client email from Xray StatsService (same data as xray-exporter).
+usk_xray_cumulative_traffic_map() {
+  local bin="$1"
+  local raw
+  if [ -z "$bin" ] || [ ! -x "$bin" ] || ! command -v jq >/dev/null 2>&1; then
+    echo '{}'
+    return 0
+  fi
+  raw=$(usk_xray_statsquery_raw "$bin")
+  if [ -z "$raw" ]; then
+    echo '{}'
+    return 0
+  fi
+  echo "$raw" | jq -c '
+    reduce ((.stat // .stats // [])[]? | select(.name? != null)) as $s ({};
+      ($s.name | tostring) as $name |
+      if ($name | test("^user>>>[^>]+>>>traffic>>>")) then
+        ($name | capture("^user>>>(?<email>[^>]+)>>>traffic>>>")) as $cap |
+        if ($cap.email | length) > 0 then
+          . + {($cap.email): ((.[$cap.email] // 0) + (($s.value // 0) | tonumber))}
+        else .
+        end
+      else . end
+    )
+  ' 2>/dev/null || echo '{}'
+}
+
+usk_xray_ensure_stats_api_if_needed() {
+  local bin cfg fix
+  bin=$(usk_xray_bin 2>/dev/null || command -v xray 2>/dev/null || true)
+  [ -n "$bin" ] && [ -x "$bin" ] || return 0
+  if "$bin" api statsquery --server="$(usk_xray_stats_api_endpoint)" >/dev/null 2>&1; then
+    return 0
+  fi
+  cfg="${XRAY_CFG:-/usr/local/etc/xray/config.json}"
+  [ -f "$cfg" ] || return 0
+  fix="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/xray-fix-stats-api.sh"
+  if [ -f "$fix" ] && [ "$(id -u)" -eq 0 ]; then
+    bash "$fix" >/dev/null 2>&1 || true
+  fi
 }
 
 # Build panel/xray email+uuid pairs list (tab-separated) into $1.
