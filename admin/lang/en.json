@@ -440,6 +440,8 @@
   "err_provision_failed": "Could not run provisioning script on the server",
   "create_plan_invalid": "Invalid plan selected",
   "create_manual_invalid": "Volume and duration cannot be negative (0 = unlimited)",
+  "create_manual_pro_required": "\"Enter manually\" is available on the Pro plan only — upgrade to Pro to use it.",
+  "create_manual_pro_note": "\"Enter manually\" is Pro-only; free users can only use saved plans.",
   "create_protocol_invalid": "Protocol not installed or invalid",
   "create_panel_invalid": "Invalid Marzban/Sanaei panel",
   "service_detail": "Service details",

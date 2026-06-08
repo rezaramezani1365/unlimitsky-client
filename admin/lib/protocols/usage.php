@@ -70,12 +70,12 @@ class USK_ProtocolUsage
         $usedGb = round($usedBytes / 1073741824, 2);
         $remainingGb = $volumeGb > 0 ? max(0, round($volumeGb - $usedGb, 2)) : null;
         $percent = ($volumeGb > 0) ? min(100, round(($usedGb / $volumeGb) * 100, 1)) : null;
-        $metered = in_array($protocol, array('wireguard', 'openvpn', 'xray'), true);
+        $metered = in_array($protocol, array('wireguard', 'openvpn', 'xray', 'l2tp', 'cisco'), true);
         $syncedAt = trim((string) ($rec['usage_synced_at'] ?? ($rec['meta']['usage_synced_at'] ?? '')));
 
         require_once __DIR__ . '/connections.php';
         $maxConn = USK_ProtocolConnections::max_connections_for($rec);
-        $connTracked = in_array($protocol, array('wireguard', 'openvpn', 'xray'), true);
+        $connTracked = in_array($protocol, array('wireguard', 'openvpn', 'xray', 'l2tp', 'cisco'), true);
         $slotsLabel = $connTracked ? USK_ProtocolConnections::slots_label_for($rec, $protocol) : null;
 
         return array(
@@ -110,6 +110,8 @@ class USK_ProtocolUsage
             'amnezia' => count($maps['amnezia'] ?? array()),
             'xray' => count($maps['xray'] ?? array()),
             'openvpn' => count($maps['openvpn'] ?? array()),
+            'cisco' => count($maps['cisco'] ?? array()),
+            'l2tp' => count($maps['l2tp'] ?? array()),
         );
         $connMaps = $maps['_connections'] ?? array();
 
@@ -241,7 +243,7 @@ class USK_ProtocolUsage
 
     private static function is_metered_protocol($protocol)
     {
-        return in_array((string) $protocol, array('wireguard', 'openvpn', 'xray'), true);
+        return in_array((string) $protocol, array('wireguard', 'openvpn', 'xray', 'l2tp', 'cisco'), true);
     }
 
     private static function collect_maps_ok()
@@ -262,15 +264,15 @@ class USK_ProtocolUsage
     private static function expand_maps_with_panel_clients(array $maps)
     {
         if (!isset($maps['_connections']) || !is_array($maps['_connections'])) {
-            $maps['_connections'] = array(
-                'wireguard' => array(),
-                'amnezia' => array(),
-                'xray' => array(),
-                'openvpn' => array(),
-            );
+            $maps['_connections'] = array();
+        }
+        foreach (array('wireguard', 'amnezia', 'xray', 'openvpn', 'cisco', 'l2tp') as $cp) {
+            if (!isset($maps['_connections'][$cp]) || !is_array($maps['_connections'][$cp])) {
+                $maps['_connections'][$cp] = array();
+            }
         }
 
-        foreach (array('wireguard', 'amnezia', 'xray', 'openvpn') as $protocol) {
+        foreach (array('wireguard', 'amnezia', 'xray', 'openvpn', 'cisco', 'l2tp') as $protocol) {
             if (!isset($maps[$protocol]) || !is_array($maps[$protocol])) {
                 $maps[$protocol] = array();
             }
@@ -482,11 +484,15 @@ class USK_ProtocolUsage
             'amnezia' => self::normalize_int_map($data['amnezia'] ?? array()),
             'xray' => self::normalize_int_map($data['xray'] ?? array()),
             'openvpn' => self::normalize_int_map($data['openvpn'] ?? array()),
+            'cisco' => self::normalize_int_map($data['cisco'] ?? array()),
+            'l2tp' => self::normalize_int_map($data['l2tp'] ?? array()),
             '_connections' => array(
                 'wireguard' => self::normalize_int_map($data['connections']['wireguard'] ?? array()),
                 'amnezia' => self::normalize_int_map($data['connections']['amnezia'] ?? array()),
                 'xray' => self::normalize_int_map($data['connections']['xray'] ?? array()),
                 'openvpn' => self::normalize_int_map($data['connections']['openvpn'] ?? array()),
+                'cisco' => self::normalize_int_map($data['connections']['cisco'] ?? array()),
+                'l2tp' => self::normalize_int_map($data['connections']['l2tp'] ?? array()),
             ),
         );
 
@@ -535,11 +541,15 @@ class USK_ProtocolUsage
             'amnezia' => self::normalize_int_map($data['amnezia'] ?? array()),
             'xray' => self::normalize_int_map($data['xray'] ?? array()),
             'openvpn' => self::normalize_int_map($data['openvpn'] ?? array()),
+            'cisco' => self::normalize_int_map($data['cisco'] ?? array()),
+            'l2tp' => self::normalize_int_map($data['l2tp'] ?? array()),
             '_connections' => array(
                 'wireguard' => self::normalize_int_map($data['connections']['wireguard'] ?? array()),
                 'amnezia' => self::normalize_int_map($data['connections']['amnezia'] ?? array()),
                 'xray' => self::normalize_int_map($data['connections']['xray'] ?? array()),
                 'openvpn' => self::normalize_int_map($data['connections']['openvpn'] ?? array()),
+                'cisco' => self::normalize_int_map($data['connections']['cisco'] ?? array()),
+                'l2tp' => self::normalize_int_map($data['connections']['l2tp'] ?? array()),
             ),
         );
     }
@@ -593,10 +603,14 @@ class USK_ProtocolUsage
         return self::record_has_usage_bytes($rec) ? (int) $rec['usage_bytes'] : 0;
     }
 
-    /** Cumulative counters (Xray/WireGuard) reset to 0 when the service restarts. */
+    /**
+     * Cumulative counters reset to 0 when the service restarts (Xray/WireGuard)
+     * or when a session ends and reconnects (Cisco/ocserv session bytes, L2TP
+     * ppp interface counters). The reset-safe accumulator handles all of them.
+     */
     private static function is_cumulative_counter_protocol($protocol)
     {
-        return in_array((string) $protocol, array('xray', 'wireguard', 'amnezia'), true);
+        return in_array((string) $protocol, array('xray', 'wireguard', 'amnezia', 'cisco', 'l2tp'), true);
     }
 
     /**
@@ -721,6 +735,12 @@ class USK_ProtocolUsage
         if ($protocol === 'openvpn') {
             return self::lookup_named_map($maps['openvpn'] ?? array(), $protocol, $username, $rec);
         }
+        if ($protocol === 'cisco') {
+            return self::lookup_named_map($maps['cisco'] ?? array(), $protocol, $username, $rec);
+        }
+        if ($protocol === 'l2tp') {
+            return self::lookup_named_map($maps['l2tp'] ?? array(), $protocol, $username, $rec);
+        }
 
         return null;
     }
@@ -791,7 +811,7 @@ class USK_ProtocolUsage
             }
             return $hasConnData ? 0 : null;
         }
-        if ($protocol === 'xray' || $protocol === 'openvpn') {
+        if ($protocol === 'xray' || $protocol === 'openvpn' || $protocol === 'cisco' || $protocol === 'l2tp') {
             $sub = $connMaps[$protocol] ?? array();
             if (!is_array($sub)) {
                 return $hasConnData ? 0 : null;

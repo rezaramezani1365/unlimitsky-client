@@ -52,6 +52,11 @@ if [ -f "/usr/local/etc/xray/config.json" ] && [ -f "$WEB_ROOT/bin/xray-fix-stat
     bash "$WEB_ROOT/bin/xray-fix-stats-api.sh" >/dev/null 2>&1 || true
 fi
 
+if [ -f "/etc/xl2tpd/xl2tpd.conf" ] && [ -f "$WEB_ROOT/bin/setup-l2tp-usage.sh" ]; then
+    echo "[*] Ensuring L2TP usage metering hooks..."
+    bash "$WEB_ROOT/bin/setup-l2tp-usage.sh" >/dev/null 2>&1 || true
+fi
+
 LIB="${INSTALL_DIR}/install/lib.sh"
 if [ -f "$LIB" ]; then
     # shellcheck source=/dev/null

@@ -34,6 +34,10 @@ usk_mark_installed l2tp "$USK_ROOT"
 
 usk_l2tp_sysctl
 usk_l2tp_setup_iptables "$L2TP_SUBNET"
+
+# Per-user volume metering: install the pppd ip-up/ip-down accounting hooks.
+bash "$DIR/setup-l2tp-usage.sh" 2>/dev/null || true
+
 usk_l2tp_restart_services
 
 ensure_ufw_port 500 udp ipsec-ike

@@ -440,6 +440,8 @@
   "err_provision_failed": "اجرای اسکریپت ساخت کانفیگ روی سرور ناموفق بود",
   "create_plan_invalid": "پلن انتخاب‌شده نامعتبر است",
   "create_manual_invalid": "حجم و مدت نمی‌توانند منفی باشند (۰ = نامحدود)",
+  "create_manual_pro_required": "«ورود دستی» فقط برای اشتراک Pro فعال است — برای استفاده، پنل را به Pro ارتقا دهید.",
+  "create_manual_pro_note": "«ورود دستی» مخصوص اشتراک Pro است؛ کاربران رایگان فقط می‌توانند از پلن‌های ذخیره‌شده استفاده کنند.",
   "create_protocol_invalid": "پروتکل نصب نشده یا نامعتبر است",
   "create_panel_invalid": "پنل Marzban/Sanaei نامعتبر است",
   "service_detail": "جزئیات سرویس",

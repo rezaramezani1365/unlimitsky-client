@@ -6,6 +6,7 @@ $GLOBALS['page_title'] = __('nav_create');
 $GLOBALS['active_nav'] = 'create-service';
 $canUsePanels = USK_License::can_use_external_panels();
 $canUseNodes = USK_Nodes::can_use_nodes();
+$canUseManualPlan = USK_License::is_pro();
 $nodeList = $canUseNodes ? USK_Nodes::list_for_select() : array();
 
 $result = null;
@@ -41,7 +42,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $plan = null;
     $max_connections = 1;
 
-    if ($plan_source === 'plan') {
+    if ($plan_source !== 'plan' && !$canUseManualPlan) {
+        usk_flash(__('create_manual_pro_required'), 'error');
+        $plan = null;
+    } elseif ($plan_source === 'plan') {
         $plan = $sql->query("SELECT * FROM `category` WHERE `row`=$plan_id AND `status`='active'")->fetch_assoc();
         if (!$plan) {
             usk_flash(__('create_plan_invalid'), 'error');
@@ -261,9 +265,15 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         <div class="form-group mb-3">
             <label><?= __('create_plan_source') ?></label>
             <select class="form-control" name="plan_source" id="plan-source">
-                <option value="manual"><?= __('create_plan_manual') ?></option>
-                <option value="plan"><?= __('create_plan_from_list') ?></option>
+                <option value="manual"<?= $canUseManualPlan ? '' : ' disabled' ?>><?= __('create_plan_manual') ?><?= $canUseManualPlan ? '' : ' — PRO' ?></option>
+                <option value="plan"<?= $canUseManualPlan ? '' : ' selected' ?>><?= __('create_plan_from_list') ?></option>
             </select>
+            <?php if (!$canUseManualPlan) : ?>
+            <p class="text-muted small mt-1 mb-0">
+                <i class="fa-solid fa-crown"></i> <?= __('create_manual_pro_note') ?>
+                <a href="<?= usk_admin_url('license') ?>" class="ms-1"><?= __('panels_pro_activate') ?></a>
+            </p>
+            <?php endif; ?>
         </div>
 
         <div class="form-row manual-plan-fields mb-3">

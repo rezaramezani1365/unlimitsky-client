@@ -37,7 +37,7 @@ class USK_ProtocolConnections
     {
         $max = self::max_connections_for($rec);
         $protocol = (string) $protocol;
-        if (!in_array($protocol, array('wireguard', 'openvpn', 'xray'), true)) {
+        if (!in_array($protocol, array('wireguard', 'openvpn', 'xray', 'l2tp', 'cisco'), true)) {
             return null;
         }
         if ($max <= 1) {
