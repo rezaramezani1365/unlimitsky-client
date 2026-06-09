@@ -32,7 +32,10 @@ $out = array(
     ),
     'probe_ok' => false,
     'probe_output' => '',
+    'wg0_up' => false,
+    'wg0_show' => '',
     'wg_create_test' => '',
+    'note_sudoers_readable' => 'sudoers_readable=false as www-data is normal; run as root to verify /etc/sudoers.d/unlimitsky',
 );
 
 if ($out['sudoers_readable']) {
@@ -40,6 +43,12 @@ if ($out['sudoers_readable']) {
     $out['sudoers_has_wrapper'] = strpos($body, 'usk-run-root.sh') !== false;
     $out['sudoers_has_add_user'] = strpos($body, 'add-user-') !== false;
     $out['sudoers_preview'] = implode("\n", array_slice(explode("\n", $body), 0, 8));
+}
+
+if ($out['shell_exec_enabled']) {
+    $wgShow = trim((string) shell_exec('wg show wg0 2>&1'));
+    $out['wg0_show'] = substr($wgShow, 0, 200);
+    $out['wg0_up'] = $wgShow !== '' && stripos($wgShow, 'No such device') === false && stripos($wgShow, 'permission denied') === false;
 }
 
 if ($out['shell_exec_enabled'] && $out['wrapper_exists']) {

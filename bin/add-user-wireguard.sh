@@ -20,6 +20,8 @@ if [ ! -f /etc/wireguard/wg0.conf ]; then
   usk_json_fail "wireguard_not_installed"
 fi
 
+usk_wg_ensure_running || usk_json_fail "wireguard_interface_down"
+
 EXPIRES=""
 if [ "$DURATION_DAYS" -gt 0 ] 2>/dev/null; then
   EXPIRES=$(date -Iseconds -d "+${DURATION_DAYS} days" 2>/dev/null || date -Iseconds)
@@ -36,7 +38,10 @@ SERVER_PUB=$(cat /etc/wireguard/server_public.key)
 SERVER_IP=$(usk_server_ip)
 PORT=$(usk_protocol_port /etc/wireguard/wg0.conf '^ListenPort' 51820)
 
-wg set wg0 peer "$CLIENT_PUB" allowed-ips "${CLIENT_IP}/32"
+if ! wg set wg0 peer "$CLIENT_PUB" allowed-ips "${CLIENT_IP}/32" 2>/dev/null; then
+  usk_wg_ensure_running || usk_json_fail "wireguard_interface_down"
+  wg set wg0 peer "$CLIENT_PUB" allowed-ips "${CLIENT_IP}/32" || usk_json_fail "wireguard_interface_down"
+fi
 
 if ! grep -q "$CLIENT_PUB" /etc/wireguard/wg0.conf; then
   cat >> /etc/wireguard/wg0.conf <<PEER

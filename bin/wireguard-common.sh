@@ -11,6 +11,34 @@ usk_wg_main_iface() {
   ip route get 1.1.1.1 2>/dev/null | awk '{print $5; exit}'
 }
 
+# Bring up wg0 when config exists but the interface is down (common after reboot).
+usk_wg_ensure_running() {
+  if command -v wg >/dev/null 2>&1 && wg show wg0 >/dev/null 2>&1; then
+    return 0
+  fi
+  [ -f /etc/wireguard/wg0.conf ] || return 1
+
+  usk_wg_fix_postup_conf 2>/dev/null || true
+
+  if systemctl is-active --quiet wg-quick@wg0 2>/dev/null; then
+    systemctl restart wg-quick@wg0 2>/dev/null || true
+  else
+    systemctl enable wg-quick@wg0 2>/dev/null || true
+    wg-quick down wg0 2>/dev/null || true
+    if command -v wg-quick >/dev/null 2>&1; then
+      wg-quick up wg0 2>/dev/null || true
+    fi
+    systemctl start wg-quick@wg0 2>/dev/null || systemctl restart wg-quick@wg0 2>/dev/null || true
+  fi
+
+  sleep 1
+  if command -v wg >/dev/null 2>&1 && wg show wg0 >/dev/null 2>&1; then
+    usk_wg_ensure_nat
+    return 0
+  fi
+  return 1
+}
+
 # Ensure wg0 clients can reach the internet (NAT + forwarding + UFW routes).
 usk_wg_ensure_nat() {
   local iface

@@ -20,12 +20,10 @@ PORT=$(grep -E '^ListenPort' /etc/wireguard/wg0.conf 2>/dev/null | awk '{print $
 PORT=$(echo "$PORT" | tr -dc '0-9')
 [ -n "$PORT" ] || PORT=51820
 
-usk_wg_fix_postup_conf 2>/dev/null || true
-usk_wg_ensure_nat
-
-systemctl restart wg-quick@wg0 2>/dev/null || wg-quick down wg0 2>/dev/null; wg-quick up wg0 2>/dev/null || true
-sleep 1
-usk_wg_ensure_nat
+if ! usk_wg_ensure_running; then
+  echo "USK_ERR: wireguard_interface_down"
+  exit 1
+fi
 
 ensure_ufw_port "$PORT" udp wireguard-udp
 
