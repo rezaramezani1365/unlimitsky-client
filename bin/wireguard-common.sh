@@ -49,14 +49,36 @@ usk_wg_sanitize_conf() {
   ' "$conf" > "$tmp" && mv "$tmp" "$conf"
 }
 
+usk_wg_subnet() {
+  local conf="/etc/wireguard/wg0.conf"
+  local addr base mask
+  addr=$(grep -E '^Address\s*=' "$conf" 2>/dev/null | head -1 | awk '{print $3}')
+  if [[ "$addr" =~ ^([0-9]+\.[0-9]+\.[0-9]+)\.[0-9]+/([0-9]+)$ ]]; then
+    base="${BASH_REMATCH[1]}"
+    mask="${BASH_REMATCH[2]}"
+    if [ "$mask" -ge 24 ] 2>/dev/null; then
+      echo "${base}.0/${mask}"
+      return 0
+    fi
+  fi
+  echo "10.8.0.0/24"
+}
+
 usk_wg_conf_valid() {
   local conf="/etc/wireguard/wg0.conf"
   local stripped
   [ -f "$conf" ] || return 1
   command -v wg >/dev/null 2>&1 && command -v wg-quick >/dev/null 2>&1 || return 1
+  if wg show wg0 >/dev/null 2>&1; then
+    return 0
+  fi
   stripped=$(mktemp)
   wg-quick strip wg0 "$conf" > "$stripped" 2>/dev/null || { rm -f "$stripped"; return 1; }
-  ip link add usk-wg-validate type wireguard 2>/dev/null || true
+  ip link del usk-wg-validate 2>/dev/null || true
+  if ! ip link add usk-wg-validate type wireguard 2>/dev/null; then
+    rm -f "$stripped"
+    return 1
+  fi
   if wg setconf usk-wg-validate "$stripped" 2>/dev/null; then
     ip link del usk-wg-validate 2>/dev/null || true
     rm -f "$stripped"
@@ -65,6 +87,14 @@ usk_wg_conf_valid() {
   ip link del usk-wg-validate 2>/dev/null || true
   rm -f "$stripped"
   return 1
+}
+
+usk_wg_sync_peers_from_conf() {
+  local conf="/etc/wireguard/wg0.conf"
+  [ -f "$conf" ] || return 1
+  command -v wg-quick >/dev/null 2>&1 || return 1
+  wg show wg0 >/dev/null 2>&1 || return 1
+  wg syncconf wg0 <(wg-quick strip wg0 "$conf") 2>/dev/null
 }
 
 usk_wg_rebuild_peers_from_registry() {
@@ -158,6 +188,9 @@ usk_wg_remove_peer_from_conf() {
 # Bring up wg0 when config exists but the interface is down (common after reboot).
 usk_wg_ensure_running() {
   if command -v wg >/dev/null 2>&1 && wg show wg0 >/dev/null 2>&1; then
+    usk_wg_fix_postup_conf 2>/dev/null || true
+    usk_wg_sync_peers_from_conf 2>/dev/null || true
+    usk_wg_ensure_nat
     return 0
   fi
   [ -f /etc/wireguard/wg0.conf ] || return 1
@@ -186,19 +219,30 @@ usk_wg_ensure_running() {
 
 # Ensure wg0 clients can reach the internet (NAT + forwarding + UFW routes).
 usk_wg_ensure_nat() {
-  local iface
+  local iface subnet old
   iface=$(usk_wg_main_iface)
   iface="${iface:-eth0}"
+  subnet=$(usk_wg_subnet)
 
   sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1 || true
   grep -q 'net.ipv4.ip_forward=1' /etc/sysctl.conf 2>/dev/null \
     || echo 'net.ipv4.ip_forward=1' >> /etc/sysctl.conf
+  sysctl -w net.ipv4.conf.all.rp_filter=2 >/dev/null 2>&1 || true
+  sysctl -w net.ipv4.conf.default.rp_filter=2 >/dev/null 2>&1 || true
+  sysctl -w net.ipv4.conf.wg0.rp_filter=2 >/dev/null 2>&1 || true
 
   if command -v iptables >/dev/null 2>&1; then
     iptables -C FORWARD -i wg0 -j ACCEPT 2>/dev/null \
-      || iptables -I FORWARD -i wg0 -j ACCEPT 2>/dev/null || true
+      || iptables -I FORWARD 1 -i wg0 -j ACCEPT 2>/dev/null || true
     iptables -C FORWARD -o wg0 -j ACCEPT 2>/dev/null \
-      || iptables -I FORWARD -o wg0 -j ACCEPT 2>/dev/null || true
+      || iptables -I FORWARD 1 -o wg0 -j ACCEPT 2>/dev/null || true
+    for old in eth0 ens3 ens18 enp0s3 enp1s0; do
+      if [ "$old" != "$iface" ]; then
+        iptables -t nat -D POSTROUTING -s "$subnet" -o "$old" -j MASQUERADE 2>/dev/null || true
+      fi
+    done
+    iptables -t nat -C POSTROUTING -s "$subnet" -o "$iface" -j MASQUERADE 2>/dev/null \
+      || iptables -t nat -A POSTROUTING -s "$subnet" -o "$iface" -j MASQUERADE 2>/dev/null || true
     iptables -t nat -C POSTROUTING -o "$iface" -j MASQUERADE 2>/dev/null \
       || iptables -t nat -A POSTROUTING -o "$iface" -j MASQUERADE 2>/dev/null || true
   fi
@@ -206,11 +250,43 @@ usk_wg_ensure_nat() {
   if command -v ufw >/dev/null 2>&1; then
     if grep -q 'DEFAULT_FORWARD_POLICY="DROP"' /etc/default/ufw 2>/dev/null; then
       sed -i 's/DEFAULT_FORWARD_POLICY="DROP"/DEFAULT_FORWARD_POLICY="ACCEPT"/' /etc/default/ufw 2>/dev/null || true
-      ufw reload >/dev/null 2>&1 || true
     fi
     ufw route allow in on wg0 out on "$iface" >/dev/null 2>&1 || true
     ufw route allow in on "$iface" out on wg0 >/dev/null 2>&1 || true
+    usk_wg_ensure_ufw_nat "$iface" "$subnet"
+    ufw reload >/dev/null 2>&1 || true
   fi
+}
+
+# UFW resets raw iptables NAT on reload — persist MASQUERADE in before.rules.
+usk_wg_ensure_ufw_nat() {
+  local iface="$1"
+  local subnet="$2"
+  local rules="/etc/ufw/before.rules"
+  local marker="unlimitsky-wg-nat"
+
+  [ -f "$rules" ] || return 0
+  command -v ufw >/dev/null 2>&1 || return 0
+  ufw status 2>/dev/null | grep -qi 'Status: active' || return 0
+
+  if grep -q "$marker" "$rules" 2>/dev/null; then
+    sed -i "s|^-A POSTROUTING -s .* -o .* -j MASQUERADE.*$marker|-A POSTROUTING -s ${subnet} -o ${iface} -j MASQUERADE # ${marker}|" "$rules" 2>/dev/null || true
+    return 0
+  fi
+
+  if grep -q '^\*nat' "$rules" 2>/dev/null; then
+    sed -i "/^\*nat/a\\
+-A POSTROUTING -s ${subnet} -o ${iface} -j MASQUERADE # ${marker}" "$rules" 2>/dev/null || true
+    return 0
+  fi
+
+  sed -i "/^# Don't delete these required lines/i\\
+# ${marker}\\
+*nat\\
+:POSTROUTING ACCEPT [0:0]\\
+-A POSTROUTING -s ${subnet} -o ${iface} -j MASQUERADE\\
+COMMIT\\
+" "$rules" 2>/dev/null || true
 }
 
 # Rewrite PostUp/PostDown in wg0.conf when the VPS main NIC changed (eth0 vs ens3).
@@ -221,30 +297,56 @@ usk_wg_fix_postup_conf() {
   iface=$(usk_wg_main_iface)
   iface="${iface:-eth0}"
 
+  local subnet
+  subnet=$(usk_wg_subnet)
   if grep -q '^PostUp' "$conf"; then
-    sed -i "s|^PostUp = .*|PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o ${iface} -j MASQUERADE|" "$conf"
-    sed -i "s|^PostDown = .*|PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o ${iface} -j MASQUERADE|" "$conf"
+    sed -i "s|^PostUp = .*|PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -s ${subnet} -o ${iface} -j MASQUERADE|" "$conf"
+    sed -i "s|^PostDown = .*|PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -s ${subnet} -o ${iface} -j MASQUERADE|" "$conf"
     return 0
   fi
-  sed -i "/^ListenPort/a PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o ${iface} -j MASQUERADE" "$conf" 2>/dev/null \
-    || sed -i "/^Address/a PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o ${iface} -j MASQUERADE" "$conf" 2>/dev/null || true
-  sed -i "/^PostUp/a PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o ${iface} -j MASQUERADE" "$conf" 2>/dev/null || true
+  sed -i "/^ListenPort/a PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -s ${subnet} -o ${iface} -j MASQUERADE" "$conf" 2>/dev/null \
+    || sed -i "/^Address/a PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -s ${subnet} -o ${iface} -j MASQUERADE" "$conf" 2>/dev/null || true
+  sed -i "/^PostUp/a PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -s ${subnet} -o ${iface} -j MASQUERADE" "$conf" 2>/dev/null || true
 }
 
 usk_wg_install_udp2raw() {
   local dest="/usr/local/bin/udp2raw"
-  if [ -x "$dest" ]; then
+  if [ -x "$dest" ] && "$dest" 2>&1 | head -1 | grep -qi udp2raw; then
     return 0
   fi
-  local url="https://github.com/wangyu-/udp2raw/releases/download/udp2raw_amd64/udp2raw_amd64"
-  if command -v wget >/dev/null 2>&1; then
-    wget -q -O "$dest" "$url" 2>/dev/null || return 1
-  elif command -v curl >/dev/null 2>&1; then
-    curl -fsSL -o "$dest" "$url" 2>/dev/null || return 1
-  else
-    return 1
-  fi
-  chmod +x "$dest"
+  local arch url urls=()
+  arch=$(uname -m 2>/dev/null || echo amd64)
+  case "$arch" in
+    x86_64|amd64)
+      urls=(
+        "https://github.com/wangyu-/udp2raw/releases/download/20200818.0/udp2raw_amd64"
+        "https://github.com/wangyu-/udp2raw/releases/download/udp2raw_amd64/udp2raw_amd64"
+      )
+      ;;
+    aarch64|arm64)
+      urls=(
+        "https://github.com/wangyu-/udp2raw/releases/download/20200818.0/udp2raw_arm"
+        "https://github.com/wangyu-/udp2raw/releases/download/udp2raw_arm/udp2raw_arm"
+      )
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+  for url in "${urls[@]}"; do
+    if command -v wget >/dev/null 2>&1; then
+      wget -q -O "$dest" "$url" 2>/dev/null || continue
+    elif command -v curl >/dev/null 2>&1; then
+      curl -fsSL -o "$dest" "$url" 2>/dev/null || continue
+    else
+      return 1
+    fi
+    chmod +x "$dest"
+    if [ -x "$dest" ]; then
+      return 0
+    fi
+  done
+  return 1
 }
 
 usk_wg_port_in_use() {
@@ -311,9 +413,13 @@ UNIT
 
   systemctl daemon-reload
   systemctl enable "$WG_TCP_UNIT" 2>/dev/null || true
-  systemctl restart "$WG_TCP_UNIT" 2>/dev/null || systemctl start "$WG_TCP_UNIT" 2>/dev/null || return 1
-  sleep 1
+  systemctl restart "$WG_TCP_UNIT" 2>/dev/null || systemctl start "$WG_TCP_UNIT" 2>/dev/null || true
+  sleep 2
   if ! systemctl is-active --quiet "$WG_TCP_UNIT" 2>/dev/null; then
+    journalctl -u "$WG_TCP_UNIT" -n 8 --no-pager 2>/dev/null | tail -5 >&2 || true
+    if ! /usr/local/bin/udp2raw 2>&1 | head -1 | grep -qi udp2raw; then
+      echo "USK_ERR: wireguard_udp2raw_binary_bad" >&2
+    fi
     echo "USK_ERR: wireguard_tcp_bridge_start_failed port=${tcp_port}" >&2
     return 1
   fi

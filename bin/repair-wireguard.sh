@@ -20,9 +20,14 @@ PORT=$(grep -E '^ListenPort' /etc/wireguard/wg0.conf 2>/dev/null | awk '{print $
 PORT=$(echo "$PORT" | tr -dc '0-9')
 [ -n "$PORT" ] || PORT=51820
 
-if ! usk_wg_repair_conf; then
-  echo "USK_ERR: wireguard_conf_invalid"
-  exit 1
+usk_wg_sanitize_conf 2>/dev/null || true
+usk_wg_fix_postup_conf 2>/dev/null || true
+
+if ! wg show wg0 >/dev/null 2>&1; then
+  if ! usk_wg_repair_conf; then
+    echo "USK_ERR: wireguard_conf_invalid"
+    exit 1
+  fi
 fi
 
 if ! usk_wg_ensure_running; then
@@ -30,10 +35,8 @@ if ! usk_wg_ensure_running; then
   exit 1
 fi
 
-if ! wg show wg0 >/dev/null 2>&1; then
-  echo "USK_ERR: wireguard_interface_down"
-  exit 1
-fi
+usk_wg_sync_peers_from_conf 2>/dev/null || true
+usk_wg_ensure_nat
 
 ensure_ufw_port "$PORT" udp wireguard-udp
 

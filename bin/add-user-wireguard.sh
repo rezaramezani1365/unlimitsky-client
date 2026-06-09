@@ -58,13 +58,15 @@ TCP_KEY=""
 TCP_PORT=""
 ENDPOINT="${SERVER_IP}:${PORT}"
 
+usk_wg_fix_postup_conf 2>/dev/null || true
 usk_wg_ensure_nat
+usk_wg_sync_peers_from_conf 2>/dev/null || true
 
 if [ "$TRANSPORT" = "tcp" ]; then
   TCP_PORT=$(usk_wg_tcp_port)
   TCP_KEY=$(usk_wg_tcp_key)
   if [ -z "$TCP_PORT" ] || [ -z "$TCP_KEY" ]; then
-    usk_wg_setup_tcp_bridge "$PORT" 51822 2>/dev/null || usk_wg_setup_tcp_bridge "$PORT" 51823 2>/dev/null || true
+    usk_wg_setup_tcp_bridge "$PORT" 51822 || usk_wg_setup_tcp_bridge "$PORT" 51823 || true
     TCP_PORT=$(usk_wg_tcp_port)
     TCP_KEY=$(usk_wg_tcp_key)
   fi
