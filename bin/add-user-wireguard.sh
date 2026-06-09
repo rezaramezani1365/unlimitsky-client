@@ -53,6 +53,11 @@ AllowedIPs = ${CLIENT_IP}/32
 PEER
 fi
 
+usk_wg_sync_peers_from_conf 2>/dev/null || true
+if ! wg show wg0 peers 2>/dev/null | grep -qF "$CLIENT_PUB"; then
+  wg set wg0 peer "$CLIENT_PUB" allowed-ips "${CLIENT_IP}/32" || usk_json_fail "wireguard_peer_sync_failed"
+fi
+
 TCP_CLIENT_CMD=""
 TCP_KEY=""
 TCP_PORT=""

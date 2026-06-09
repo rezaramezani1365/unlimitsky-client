@@ -342,9 +342,12 @@ usk_wg_install_udp2raw() {
       return 1
     fi
     chmod +x "$dest"
-    if [ -x "$dest" ]; then
-      return 0
+    if [ -s "$dest" ] && [ -x "$dest" ]; then
+      if "$dest" 2>&1 | head -1 | grep -qi udp2raw; then
+        return 0
+      fi
     fi
+    rm -f "$dest"
   done
   return 1
 }
