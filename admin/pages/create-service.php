@@ -117,6 +117,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 if (!$created['ok']) {
                     $msg = $created['error'] ?? __('create_failed');
+                    if (!empty($created['log'])) {
+                        $tail = trim(substr((string) $created['log'], -350));
+                        if ($tail !== '') {
+                            $msg .= ' — ' . $tail;
+                        }
+                    }
                     usk_flash($msg, 'error');
                 } else {
                     $order = USK_ProtocolProvisioner::save_order(

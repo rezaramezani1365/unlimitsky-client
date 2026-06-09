@@ -143,9 +143,17 @@ class USK_ProtocolProvisioner
         }
 
         if (!preg_match('/USK_JSON:(.+)$/s', $out, $m)) {
+            $fallback = 'invalid_provision_output';
+            if (stripos($out, 'sudo:') !== false) {
+                $fallback = 'sudo_denied';
+            } elseif (stripos($out, 'script_not_found') !== false || stripos($out, 'No such file') !== false) {
+                $fallback = 'provision_script_missing';
+            } elseif (stripos($out, 'usk-run-root') !== false && stripos($out, 'not allowed') !== false) {
+                $fallback = 'sudo_denied';
+            }
             return array(
                 'ok' => false,
-                'error' => self::interpret_output($out, 'invalid_provision_output'),
+                'error' => self::interpret_output($out, $fallback),
                 'log' => $out,
             );
         }
@@ -507,7 +515,8 @@ class USK_ProtocolProvisioner
             'l2tp_service_failed' => 'err_l2tp_service_failed',
             'l2tp_not_installed' => 'err_l2tp_not_installed',
             'provision_failed' => 'err_provision_failed',
-            'invalid_provision_output' => 'err_sudo_denied',
+            'invalid_provision_output' => 'err_provision_output',
+            'provision_script_missing' => 'err_provision_script_missing',
             'node_not_found' => 'nodes_not_found',
             'nodes_xray_only' => 'nodes_xray_only',
             'nodes_pro_required' => 'nodes_pro_required',

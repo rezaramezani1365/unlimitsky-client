@@ -385,6 +385,8 @@ usk_write_vpn_sudoers() {
     if [ "$EUID" -ne 0 ]; then
         return 1
     fi
+    web_root="$(readlink -f "$web_root" 2>/dev/null || echo "$web_root")"
+    chmod +x "${web_root}/bin/usk-run-root.sh" 2>/dev/null || true
     cat > "$sudoers" <<SUDO
 www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/usk-run-root.sh *
 www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/install-*.sh *

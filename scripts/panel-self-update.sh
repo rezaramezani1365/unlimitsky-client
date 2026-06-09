@@ -67,6 +67,10 @@ if [ -f "$LIB" ]; then
     # shellcheck source=/dev/null
     source "$LIB"
     usk_ensure_web_update_sudoers "$WEB_ROOT"
+    if [ -f "$WEB_ROOT/bin/repair-sudoers.sh" ]; then
+        echo "[*] Ensuring VPN sudoers (usk-run-root.sh)..."
+        bash "$WEB_ROOT/bin/repair-sudoers.sh" "$WEB_ROOT" || true
+    fi
     usk_ensure_usage_cron "$WEB_ROOT"
     usk_remove_connections_cron
     usk_ensure_fail2ban_iplimit "$WEB_ROOT"
