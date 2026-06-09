@@ -117,9 +117,9 @@ class USK_ProtocolProvisioner
             $scriptArgs[] = $connectHost;
             $scriptArgs[] = $clientDns;
         } elseif ($protocol === 'wireguard') {
-            $wgTransport = strtolower((string) ($meta['wireguard_transport'] ?? 'tcp'));
+            $wgTransport = strtolower((string) ($meta['wireguard_transport'] ?? 'udp'));
             if (!in_array($wgTransport, array('udp', 'tcp'), true)) {
-                $wgTransport = 'tcp';
+                $wgTransport = 'udp';
             }
             $scriptArgs[] = $wgTransport;
             $scriptArgs[] = $clientDns;
@@ -491,6 +491,7 @@ class USK_ProtocolProvisioner
             'cisco_user_create_failed' => 'err_provision_failed',
             'openvpn_not_installed' => 'err_openvpn_not_installed',
             'openvpn_tcp_not_installed' => 'err_openvpn_tcp_not_installed',
+            'wireguard_not_installed' => 'err_wireguard_not_installed',
             'wireguard_tcp_not_installed' => 'err_wireguard_tcp_not_installed',
             'wireguard_tcp_port_in_use' => 'err_wireguard_tcp_port_in_use',
             'wireguard_tcp_bridge_start_failed' => 'err_wireguard_tcp_bridge_failed',

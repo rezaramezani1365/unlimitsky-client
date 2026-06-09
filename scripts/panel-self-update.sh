@@ -57,6 +57,11 @@ if [ -f "/etc/xl2tpd/xl2tpd.conf" ] && [ -f "$WEB_ROOT/bin/setup-l2tp-usage.sh" 
     bash "$WEB_ROOT/bin/setup-l2tp-usage.sh" >/dev/null 2>&1 || true
 fi
 
+if [ -f "/etc/wireguard/wg0.conf" ] && [ -f "$WEB_ROOT/bin/repair-wireguard.sh" ]; then
+    echo "[*] Ensuring WireGuard NAT + TCP bridge..."
+    bash "$WEB_ROOT/bin/repair-wireguard.sh" 51822 >/dev/null 2>&1 || true
+fi
+
 LIB="${INSTALL_DIR}/install/lib.sh"
 if [ -f "$LIB" ]; then
     # shellcheck source=/dev/null

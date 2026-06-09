@@ -53,9 +53,16 @@ TCP_KEY=""
 TCP_PORT=""
 ENDPOINT="${SERVER_IP}:${PORT}"
 
+usk_wg_ensure_nat
+
 if [ "$TRANSPORT" = "tcp" ]; then
   TCP_PORT=$(usk_wg_tcp_port)
   TCP_KEY=$(usk_wg_tcp_key)
+  if [ -z "$TCP_PORT" ] || [ -z "$TCP_KEY" ]; then
+    usk_wg_setup_tcp_bridge "$PORT" 51822 2>/dev/null || usk_wg_setup_tcp_bridge "$PORT" 51823 2>/dev/null || true
+    TCP_PORT=$(usk_wg_tcp_port)
+    TCP_KEY=$(usk_wg_tcp_key)
+  fi
   if [ -z "$TCP_PORT" ] || [ -z "$TCP_KEY" ]; then
     usk_json_fail "wireguard_tcp_not_installed"
   fi

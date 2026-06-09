@@ -11,6 +11,53 @@ usk_wg_main_iface() {
   ip route get 1.1.1.1 2>/dev/null | awk '{print $5; exit}'
 }
 
+# Ensure wg0 clients can reach the internet (NAT + forwarding + UFW routes).
+usk_wg_ensure_nat() {
+  local iface
+  iface=$(usk_wg_main_iface)
+  iface="${iface:-eth0}"
+
+  sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1 || true
+  grep -q 'net.ipv4.ip_forward=1' /etc/sysctl.conf 2>/dev/null \
+    || echo 'net.ipv4.ip_forward=1' >> /etc/sysctl.conf
+
+  if command -v iptables >/dev/null 2>&1; then
+    iptables -C FORWARD -i wg0 -j ACCEPT 2>/dev/null \
+      || iptables -I FORWARD -i wg0 -j ACCEPT 2>/dev/null || true
+    iptables -C FORWARD -o wg0 -j ACCEPT 2>/dev/null \
+      || iptables -I FORWARD -o wg0 -j ACCEPT 2>/dev/null || true
+    iptables -t nat -C POSTROUTING -o "$iface" -j MASQUERADE 2>/dev/null \
+      || iptables -t nat -A POSTROUTING -o "$iface" -j MASQUERADE 2>/dev/null || true
+  fi
+
+  if command -v ufw >/dev/null 2>&1; then
+    if grep -q 'DEFAULT_FORWARD_POLICY="DROP"' /etc/default/ufw 2>/dev/null; then
+      sed -i 's/DEFAULT_FORWARD_POLICY="DROP"/DEFAULT_FORWARD_POLICY="ACCEPT"/' /etc/default/ufw 2>/dev/null || true
+      ufw reload >/dev/null 2>&1 || true
+    fi
+    ufw route allow in on wg0 out on "$iface" >/dev/null 2>&1 || true
+    ufw route allow in on "$iface" out on wg0 >/dev/null 2>&1 || true
+  fi
+}
+
+# Rewrite PostUp/PostDown in wg0.conf when the VPS main NIC changed (eth0 vs ens3).
+usk_wg_fix_postup_conf() {
+  local iface conf
+  conf="/etc/wireguard/wg0.conf"
+  [ -f "$conf" ] || return 1
+  iface=$(usk_wg_main_iface)
+  iface="${iface:-eth0}"
+
+  if grep -q '^PostUp' "$conf"; then
+    sed -i "s|^PostUp = .*|PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o ${iface} -j MASQUERADE|" "$conf"
+    sed -i "s|^PostDown = .*|PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o ${iface} -j MASQUERADE|" "$conf"
+    return 0
+  fi
+  sed -i "/^ListenPort/a PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o ${iface} -j MASQUERADE" "$conf" 2>/dev/null \
+    || sed -i "/^Address/a PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o ${iface} -j MASQUERADE" "$conf" 2>/dev/null || true
+  sed -i "/^PostUp/a PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o ${iface} -j MASQUERADE" "$conf" 2>/dev/null || true
+}
+
 usk_wg_install_udp2raw() {
   local dest="/usr/local/bin/udp2raw"
   if [ -x "$dest" ]; then
@@ -50,8 +97,18 @@ usk_wg_setup_tcp_bridge() {
   [ -n "$wg_port" ] && [ "$wg_port" -ge 1 ] 2>/dev/null || wg_port=51820
 
   if usk_wg_port_in_use "$tcp_port"; then
-    echo "USK_ERR: wireguard_tcp_port_in_use port=${tcp_port}" >&2
-    return 1
+    local alt picked=0
+    for alt in 51823 51824 51825 51826 51827; do
+      if ! usk_wg_port_in_use "$alt"; then
+        tcp_port=$alt
+        picked=1
+        break
+      fi
+    done
+    if [ "$picked" -eq 0 ]; then
+      echo "USK_ERR: wireguard_tcp_port_in_use port=${tcp_port}" >&2
+      return 1
+    fi
   fi
 
   usk_wg_install_udp2raw || return 1
