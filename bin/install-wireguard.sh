@@ -39,15 +39,11 @@ elif grep -q '^ListenPort' /etc/wireguard/wg0.conf; then
   sed -i "s/^ListenPort = .*/ListenPort = ${PORT}/" /etc/wireguard/wg0.conf
 fi
 
-usk_wg_fix_postup_conf 2>/dev/null || true
-
 sysctl -w net.ipv4.ip_forward=1
 grep -q 'net.ipv4.ip_forward=1' /etc/sysctl.conf || echo 'net.ipv4.ip_forward=1' >> /etc/sysctl.conf
 
 systemctl enable wg-quick@wg0
 systemctl restart wg-quick@wg0 || systemctl start wg-quick@wg0
-
-usk_wg_ensure_nat
 
 ensure_ufw_port "$PORT" udp wireguard-udp
 

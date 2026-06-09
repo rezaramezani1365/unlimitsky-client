@@ -165,7 +165,28 @@ mkdir -p "$WEB_ROOT/data/protocols" "$WEB_ROOT/admin/data" "$WEB_ROOT/data/clien
 chmod -R 775 "$WEB_ROOT/admin/data" "$WEB_ROOT/data" "$WEB_ROOT/install" 2>/dev/null || true
 chown -R www-data:www-data "$WEB_ROOT/data" "$WEB_ROOT/admin/data"
 
-usk_write_vpn_sudoers "$WEB_ROOT"
+SUDOERS="/etc/sudoers.d/unlimitsky"
+cat > "$SUDOERS" <<SUDO
+www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/install-*.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/run-protocol-install.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/repair-*.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/probe-protocol.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/add-user-*.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/disable-user-*.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/enable-user-*.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/remove-user-*.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/collect-usage-stats.sh
+www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/xray-fix-stats-api.sh
+www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/run-native-limits.sh
+www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/enforce-connection-limits.sh
+www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/xray-restore-runtime.sh
+www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/xray-emergency-fix.sh
+www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/install-php-zip.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/apply-panel-access.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/run-panel-update.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/scripts/panel-self-update.sh *
+SUDO
+chmod 440 "$SUDOERS"
 
 echo "[*] Configuring nginx on port ${PORT}..."
 rm -f /etc/nginx/sites-enabled/default

@@ -20,14 +20,7 @@ case "$PROTO" in
     usk_fail "l2tp_not_installed"
     ;;
   wireguard)
-    if [ -f /etc/wireguard/wg0.conf ]; then
-      # shellcheck source=wireguard-common.sh
-      source "$DIR/wireguard-common.sh"
-      if usk_wg_ensure_running; then
-        usk_mark_installed wireguard "$USK_ROOT" && usk_ok
-      fi
-      usk_fail "wireguard_interface_down"
-    fi
+    [ -f /etc/wireguard/wg0.conf ] && usk_mark_installed wireguard "$USK_ROOT" && usk_ok
     usk_fail "wireguard_not_installed"
     ;;
   openvpn)

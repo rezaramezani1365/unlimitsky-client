@@ -117,12 +117,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 if (!$created['ok']) {
                     $msg = $created['error'] ?? __('create_failed');
-                    if (!empty($created['log'])) {
-                        $tail = trim(substr((string) $created['log'], -350));
-                        if ($tail !== '') {
-                            $msg .= ' — ' . $tail;
-                        }
-                    }
                     usk_flash($msg, 'error');
                 } else {
                     $order = USK_ProtocolProvisioner::save_order(
@@ -362,8 +356,8 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
                 <div id="create-wireguard-transport" style="display:none;">
                     <label class="small mb-1"><?= __('create_wireguard_transport') ?></label>
                     <select class="form-control" name="wireguard_transport" id="wireguard-transport-select">
-                        <option value="udp" selected>UDP</option>
-                        <option value="tcp">TCP (<?= __('recommended_iran') ?>)</option>
+                        <option value="tcp" selected>TCP (<?= __('recommended_iran') ?>)</option>
+                        <option value="udp">UDP</option>
                     </select>
                     <p class="text-muted small mt-1 mb-0"><?= __('create_wireguard_transport_hint') ?></p>
                 </div>

@@ -1,7 +1,6 @@
 #!/bin/bash
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$DIR/provision-common.sh"
-source "$DIR/wireguard-common.sh"
 
 if [ "$EUID" -ne 0 ]; then usk_json_fail "run_as_root"; fi
 
@@ -22,8 +21,9 @@ fi
 
 if [ -n "$PUB" ] && [ "$PUB" != "null" ]; then
   wg set wg0 peer "$PUB" remove 2>/dev/null || true
+  sed -i "/# $USERNAME/,/^$/d" /etc/wireguard/wg0.conf 2>/dev/null || true
+  sed -i "/PublicKey = $PUB/,+2d" /etc/wireguard/wg0.conf 2>/dev/null || true
 fi
-usk_wg_remove_peer_from_conf "$USERNAME" "$PUB"
 
 echo "USK_OK"
 exit 0

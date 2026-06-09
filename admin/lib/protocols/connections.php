@@ -9,8 +9,7 @@ class USK_ProtocolConnections
             return array('ok' => false, 'error' => 'script_missing', 'trimmed' => 0);
         }
 
-        require_once dirname(__DIR__) . '/sudo-runner.php';
-        $cmd = USK_SudoRunner::cmd_rel('bin/enforce-connection-limits.sh') . ' 2>&1';
+        $cmd = 'sudo -n /bin/bash ' . escapeshellarg($script) . ' 2>&1';
         $raw = @shell_exec($cmd);
         if ($raw === null || trim($raw) === '') {
             return array('ok' => false, 'error' => 'empty_response', 'trimmed' => 0);

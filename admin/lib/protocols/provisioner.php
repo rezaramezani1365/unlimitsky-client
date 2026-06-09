@@ -7,8 +7,8 @@ class USK_ProtocolProvisioner
 {
     private static function sudo_script_cmd($script, array $args)
     {
-        require_once dirname(__DIR__) . '/sudo-runner.php';
-        return USK_SudoRunner::cmd_abs($script, $args) . ' 2>&1';
+        $argStr = implode(' ', array_map('escapeshellarg', $args));
+        return 'sudo -n /bin/bash ' . escapeshellarg($script) . ' ' . $argStr . ' 2>&1';
     }
 
     private static function interpret_output($out, $fallback = 'provision_error')
@@ -117,9 +117,9 @@ class USK_ProtocolProvisioner
             $scriptArgs[] = $connectHost;
             $scriptArgs[] = $clientDns;
         } elseif ($protocol === 'wireguard') {
-            $wgTransport = strtolower((string) ($meta['wireguard_transport'] ?? 'udp'));
+            $wgTransport = strtolower((string) ($meta['wireguard_transport'] ?? 'tcp'));
             if (!in_array($wgTransport, array('udp', 'tcp'), true)) {
-                $wgTransport = 'udp';
+                $wgTransport = 'tcp';
             }
             $scriptArgs[] = $wgTransport;
             $scriptArgs[] = $clientDns;
@@ -143,17 +143,9 @@ class USK_ProtocolProvisioner
         }
 
         if (!preg_match('/USK_JSON:(.+)$/s', $out, $m)) {
-            $fallback = 'invalid_provision_output';
-            if (stripos($out, 'sudo:') !== false) {
-                $fallback = 'sudo_denied';
-            } elseif (stripos($out, 'script_not_found') !== false || stripos($out, 'No such file') !== false) {
-                $fallback = 'provision_script_missing';
-            } elseif (stripos($out, 'usk-run-root') !== false && stripos($out, 'not allowed') !== false) {
-                $fallback = 'sudo_denied';
-            }
             return array(
                 'ok' => false,
-                'error' => self::interpret_output($out, $fallback),
+                'error' => self::interpret_output($out, 'invalid_provision_output'),
                 'log' => $out,
             );
         }
@@ -499,11 +491,6 @@ class USK_ProtocolProvisioner
             'cisco_user_create_failed' => 'err_provision_failed',
             'openvpn_not_installed' => 'err_openvpn_not_installed',
             'openvpn_tcp_not_installed' => 'err_openvpn_tcp_not_installed',
-            'wireguard_not_installed' => 'err_wireguard_not_installed',
-            'wireguard_interface_down' => 'err_wireguard_interface_down',
-            'wireguard_conf_invalid' => 'err_wireguard_conf_invalid',
-            'wireguard_peer_sync_failed' => 'err_wireguard_peer_sync_failed',
-            'wireguard_server_key_missing' => 'err_wireguard_server_key_missing',
             'wireguard_tcp_not_installed' => 'err_wireguard_tcp_not_installed',
             'wireguard_tcp_port_in_use' => 'err_wireguard_tcp_port_in_use',
             'wireguard_tcp_bridge_start_failed' => 'err_wireguard_tcp_bridge_failed',
@@ -519,8 +506,7 @@ class USK_ProtocolProvisioner
             'l2tp_service_failed' => 'err_l2tp_service_failed',
             'l2tp_not_installed' => 'err_l2tp_not_installed',
             'provision_failed' => 'err_provision_failed',
-            'invalid_provision_output' => 'err_provision_output',
-            'provision_script_missing' => 'err_provision_script_missing',
+            'invalid_provision_output' => 'err_sudo_denied',
             'node_not_found' => 'nodes_not_found',
             'nodes_xray_only' => 'nodes_xray_only',
             'nodes_pro_required' => 'nodes_pro_required',
