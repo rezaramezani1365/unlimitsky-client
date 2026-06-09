@@ -88,9 +88,8 @@ class USK_ProtocolManager
         if (!file_exists($script)) {
             return false;
         }
-        $cmd = 'sudo -n bash ' . escapeshellarg($script) . ' '
-            . escapeshellarg($proto) . ' '
-            . escapeshellarg(USK_ROOT) . ' 2>&1';
+        require_once dirname(__DIR__) . '/sudo-runner.php';
+        $cmd = USK_SudoRunner::cmd_rel('bin/probe-protocol.sh', array($proto, USK_ROOT)) . ' 2>&1';
         $out = shell_exec($cmd);
         return strpos((string) $out, 'USK_OK') !== false;
     }
@@ -230,17 +229,30 @@ class USK_ProtocolManager
 
     public static function build_install_argv($proto, array $ports)
     {
+        $args = self::build_install_args_array($proto, $ports);
+        return implode(' ', array_map('escapeshellarg', $args));
+    }
+
+    /** @return string[] */
+    public static function build_install_args_array($proto, array $ports)
+    {
         switch ($proto) {
             case 'xray':
-                return escapeshellarg($ports['vless_port'] ?? 443);
+                return array((string) (int) ($ports['vless_port'] ?? 443));
             case 'openvpn':
-                return escapeshellarg($ports['udp_port'] ?? 1194) . ' ' . escapeshellarg($ports['tcp_port'] ?? 443);
+                return array(
+                    (string) (int) ($ports['udp_port'] ?? 1194),
+                    (string) (int) ($ports['tcp_port'] ?? 443),
+                );
             case 'l2tp':
-                return escapeshellarg(USK_ROOT);
+                return array(USK_ROOT);
             case 'wireguard':
-                return escapeshellarg($ports['port'] ?? 51820) . ' ' . escapeshellarg($ports['tcp_port'] ?? 51822);
+                return array(
+                    (string) (int) ($ports['port'] ?? 51820),
+                    (string) (int) ($ports['tcp_port'] ?? 51822),
+                );
             default:
-                return isset($ports['port']) ? escapeshellarg($ports['port']) : '';
+                return isset($ports['port']) ? array((string) (int) $ports['port']) : array();
         }
     }
 
@@ -447,12 +459,12 @@ class USK_ProtocolManager
         if (!file_exists($worker)) {
             return array('ok' => false, 'msg' => 'script_missing', 'log' => 'run-protocol-install.sh missing');
         }
-        $argv = self::build_install_argv($proto, $ports);
-        $inner = escapeshellarg($worker) . ' ' . escapeshellarg($proto) . ' ' . escapeshellarg(USK_ROOT);
-        if ($argv !== '') {
-            $inner .= ' ' . $argv;
-        }
-        $cmd = 'nohup sudo -n bash -c ' . escapeshellarg($inner) . ' </dev/null >/dev/null 2>&1 &';
+        require_once dirname(__DIR__) . '/sudo-runner.php';
+        $runArgs = array_merge(
+            array($proto, USK_ROOT),
+            self::build_install_args_array($proto, $ports)
+        );
+        $cmd = USK_SudoRunner::cmd_nohup('bin/run-protocol-install.sh', $runArgs);
         shell_exec($cmd);
 
         $prev = self::read_status($proto);
@@ -499,12 +511,11 @@ class USK_ProtocolManager
             return self::start_install_async($proto, $ports);
         }
 
-        $argv = self::build_install_argv($proto, $ports);
-        $cmd = 'sudo -n bash ' . escapeshellarg($script);
-        if ($argv !== '') {
-            $cmd .= ' ' . $argv;
-        }
-        $cmd .= ' 2>&1';
+        require_once dirname(__DIR__) . '/sudo-runner.php';
+        $cmd = USK_SudoRunner::cmd_rel(
+            'bin/install-' . $proto . '.sh',
+            self::build_install_args_array($proto, $ports)
+        ) . ' 2>&1';
 
         @set_time_limit(600);
         $prev = self::read_status($proto);

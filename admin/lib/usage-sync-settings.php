@@ -215,8 +215,8 @@ class USK_UsageSyncSettings
             return null;
         }
 
-        require_once __DIR__ . '/protocols/limits.php';
-        $cmd = 'sudo -n /bin/bash ' . escapeshellarg($script) . ' 2>&1';
+        require_once __DIR__ . '/sudo-runner.php';
+        $cmd = USK_SudoRunner::cmd_rel('bin/run-native-limits.sh') . ' 2>&1';
         $raw = @shell_exec($cmd);
         if ($raw === null || trim($raw) === '') {
             return null;

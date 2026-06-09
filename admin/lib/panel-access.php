@@ -378,12 +378,14 @@ class USK_PanelAccess
             return array('ok' => false, 'error' => 'apply_script_missing');
         }
 
-        $cmd = 'sudo -n /bin/bash ' . escapeshellarg($script) . ' '
-            . escapeshellarg(USK_ROOT) . ' '
-            . escapeshellarg((string) $port) . ' '
-            . escapeshellarg($domain) . ' '
-            . escapeshellarg($https) . ' '
-            . escapeshellarg($lockDomain) . ' 2>&1';
+        require_once __DIR__ . '/sudo-runner.php';
+        $cmd = USK_SudoRunner::cmd_rel('bin/apply-panel-access.sh', array(
+            USK_ROOT,
+            (string) $port,
+            $domain,
+            $https,
+            $lockDomain,
+        )) . ' 2>&1';
         $out = shell_exec($cmd);
         if ($out === null || trim($out) === '') {
             return array('ok' => false, 'error' => 'apply_failed_empty', 'log' => '');

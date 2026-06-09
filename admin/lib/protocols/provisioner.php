@@ -7,8 +7,8 @@ class USK_ProtocolProvisioner
 {
     private static function sudo_script_cmd($script, array $args)
     {
-        $argStr = implode(' ', array_map('escapeshellarg', $args));
-        return 'sudo -n /bin/bash ' . escapeshellarg($script) . ' ' . $argStr . ' 2>&1';
+        require_once dirname(__DIR__) . '/sudo-runner.php';
+        return USK_SudoRunner::cmd_abs($script, $args) . ' 2>&1';
     }
 
     private static function interpret_output($out, $fallback = 'provision_error')

@@ -21,6 +21,12 @@ if [ ! -f "${WEB_ROOT}/config.php" ]; then
 fi
 
 if usk_write_vpn_sudoers "$WEB_ROOT"; then
+  chmod +x "${WEB_ROOT}/bin/usk-run-root.sh" 2>/dev/null || true
+  if sudo -u www-data sudo -n /bin/bash "${WEB_ROOT}/bin/usk-run-root.sh" bin/probe-protocol.sh wireguard "$WEB_ROOT" 2>&1 | grep -q USK_OK; then
+    echo "USK_OK: sudoers_updated"
+    exit 0
+  fi
+  echo "USK_WARN: sudoers_written_but_probe_failed"
   echo "USK_OK: sudoers_updated"
   exit 0
 fi

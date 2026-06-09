@@ -449,7 +449,8 @@ class USK_ProtocolUsage
         if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
             $cmd = '/bin/bash ' . escapeshellarg($script) . ' 2>/dev/null';
         } else {
-            $cmd = 'sudo -n /bin/bash ' . escapeshellarg($script) . ' 2>/dev/null';
+            require_once dirname(__DIR__) . '/sudo-runner.php';
+            $cmd = USK_SudoRunner::cmd_rel('bin/collect-usage-stats.sh') . ' 2>/dev/null';
         }
         $raw = self::shell_with_timeout($cmd, 45);
         if ($raw === '') {
@@ -513,13 +514,15 @@ class USK_ProtocolUsage
     {
         $fix = USK_ROOT . '/bin/xray-fix-stats-api.sh';
         if (is_file($fix)) {
-            self::shell_with_timeout('sudo -n /bin/bash ' . escapeshellarg($fix) . ' 2>&1', 60);
+            require_once dirname(__DIR__) . '/sudo-runner.php';
+            self::shell_with_timeout(USK_SudoRunner::cmd_rel('bin/xray-fix-stats-api.sh') . ' 2>&1', 60);
         }
 
         if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
             $cmd = '/bin/bash ' . escapeshellarg($script) . ' 2>/dev/null';
         } else {
-            $cmd = 'sudo -n /bin/bash ' . escapeshellarg($script) . ' 2>/dev/null';
+            require_once dirname(__DIR__) . '/sudo-runner.php';
+            $cmd = USK_SudoRunner::cmd_rel('bin/collect-usage-stats.sh') . ' 2>/dev/null';
         }
         $raw = self::shell_with_timeout($cmd, 45);
         if ($raw === '') {

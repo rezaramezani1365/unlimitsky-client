@@ -266,11 +266,8 @@ class USK_ProtocolLimits
 
     private static function sudo_script_cmd($script, array $args = array())
     {
-        $parts = array('sudo', '-n', '/bin/bash', escapeshellarg($script));
-        foreach ($args as $arg) {
-            $parts[] = escapeshellarg((string) $arg);
-        }
-        return implode(' ', $parts) . ' 2>&1';
+        require_once dirname(__DIR__) . '/sudo-runner.php';
+        return USK_SudoRunner::cmd_abs($script, $args) . ' 2>&1';
     }
 
     public static function format_last_run_at($iso)

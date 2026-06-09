@@ -386,6 +386,7 @@ usk_write_vpn_sudoers() {
         return 1
     fi
     cat > "$sudoers" <<SUDO
+www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/usk-run-root.sh *
 www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/install-*.sh *
 www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/run-protocol-install.sh *
 www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/repair-*.sh *
