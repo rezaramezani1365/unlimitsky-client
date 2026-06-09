@@ -18,7 +18,13 @@ if wg show wg0 >/dev/null 2>&1; then
 fi
 
 listen_port=""
-[ -f "$conf" ] && listen_port=$(grep -E '^ListenPort' "$conf" 2>/dev/null | awk '{print $3}')
+conf_port=""
+runtime_port=""
+[ -f "$conf" ] && conf_port=$(grep -E '^ListenPort' "$conf" 2>/dev/null | sed 's/.*=[[:space:]]*//' | tr -dc '0-9')
+wg show wg0 >/dev/null 2>&1 && runtime_port=$(wg show wg0 listen-port 2>/dev/null | tr -dc '0-9')
+listen_port="${conf_port:-$runtime_port}"
+server_key_ok=0
+[ -s /etc/wireguard/server_public.key ] && server_key_ok=1
 
 registry_count=0
 [ -f "$registry" ] && command -v jq >/dev/null 2>&1 \
@@ -47,13 +53,18 @@ issues=()
 [ ! -f "$conf" ] && issues+=("wireguard_not_installed")
 wg show wg0 >/dev/null 2>&1 || issues+=("wg0_down")
 [ "$peer_count" -eq 0 ] 2>/dev/null && issues+=("no_peers_on_wg0")
+[ -z "$conf_port" ] && issues+=("listen_port_missing_in_conf")
+[ -n "$conf_port" ] && [ -n "$runtime_port" ] && [ "$conf_port" != "$runtime_port" ] && issues+=("listen_port_mismatch")
+[ "$server_key_ok" -eq 0 ] && issues+=("server_public_key_missing")
 [ "$registry_count" -gt 0 ] 2>/dev/null && [ "$peer_count" -eq 0 ] 2>/dev/null && issues+=("registry_not_synced_to_wg0")
 [ "$ip_fwd" != "1" ] && issues+=("ip_forward_off")
 [ "$nat_pkts" = "0" ] 2>/dev/null && [ "$peer_count" -gt 0 ] 2>/dev/null && issues+=("no_nat_traffic_yet")
 
 echo "USK_WG_DIAG"
 echo "wg0_up=$(wg show wg0 >/dev/null 2>&1 && echo 1 || echo 0)"
-echo "listen_port=${listen_port:-unknown}"
+echo "listen_port_conf=${conf_port:-missing}"
+echo "listen_port_runtime=${runtime_port:-unknown}"
+echo "server_public_key=${server_key_ok}"
 echo "main_iface=${iface}"
 echo "subnet=${subnet}"
 echo "peer_count=${peer_count:-0}"

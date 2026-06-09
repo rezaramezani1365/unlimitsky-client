@@ -15,6 +15,78 @@ usk_wg_registry() {
   echo "${USK_DATA_ROOT:-/var/lib/unlimitsky}/wireguard/clients.json"
 }
 
+usk_wg_conf_port() {
+  local conf="/etc/wireguard/wg0.conf"
+  local port
+  [ -f "$conf" ] || return 1
+  port=$(grep -E '^ListenPort' "$conf" 2>/dev/null | sed 's/.*=[[:space:]]*//' | tr -dc '0-9')
+  if [ -n "$port" ]; then
+    echo "$port"
+    return 0
+  fi
+  if wg show wg0 listen-port >/dev/null 2>&1; then
+    wg show wg0 listen-port 2>/dev/null | tr -dc '0-9'
+    return 0
+  fi
+  return 1
+}
+
+usk_wg_ensure_server_keys() {
+  local conf="/etc/wireguard/wg0.conf"
+  [ -f "$conf" ] || return 1
+
+  if [ -f /etc/wireguard/server_public.key ] && [ -s /etc/wireguard/server_public.key ]; then
+    return 0
+  fi
+
+  if [ -f /etc/wireguard/server_private.key ]; then
+    wg pubkey < /etc/wireguard/server_private.key > /etc/wireguard/server_public.key 2>/dev/null
+  elif grep -qE '^PrivateKey\s*=' "$conf"; then
+    grep -E '^PrivateKey\s*=' "$conf" | head -1 | sed 's/.*=[[:space:]]*//' | wg pubkey > /etc/wireguard/server_public.key 2>/dev/null
+  elif wg show wg0 public-key >/dev/null 2>&1; then
+    wg show wg0 public-key > /etc/wireguard/server_public.key 2>/dev/null
+  fi
+
+  if [ -s /etc/wireguard/server_public.key ]; then
+    chmod 600 /etc/wireguard/server_public.key 2>/dev/null || true
+    return 0
+  fi
+  return 1
+}
+
+# Missing ListenPort → random port each restart; client Endpoint never matches.
+usk_wg_ensure_listen_port() {
+  local conf="/etc/wireguard/wg0.conf"
+  local port="${1:-51820}"
+  port=$(echo "$port" | tr -dc '0-9')
+  [ -n "$port" ] || port=51820
+  [ -f "$conf" ] || return 1
+
+  sed -i '/^SaveConfig/d' "$conf" 2>/dev/null || true
+
+  if grep -qE '^ListenPort\s*=' "$conf"; then
+    port=$(grep -E '^ListenPort' "$conf" | sed 's/.*=[[:space:]]*//' | tr -dc '0-9')
+    [ -n "$port" ] || port=51820
+  elif grep -qE '^Address\s*=' "$conf"; then
+    sed -i "/^Address/a ListenPort = ${port}" "$conf"
+  else
+    sed -i "/^\[Interface\]/a ListenPort = ${port}" "$conf"
+  fi
+
+  if wg show wg0 >/dev/null 2>&1; then
+    wg set wg0 listen-port "$port" 2>/dev/null || true
+  fi
+  echo "$port"
+  return 0
+}
+
+usk_wg_ensure_base_config() {
+  usk_wg_ensure_server_keys || return 1
+  usk_wg_ensure_listen_port 51820 >/dev/null || return 1
+  usk_wg_fix_postup_conf 2>/dev/null || true
+  return 0
+}
+
 # Drop [Peer] blocks with no valid PublicKey (broken sed removals leave wg-quick failing).
 usk_wg_sanitize_conf() {
   local conf="/etc/wireguard/wg0.conf"
@@ -91,10 +163,16 @@ usk_wg_conf_valid() {
 
 usk_wg_sync_peers_from_conf() {
   local conf="/etc/wireguard/wg0.conf"
+  local stripped
   [ -f "$conf" ] || return 1
   command -v wg-quick >/dev/null 2>&1 || return 1
   wg show wg0 >/dev/null 2>&1 || return 1
-  wg syncconf wg0 <(wg-quick strip wg0 "$conf") 2>/dev/null
+  stripped=$(mktemp)
+  wg-quick strip wg0 "$conf" > "$stripped" 2>/dev/null || { rm -f "$stripped"; return 1; }
+  wg syncconf wg0 "$stripped" 2>/dev/null
+  local rc=$?
+  rm -f "$stripped"
+  return $rc
 }
 
 usk_wg_rebuild_peers_from_registry() {
@@ -188,15 +266,15 @@ usk_wg_remove_peer_from_conf() {
 # Bring up wg0 when config exists but the interface is down (common after reboot).
 usk_wg_ensure_running() {
   if command -v wg >/dev/null 2>&1 && wg show wg0 >/dev/null 2>&1; then
-    usk_wg_fix_postup_conf 2>/dev/null || true
+    usk_wg_ensure_base_config 2>/dev/null || true
     usk_wg_sync_peers_from_conf 2>/dev/null || true
     usk_wg_ensure_nat
     return 0
   fi
   [ -f /etc/wireguard/wg0.conf ] || return 1
 
+  usk_wg_ensure_base_config || return 1
   usk_wg_repair_conf || return 1
-  usk_wg_fix_postup_conf 2>/dev/null || true
 
   if systemctl is-active --quiet wg-quick@wg0 2>/dev/null; then
     systemctl restart wg-quick@wg0 2>/dev/null || true

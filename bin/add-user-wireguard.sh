@@ -20,6 +20,7 @@ if [ ! -f /etc/wireguard/wg0.conf ]; then
   usk_json_fail "wireguard_not_installed"
 fi
 
+usk_wg_ensure_base_config || usk_json_fail "wireguard_conf_invalid"
 usk_wg_ensure_running || usk_json_fail "wireguard_interface_down"
 
 EXPIRES=""
@@ -34,9 +35,19 @@ mkdir -p "$(dirname "$REGISTRY")"
 CLIENT_IP=$(usk_next_ip "10.8.0.1" "$REGISTRY")
 CLIENT_PRIV=$(wg genkey)
 CLIENT_PUB=$(echo "$CLIENT_PRIV" | wg pubkey)
-SERVER_PUB=$(cat /etc/wireguard/server_public.key)
+SERVER_PUB=""
+if [ -f /etc/wireguard/server_public.key ]; then
+  SERVER_PUB=$(tr -d '\n\r' < /etc/wireguard/server_public.key)
+fi
+if [ -z "$SERVER_PUB" ] && wg show wg0 public-key >/dev/null 2>&1; then
+  SERVER_PUB=$(wg show wg0 public-key 2>/dev/null | tr -d '\n\r')
+fi
+[ -n "$SERVER_PUB" ] || usk_json_fail "wireguard_server_key_missing"
+
 SERVER_IP=$(usk_server_ip)
-PORT=$(usk_protocol_port /etc/wireguard/wg0.conf '^ListenPort' 51820)
+PORT=$(usk_wg_conf_port 2>/dev/null || echo "51820")
+PORT=$(echo "$PORT" | tr -dc '0-9')
+[ -n "$PORT" ] || PORT=51820
 
 if ! wg set wg0 peer "$CLIENT_PUB" allowed-ips "${CLIENT_IP}/32" 2>/dev/null; then
   usk_wg_ensure_running || usk_json_fail "wireguard_interface_down"

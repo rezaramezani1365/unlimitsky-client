@@ -16,7 +16,12 @@ if [ ! -f /etc/wireguard/wg0.conf ]; then
   exit 1
 fi
 
-PORT=$(grep -E '^ListenPort' /etc/wireguard/wg0.conf 2>/dev/null | awk '{print $3}')
+if ! usk_wg_ensure_base_config; then
+  echo "USK_ERR: wireguard_conf_invalid"
+  exit 1
+fi
+
+PORT=$(usk_wg_conf_port 2>/dev/null || echo "51820")
 PORT=$(echo "$PORT" | tr -dc '0-9')
 [ -n "$PORT" ] || PORT=51820
 
@@ -31,10 +36,16 @@ if ! wg show wg0 >/dev/null 2>&1; then
 fi
 
 if ! usk_wg_ensure_running; then
+  systemctl restart wg-quick@wg0 2>/dev/null || wg-quick up wg0 2>/dev/null || true
+  sleep 1
+fi
+
+if ! wg show wg0 >/dev/null 2>&1; then
   echo "USK_ERR: wireguard_interface_down"
   exit 1
 fi
 
+PORT=$(usk_wg_conf_port 2>/dev/null || echo "$PORT")
 usk_wg_sync_peers_from_conf 2>/dev/null || true
 usk_wg_ensure_nat
 
