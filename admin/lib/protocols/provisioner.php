@@ -501,6 +501,7 @@ class USK_ProtocolProvisioner
             'openvpn_tcp_not_installed' => 'err_openvpn_tcp_not_installed',
             'wireguard_not_installed' => 'err_wireguard_not_installed',
             'wireguard_interface_down' => 'err_wireguard_interface_down',
+            'wireguard_conf_invalid' => 'err_wireguard_conf_invalid',
             'wireguard_tcp_not_installed' => 'err_wireguard_tcp_not_installed',
             'wireguard_tcp_port_in_use' => 'err_wireguard_tcp_port_in_use',
             'wireguard_tcp_bridge_start_failed' => 'err_wireguard_tcp_bridge_failed',

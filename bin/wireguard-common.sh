@@ -11,6 +11,150 @@ usk_wg_main_iface() {
   ip route get 1.1.1.1 2>/dev/null | awk '{print $5; exit}'
 }
 
+usk_wg_registry() {
+  echo "${USK_DATA_ROOT:-/var/lib/unlimitsky}/wireguard/clients.json"
+}
+
+# Drop [Peer] blocks with no valid PublicKey (broken sed removals leave wg-quick failing).
+usk_wg_sanitize_conf() {
+  local conf="/etc/wireguard/wg0.conf"
+  [ -f "$conf" ] || return 1
+  local tmp
+  tmp=$(mktemp)
+  awk '
+    BEGIN { section="none"; peer_buf=""; peer_has_pk=0 }
+    function flush_peer() {
+      if (section != "peer") return
+      if (peer_has_pk) printf "%s", peer_buf
+      peer_buf=""
+      peer_has_pk=0
+      section="none"
+    }
+    /^\[Interface\]/ { flush_peer(); section="iface"; print; next }
+    /^\[Peer\]/ {
+      flush_peer()
+      section="peer"
+      peer_buf=$0 "\n"
+      peer_has_pk=0
+      next
+    }
+    section == "iface" { print; next }
+    section == "peer" {
+      peer_buf = peer_buf $0 "\n"
+      if ($0 ~ /^PublicKey[[:space:]]*=[[:space:]]*[A-Za-z0-9+\/]{43}=/) peer_has_pk=1
+      next
+    }
+    { print }
+    END { flush_peer() }
+  ' "$conf" > "$tmp" && mv "$tmp" "$conf"
+}
+
+usk_wg_conf_valid() {
+  local conf="/etc/wireguard/wg0.conf"
+  local stripped
+  [ -f "$conf" ] || return 1
+  command -v wg >/dev/null 2>&1 && command -v wg-quick >/dev/null 2>&1 || return 1
+  stripped=$(mktemp)
+  wg-quick strip wg0 "$conf" > "$stripped" 2>/dev/null || { rm -f "$stripped"; return 1; }
+  ip link add usk-wg-validate type wireguard 2>/dev/null || true
+  if wg setconf usk-wg-validate "$stripped" 2>/dev/null; then
+    ip link del usk-wg-validate 2>/dev/null || true
+    rm -f "$stripped"
+    return 0
+  fi
+  ip link del usk-wg-validate 2>/dev/null || true
+  rm -f "$stripped"
+  return 1
+}
+
+usk_wg_rebuild_peers_from_registry() {
+  local conf="/etc/wireguard/wg0.conf"
+  local registry
+  registry=$(usk_wg_registry)
+  [ -f "$conf" ] || return 1
+  [ -f "$registry" ] || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+
+  local tmp
+  tmp=$(mktemp)
+  awk '/^\[Peer\]/{exit} {print}' "$conf" > "$tmp"
+  jq -r '.[] | select(.public_key != null and .public_key != "" and .public_key != "null") |
+    select(.ip != null and .ip != "" and .ip != "null") |
+    "\n[Peer]\n# " + .username + "\nPublicKey = " + .public_key + "\nAllowedIPs = " + .ip + "/32\n"' \
+    "$registry" >> "$tmp"
+  mv "$tmp" "$conf"
+}
+
+# Fix invalid wg0.conf then verify with wg setconf.
+usk_wg_repair_conf() {
+  local conf="/etc/wireguard/wg0.conf"
+  [ -f "$conf" ] || return 1
+
+  if usk_wg_conf_valid; then
+    return 0
+  fi
+
+  cp "$conf" "${conf}.bak.$(date +%s)" 2>/dev/null || true
+  usk_wg_sanitize_conf || true
+  if usk_wg_conf_valid; then
+    echo "USK_WARN:wireguard_conf_sanitized" >&2
+    return 0
+  fi
+
+  if usk_wg_rebuild_peers_from_registry && usk_wg_sanitize_conf && usk_wg_conf_valid; then
+    echo "USK_WARN:wireguard_peers_rebuilt" >&2
+    return 0
+  fi
+
+  local tmp
+  tmp=$(mktemp)
+  awk '/^\[Peer\]/{exit} {print}' "$conf" > "$tmp"
+  if [ -s "$tmp" ] && grep -q '^\[Interface\]' "$tmp"; then
+    mv "$tmp" "$conf"
+    if usk_wg_conf_valid; then
+      echo "USK_WARN:wireguard_peers_cleared" >&2
+      return 0
+    fi
+  fi
+  rm -f "$tmp"
+  return 1
+}
+
+usk_wg_remove_peer_from_conf() {
+  local username="$1"
+  local pubkey="$2"
+  local conf="/etc/wireguard/wg0.conf"
+  [ -f "$conf" ] || return 0
+  local tmp
+  tmp=$(mktemp)
+  awk -v user="$username" -v pk="$pubkey" '
+    BEGIN { in_peer=0; buf=""; drop=0; has_pk=0 }
+    function flush_peer() {
+      if (!in_peer) return
+      if (!drop && has_pk) printf "%s", buf
+      in_peer=0; buf=""; drop=0; has_pk=0
+    }
+    /^\[Peer\]/ {
+      flush_peer()
+      in_peer=1
+      buf=$0 "\n"
+      drop=0
+      has_pk=0
+      next
+    }
+    in_peer {
+      buf = buf $0 "\n"
+      if (user != "" && $0 ~ ("^# " user "$")) drop=1
+      if (pk != "" && index($0, "PublicKey = " pk) == 1) drop=1
+      if ($0 ~ /^PublicKey[[:space:]]*=/) has_pk=1
+      next
+    }
+    { print }
+    END { flush_peer() }
+  ' "$conf" > "$tmp" && mv "$tmp" "$conf"
+  usk_wg_sanitize_conf || true
+}
+
 # Bring up wg0 when config exists but the interface is down (common after reboot).
 usk_wg_ensure_running() {
   if command -v wg >/dev/null 2>&1 && wg show wg0 >/dev/null 2>&1; then
@@ -18,6 +162,7 @@ usk_wg_ensure_running() {
   fi
   [ -f /etc/wireguard/wg0.conf ] || return 1
 
+  usk_wg_repair_conf || return 1
   usk_wg_fix_postup_conf 2>/dev/null || true
 
   if systemctl is-active --quiet wg-quick@wg0 2>/dev/null; then

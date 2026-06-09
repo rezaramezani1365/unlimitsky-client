@@ -58,17 +58,14 @@ if ($out['shell_exec_enabled'] && $out['wrapper_exists']) {
     $out['probe_ok'] = strpos($out['probe_output'], 'USK_OK') !== false;
 }
 
-if ($out['shell_exec_enabled'] && $out['wrapper_exists'] && $out['probe_ok']) {
-    $cmd = USK_SudoRunner::cmd_rel('bin/add-user-wireguard.sh', array(
-        '_sudo_diag_' . time(),
-        '0',
-        '0',
-        'udp',
-        '',
-        '',
-    )) . ' 2>&1';
+if ($out['shell_exec_enabled'] && $out['wrapper_exists']) {
+    $cmd = USK_SudoRunner::cmd_rel('bin/repair-wireguard.sh', array()) . ' 2>&1';
     $wg = shell_exec($cmd);
-    $out['wg_create_test'] = trim(substr((string) $wg, 0, 500));
+    $out['wg_repair_test'] = trim(substr((string) $wg, 0, 500));
+    $out['wg_repair_ok'] = strpos((string) $wg, 'USK_OK') !== false;
+    $wgShow = trim((string) shell_exec('wg show wg0 2>&1'));
+    $out['wg0_show'] = substr($wgShow, 0, 200);
+    $out['wg0_up'] = $wgShow !== '' && stripos($wgShow, 'No such device') === false;
 }
 
 echo json_encode($out, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n";
