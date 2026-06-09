@@ -378,49 +378,49 @@ usk_deploy_panel_files() {
     usk_write_deploy_stamp "$web_root" "$src_dir"
 }
 
+# Full www-data sudoers for VPN provisioning (install / add-user / repair / usage sync).
+usk_write_vpn_sudoers() {
+    local web_root="${1:-/var/www/unlimitsky}"
+    local sudoers="/etc/sudoers.d/unlimitsky"
+    if [ "$EUID" -ne 0 ]; then
+        return 1
+    fi
+    cat > "$sudoers" <<SUDO
+www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/install-*.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/run-protocol-install.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/repair-*.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/probe-protocol.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/add-user-*.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/disable-user-*.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/enable-user-*.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/remove-user-*.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/setup-l2tp-usage.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/collect-usage-stats.sh
+www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/xray-fix-stats-api.sh
+www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/run-native-limits.sh
+www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/enforce-connection-limits.sh
+www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/enforce-xray-iplimit.sh
+www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/install-fail2ban-iplimit.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/xray-restore-runtime.sh
+www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/xray-emergency-fix.sh
+www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/install-php-zip.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/apply-panel-access.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/run-panel-update.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/scripts/panel-self-update.sh *
+SUDO
+    chmod 440 "$sudoers"
+    if command -v visudo >/dev/null 2>&1; then
+        visudo -cf "$sudoers" >/dev/null 2>&1 || return 1
+    fi
+    return 0
+}
+
 usk_ensure_web_update_sudoers() {
     local web_root="$1"
-    local sudoers="/etc/sudoers.d/unlimitsky"
-    if [ ! -f "$sudoers" ]; then
+    if [ "$EUID" -ne 0 ]; then
         return 0
     fi
-    if ! grep -qF 'panel-self-update.sh' "$sudoers" 2>/dev/null; then
-        echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/scripts/panel-self-update.sh *" >> "$sudoers"
-    fi
-    if ! grep -qF 'install-php-zip.sh' "$sudoers" 2>/dev/null; then
-        echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/install-php-zip.sh *" >> "$sudoers"
-    fi
-    if ! grep -qF 'apply-panel-access.sh' "$sudoers" 2>/dev/null; then
-        echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/apply-panel-access.sh *" >> "$sudoers"
-    fi
-    if ! grep -qF 'run-panel-update.sh' "$sudoers" 2>/dev/null; then
-        echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/run-panel-update.sh *" >> "$sudoers"
-    fi
-    if ! grep -qF 'collect-usage-stats.sh' "$sudoers" 2>/dev/null; then
-        echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/collect-usage-stats.sh" >> "$sudoers"
-    fi
-    if ! grep -qF 'run-native-limits.sh' "$sudoers" 2>/dev/null; then
-        echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/run-native-limits.sh" >> "$sudoers"
-    fi
-    if ! grep -qF 'xray-fix-stats-api.sh' "$sudoers" 2>/dev/null; then
-        echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/xray-fix-stats-api.sh" >> "$sudoers"
-    fi
-    if ! grep -qF 'enforce-connection-limits.sh' "$sudoers" 2>/dev/null; then
-        echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/enforce-connection-limits.sh" >> "$sudoers"
-    fi
-    if ! grep -qF 'enforce-xray-iplimit.sh' "$sudoers" 2>/dev/null; then
-        echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/enforce-xray-iplimit.sh" >> "$sudoers"
-    fi
-    if ! grep -qF 'install-fail2ban-iplimit.sh' "$sudoers" 2>/dev/null; then
-        echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/install-fail2ban-iplimit.sh *" >> "$sudoers"
-    fi
-    if ! grep -qF 'xray-emergency-fix.sh' "$sudoers" 2>/dev/null; then
-        echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/xray-emergency-fix.sh" >> "$sudoers"
-    fi
-    if ! grep -qF 'panel-self-update.sh' "$sudoers" 2>/dev/null; then
-        echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/scripts/panel-self-update.sh *" >> "$sudoers"
-    fi
-    chmod 440 "$sudoers" 2>/dev/null || true
+    usk_write_vpn_sudoers "$web_root" || true
 }
 
 # Cron gate runs every minute; heavy sync only when interval in data/settings/usage-sync.json elapses.
