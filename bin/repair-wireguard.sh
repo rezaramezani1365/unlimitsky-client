@@ -1,5 +1,5 @@
 #!/bin/bash
-# Enable WireGuard TCP bridge (udp2raw) on an existing install
+# Repair WireGuard: NAT/forwarding, wg0 restart, optional TCP bridge (udp2raw)
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$DIR/usk-common.sh"
 source "$DIR/wireguard-common.sh"
@@ -16,15 +16,53 @@ if [ ! -f /etc/wireguard/wg0.conf ]; then
   exit 1
 fi
 
-PORT=$(grep -E '^ListenPort' /etc/wireguard/wg0.conf 2>/dev/null | awk '{print $3}')
+if ! usk_wg_ensure_base_config; then
+  echo "USK_ERR: wireguard_conf_invalid"
+  exit 1
+fi
+
+PORT=$(usk_wg_conf_port 2>/dev/null || echo "51820")
 PORT=$(echo "$PORT" | tr -dc '0-9')
 [ -n "$PORT" ] || PORT=51820
 
-if usk_wg_setup_tcp_bridge "$PORT" "$TCP_PORT"; then
-  echo "USK_META:port=${PORT};tcp_port=${TCP_PORT}"
-  usk_ok
+usk_wg_sanitize_conf 2>/dev/null || true
+usk_wg_fix_postup_conf 2>/dev/null || true
+
+if ! wg show wg0 >/dev/null 2>&1; then
+  if ! usk_wg_repair_conf; then
+    echo "USK_ERR: wireguard_conf_invalid"
+    exit 1
+  fi
 fi
+
+if ! usk_wg_ensure_running; then
+  systemctl restart wg-quick@wg0 2>/dev/null || wg-quick up wg0 2>/dev/null || true
+  sleep 1
+fi
+
+if ! wg show wg0 >/dev/null 2>&1; then
+  echo "USK_ERR: wireguard_interface_down"
+  exit 1
+fi
+
+PORT=$(usk_wg_conf_port 2>/dev/null || echo "$PORT")
+usk_wg_sync_peers_from_conf 2>/dev/null || true
+usk_wg_ensure_nat
+
+ensure_ufw_port "$PORT" udp wireguard-udp
+
+BRIDGE_OK=0
+if usk_wg_setup_tcp_bridge "$PORT" "$TCP_PORT"; then
+  BRIDGE_OK=1
+  TCP_PORT=$(usk_wg_tcp_port)
+  TCP_PORT=$(echo "$TCP_PORT" | tr -dc '0-9')
+  [ -n "$TCP_PORT" ] || TCP_PORT=51822
+fi
+
 echo "USK_META:port=${PORT};tcp_port=${TCP_PORT}"
-echo "USK_WARN:wireguard_tcp_bridge"
-echo "USK_ERR: wireguard_tcp_bridge_failed"
-exit 1
+if [ "$BRIDGE_OK" -ne 1 ]; then
+  echo "USK_WARN:wireguard_tcp_bridge"
+  usk_ok
+  exit 0
+fi
+usk_ok

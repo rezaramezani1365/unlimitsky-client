@@ -20,6 +20,9 @@ if [ ! -f /etc/wireguard/wg0.conf ]; then
   usk_json_fail "wireguard_not_installed"
 fi
 
+usk_wg_ensure_base_config || usk_json_fail "wireguard_conf_invalid"
+usk_wg_ensure_running || usk_json_fail "wireguard_interface_down"
+
 EXPIRES=""
 if [ "$DURATION_DAYS" -gt 0 ] 2>/dev/null; then
   EXPIRES=$(date -Iseconds -d "+${DURATION_DAYS} days" 2>/dev/null || date -Iseconds)
@@ -32,11 +35,24 @@ mkdir -p "$(dirname "$REGISTRY")"
 CLIENT_IP=$(usk_next_ip "10.8.0.1" "$REGISTRY")
 CLIENT_PRIV=$(wg genkey)
 CLIENT_PUB=$(echo "$CLIENT_PRIV" | wg pubkey)
-SERVER_PUB=$(cat /etc/wireguard/server_public.key)
-SERVER_IP=$(usk_server_ip)
-PORT=$(usk_protocol_port /etc/wireguard/wg0.conf '^ListenPort' 51820)
+SERVER_PUB=""
+if [ -f /etc/wireguard/server_public.key ]; then
+  SERVER_PUB=$(tr -d '\n\r' < /etc/wireguard/server_public.key)
+fi
+if [ -z "$SERVER_PUB" ] && wg show wg0 public-key >/dev/null 2>&1; then
+  SERVER_PUB=$(wg show wg0 public-key 2>/dev/null | tr -d '\n\r')
+fi
+[ -n "$SERVER_PUB" ] || usk_json_fail "wireguard_server_key_missing"
 
-wg set wg0 peer "$CLIENT_PUB" allowed-ips "${CLIENT_IP}/32"
+SERVER_IP=$(usk_server_ip)
+PORT=$(usk_wg_conf_port 2>/dev/null || echo "51820")
+PORT=$(echo "$PORT" | tr -dc '0-9')
+[ -n "$PORT" ] || PORT=51820
+
+if ! wg set wg0 peer "$CLIENT_PUB" allowed-ips "${CLIENT_IP}/32" 2>/dev/null; then
+  usk_wg_ensure_running || usk_json_fail "wireguard_interface_down"
+  wg set wg0 peer "$CLIENT_PUB" allowed-ips "${CLIENT_IP}/32" || usk_json_fail "wireguard_interface_down"
+fi
 
 if ! grep -q "$CLIENT_PUB" /etc/wireguard/wg0.conf; then
   cat >> /etc/wireguard/wg0.conf <<PEER
@@ -48,14 +64,28 @@ AllowedIPs = ${CLIENT_IP}/32
 PEER
 fi
 
+usk_wg_sync_peers_from_conf 2>/dev/null || true
+if ! wg show wg0 peers 2>/dev/null | grep -qF "$CLIENT_PUB"; then
+  wg set wg0 peer "$CLIENT_PUB" allowed-ips "${CLIENT_IP}/32" || usk_json_fail "wireguard_peer_sync_failed"
+fi
+
 TCP_CLIENT_CMD=""
 TCP_KEY=""
 TCP_PORT=""
 ENDPOINT="${SERVER_IP}:${PORT}"
 
+usk_wg_fix_postup_conf 2>/dev/null || true
+usk_wg_ensure_nat
+usk_wg_sync_peers_from_conf 2>/dev/null || true
+
 if [ "$TRANSPORT" = "tcp" ]; then
   TCP_PORT=$(usk_wg_tcp_port)
   TCP_KEY=$(usk_wg_tcp_key)
+  if [ -z "$TCP_PORT" ] || [ -z "$TCP_KEY" ]; then
+    usk_wg_setup_tcp_bridge "$PORT" 51822 || usk_wg_setup_tcp_bridge "$PORT" 51823 || true
+    TCP_PORT=$(usk_wg_tcp_port)
+    TCP_KEY=$(usk_wg_tcp_key)
+  fi
   if [ -z "$TCP_PORT" ] || [ -z "$TCP_KEY" ]; then
     usk_json_fail "wireguard_tcp_not_installed"
   fi

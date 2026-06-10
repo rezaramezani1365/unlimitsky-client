@@ -89,8 +89,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $provisionMeta['openvpn_proto'] = in_array($ovpnProto, array('udp', 'tcp'), true) ? $ovpnProto : 'tcp';
                 }
                 if ($protocol === 'wireguard') {
-                    $wgTransport = strtolower((string) ($_POST['wireguard_transport'] ?? 'tcp'));
-                    $provisionMeta['wireguard_transport'] = in_array($wgTransport, array('udp', 'tcp'), true) ? $wgTransport : 'tcp';
+                    $wgTransport = strtolower((string) ($_POST['wireguard_transport'] ?? 'udp'));
+                    $provisionMeta['wireguard_transport'] = in_array($wgTransport, array('udp', 'tcp'), true) ? $wgTransport : 'udp';
                 }
                 $clientDns = trim((string) ($_POST['client_dns'] ?? ''));
                 if ($clientDns !== '') {
@@ -356,8 +356,8 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
                 <div id="create-wireguard-transport" style="display:none;">
                     <label class="small mb-1"><?= __('create_wireguard_transport') ?></label>
                     <select class="form-control" name="wireguard_transport" id="wireguard-transport-select">
-                        <option value="tcp" selected>TCP (<?= __('recommended_iran') ?>)</option>
-                        <option value="udp">UDP</option>
+                        <option value="udp" selected>UDP</option>
+                        <option value="tcp">TCP (<?= __('recommended_iran') ?>)</option>
                     </select>
                     <p class="text-muted small mt-1 mb-0"><?= __('create_wireguard_transport_hint') ?></p>
                 </div>

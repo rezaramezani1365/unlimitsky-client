@@ -229,10 +229,10 @@ if ($action === 'create-service') {
         if (isset($body['wireguard_transport'])) {
             $wgTransport = strtolower((string) $body['wireguard_transport']);
             if (!in_array($wgTransport, array('udp', 'tcp'), true)) {
-                $wgTransport = 'tcp';
+                $wgTransport = 'udp';
             }
         } else {
-            $wgTransport = 'tcp';
+            $wgTransport = 'udp';
         }
     }
 
