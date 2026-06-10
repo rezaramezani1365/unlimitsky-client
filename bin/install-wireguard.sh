@@ -52,8 +52,11 @@ usk_wg_ensure_nat
 ensure_ufw_port "$PORT" udp wireguard-udp
 
 BRIDGE_OK=0
-if usk_wg_setup_tcp_bridge "$PORT" "$TCP_PORT"; then
+if usk_wg_setup_tcp_bridge_retry "$PORT" "$TCP_PORT" 51822 51823 51824 51825 51826 51827; then
   BRIDGE_OK=1
+  TCP_PORT=$(usk_wg_tcp_port)
+  TCP_PORT=$(echo "$TCP_PORT" | tr -dc '0-9')
+  [ -n "$TCP_PORT" ] || TCP_PORT=51822
 fi
 
 echo "USK_META:port=${PORT};tcp_port=${TCP_PORT}"

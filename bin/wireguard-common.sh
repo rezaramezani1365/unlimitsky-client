@@ -387,46 +387,145 @@ usk_wg_fix_postup_conf() {
   sed -i "/^PostUp/a PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -s ${subnet} -o ${iface} -j MASQUERADE" "$conf" 2>/dev/null || true
 }
 
-usk_wg_install_udp2raw() {
-  local dest="/usr/local/bin/udp2raw"
-  if [ -x "$dest" ] && "$dest" 2>&1 | head -1 | grep -qi udp2raw; then
-    return 0
-  fi
-  local arch url urls=()
-  arch=$(uname -m 2>/dev/null || echo amd64)
-  case "$arch" in
-    x86_64|amd64)
-      urls=(
-        "https://github.com/wangyu-/udp2raw/releases/download/20200818.0/udp2raw_amd64"
-        "https://github.com/wangyu-/udp2raw/releases/download/udp2raw_amd64/udp2raw_amd64"
-      )
-      ;;
-    aarch64|arm64)
-      urls=(
-        "https://github.com/wangyu-/udp2raw/releases/download/20200818.0/udp2raw_arm"
-        "https://github.com/wangyu-/udp2raw/releases/download/udp2raw_arm/udp2raw_arm"
-      )
-      ;;
-    *)
-      return 1
-      ;;
+WG_TCP_LAST_ERR=""
+
+usk_wg_udp2raw_valid() {
+  local f="${1:-/usr/local/bin/udp2raw}"
+  local sz
+  [ -f "$f" ] || return 1
+  [ -x "$f" ] || return 1
+  sz=$(wc -c < "$f" 2>/dev/null | tr -dc '0-9')
+  [ -n "$sz" ] && [ "$sz" -ge 8192 ] 2>/dev/null || return 1
+  "$f" 2>&1 | head -3 | grep -qi udp2raw || return 1
+  return 0
+}
+
+usk_wg_udp2raw_arch_member() {
+  case "$(uname -m 2>/dev/null || echo amd64)" in
+    x86_64|amd64) echo udp2raw_amd64 ;;
+    aarch64|arm64) echo udp2raw_arm ;;
+    armv7l|armv6l) echo udp2raw_arm ;;
+    i686|i386) echo udp2raw_x86 ;;
+    mips) echo udp2raw_mips24kc_be ;;
+    mipsel) echo udp2raw_mips24kc_le ;;
+    *) return 1 ;;
   esac
-  for url in "${urls[@]}"; do
-    if command -v wget >/dev/null 2>&1; then
-      wget -q -O "$dest" "$url" 2>/dev/null || continue
-    elif command -v curl >/dev/null 2>&1; then
-      curl -fsSL -o "$dest" "$url" 2>/dev/null || continue
-    else
-      return 1
-    fi
-    chmod +x "$dest"
-    if [ -s "$dest" ] && [ -x "$dest" ]; then
-      if "$dest" 2>&1 | head -1 | grep -qi udp2raw; then
-        return 0
-      fi
+}
+
+usk_wg_download_file() {
+  local url="$1" dest="$2" min_bytes="${3:-4096}"
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL --connect-timeout 20 --max-time 120 -o "$dest" "$url" 2>/dev/null || return 1
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q --tries=2 --timeout=30 -O "$dest" "$url" 2>/dev/null || return 1
+  else
+    return 1
+  fi
+  local sz
+  sz=$(wc -c < "$dest" 2>/dev/null | tr -dc '0-9')
+  [ -n "$sz" ] && [ "$sz" -ge "$min_bytes" ] 2>/dev/null || { rm -f "$dest"; return 1; }
+  return 0
+}
+
+usk_wg_extract_udp2raw_from_tar() {
+  local tarfile="$1" member="$2" dest="$3"
+  local td
+  td=$(mktemp -d)
+  if ! tar -xzf "$tarfile" -C "$td" "$member" 2>/dev/null; then
+    tar -xzf "$tarfile" -C "$td" 2>/dev/null || { rm -rf "$td"; return 1; }
+  fi
+  if [ ! -f "$td/$member" ]; then
+    rm -rf "$td"
+    return 1
+  fi
+  cp "$td/$member" "$dest"
+  chmod +x "$dest"
+  rm -rf "$td"
+  return 0
+}
+
+usk_wg_install_udp2raw_from_tar() {
+  local dest="$1" member="$2"
+  local url tarfile
+  tarfile=$(mktemp)
+  for url in \
+    "https://github.com/wangyu-/udp2raw/releases/download/20230206.0/udp2raw_binaries.tar.gz" \
+    "https://github.com/wangyu-/udp2raw/releases/download/20200818.0/udp2raw_binaries.tar.gz"; do
+    rm -f "$tarfile"
+    usk_wg_download_file "$url" "$tarfile" 65536 || continue
+    rm -f "$dest"
+    if usk_wg_extract_udp2raw_from_tar "$tarfile" "$member" "$dest" && usk_wg_udp2raw_valid "$dest"; then
+      rm -f "$tarfile"
+      return 0
     fi
     rm -f "$dest"
   done
+  rm -f "$tarfile"
+  return 1
+}
+
+usk_wg_compile_udp2raw() {
+  local dest="$1"
+  local td repo bin
+  td=$(mktemp -d)
+  apt-get update -qq 2>/dev/null || true
+  apt-get install -y -qq build-essential git ca-certificates 2>/dev/null || true
+  repo="$td/udp2raw"
+  if ! git clone --depth 1 --branch 20230206.0 https://github.com/wangyu-/udp2raw.git "$repo" 2>/dev/null; then
+    git clone --depth 1 https://github.com/wangyu-/udp2raw.git "$repo" 2>/dev/null || { rm -rf "$td"; return 1; }
+  fi
+  if ! make -C "$repo" -j"$(nproc 2>/dev/null || echo 2)" 2>/dev/null; then
+    rm -rf "$td"
+    return 1
+  fi
+  bin=""
+  if [ -f "$repo/udp2raw" ]; then
+    bin="$repo/udp2raw"
+  else
+    bin=$(find "$repo" -maxdepth 1 -type f -name 'udp2raw*' ! -name '*.o' 2>/dev/null | head -1)
+  fi
+  if [ -z "$bin" ] || [ ! -f "$bin" ]; then
+    rm -rf "$td"
+    return 1
+  fi
+  cp "$bin" "$dest"
+  chmod +x "$dest"
+  rm -rf "$td"
+  usk_wg_udp2raw_valid "$dest"
+}
+
+usk_wg_install_udp2raw() {
+  local dest="/usr/local/bin/udp2raw"
+  local arch member
+
+  if usk_wg_udp2raw_valid "$dest"; then
+    return 0
+  fi
+  rm -f "$dest"
+
+  if command -v udp2raw >/dev/null 2>&1; then
+    local sysbin
+    sysbin=$(command -v udp2raw)
+    if usk_wg_udp2raw_valid "$sysbin"; then
+      ln -sf "$sysbin" "$dest" 2>/dev/null || cp "$sysbin" "$dest"
+      chmod +x "$dest"
+      usk_wg_udp2raw_valid "$dest" && return 0
+    fi
+  fi
+
+  member=$(usk_wg_udp2raw_arch_member) || member=""
+  arch=$(uname -m 2>/dev/null || echo unknown)
+  if [ -n "$member" ] && usk_wg_install_udp2raw_from_tar "$dest" "$member"; then
+    return 0
+  fi
+
+  if usk_wg_compile_udp2raw "$dest"; then
+    return 0
+  fi
+
+  rm -f "$dest"
+  WG_TCP_LAST_ERR="wireguard_udp2raw_download_failed"
+  echo "USK_ERR: wireguard_udp2raw_download_failed arch=${arch}" >&2
   return 1
 }
 
@@ -467,7 +566,10 @@ usk_wg_setup_tcp_bridge() {
     fi
   fi
 
-  usk_wg_install_udp2raw || return 1
+  if ! usk_wg_install_udp2raw; then
+    WG_TCP_LAST_ERR="${WG_TCP_LAST_ERR:-wireguard_udp2raw_download_failed}"
+    return 1
+  fi
 
   if [ ! -f "$WG_TCP_KEY_FILE" ]; then
     openssl rand -hex 16 > "$WG_TCP_KEY_FILE"
@@ -487,6 +589,9 @@ Type=simple
 ExecStart=/usr/local/bin/udp2raw -s -l0.0.0.0:${tcp_port} -r127.0.0.1:${wg_port} -a -k ${key} --raw-mode faketcp --cipher-mode aes128cbc --fix-gro
 Restart=on-failure
 RestartSec=3
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN
+NoNewPrivileges=false
 
 [Install]
 WantedBy=multi-user.target
@@ -494,18 +599,48 @@ UNIT
 
   systemctl daemon-reload
   systemctl enable "$WG_TCP_UNIT" 2>/dev/null || true
+  systemctl stop "$WG_TCP_UNIT" 2>/dev/null || true
+  systemctl reset-failed "$WG_TCP_UNIT" 2>/dev/null || true
   systemctl restart "$WG_TCP_UNIT" 2>/dev/null || systemctl start "$WG_TCP_UNIT" 2>/dev/null || true
-  sleep 2
-  if ! systemctl is-active --quiet "$WG_TCP_UNIT" 2>/dev/null; then
-    journalctl -u "$WG_TCP_UNIT" -n 8 --no-pager 2>/dev/null | tail -5 >&2 || true
-    if ! /usr/local/bin/udp2raw 2>&1 | head -1 | grep -qi udp2raw; then
+  sleep 3
+  local active=0 listening=0
+  systemctl is-active --quiet "$WG_TCP_UNIT" 2>/dev/null && active=1
+  if command -v ss >/dev/null 2>&1; then
+    ss -H -ltn "sport = :${tcp_port}" 2>/dev/null | grep -q . && listening=1
+  elif command -v netstat >/dev/null 2>&1; then
+    netstat -ltn 2>/dev/null | grep -q ":${tcp_port} " && listening=1
+  else
+    listening=$active
+  fi
+  if [ "$active" -ne 1 ] || [ "$listening" -ne 1 ]; then
+    journalctl -u "$WG_TCP_UNIT" -n 12 --no-pager 2>/dev/null | tail -8 >&2 || true
+    if ! usk_wg_udp2raw_valid /usr/local/bin/udp2raw; then
+      WG_TCP_LAST_ERR="wireguard_udp2raw_binary_bad"
       echo "USK_ERR: wireguard_udp2raw_binary_bad" >&2
+      return 1
     fi
+    WG_TCP_LAST_ERR="wireguard_tcp_bridge_start_failed"
     echo "USK_ERR: wireguard_tcp_bridge_start_failed port=${tcp_port}" >&2
     return 1
   fi
   ensure_ufw_port "$tcp_port" tcp wireguard-tcp
+  WG_TCP_LAST_ERR=""
   return 0
+}
+
+usk_wg_setup_tcp_bridge_retry() {
+  local wg_port="$1"
+  shift
+  local try_port err=""
+  for try_port in "$@"; do
+    [ -n "$try_port" ] || continue
+    if usk_wg_setup_tcp_bridge "$wg_port" "$try_port"; then
+      return 0
+    fi
+    err="${WG_TCP_LAST_ERR:-wireguard_tcp_bridge_start_failed}"
+  done
+  WG_TCP_LAST_ERR="$err"
+  return 1
 }
 
 usk_wg_tcp_enabled() {

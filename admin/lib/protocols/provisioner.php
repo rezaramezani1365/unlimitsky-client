@@ -499,6 +499,8 @@ class USK_ProtocolProvisioner
             'wireguard_tcp_not_installed' => 'err_wireguard_tcp_not_installed',
             'wireguard_tcp_port_in_use' => 'err_wireguard_tcp_port_in_use',
             'wireguard_tcp_bridge_start_failed' => 'err_wireguard_tcp_bridge_failed',
+            'wireguard_udp2raw_download_failed' => 'err_wireguard_udp2raw_download_failed',
+            'wireguard_udp2raw_binary_bad' => 'err_wireguard_udp2raw_binary_bad',
             'amnezia_userspace_install_failed' => 'err_amnezia_userspace_install_failed',
             'amnezia_go_download_failed' => 'err_amnezia_go_download_failed',
             'amnezia_tools_install_failed' => 'err_amnezia_tools_install_failed',

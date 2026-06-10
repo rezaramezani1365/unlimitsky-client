@@ -52,16 +52,24 @@ usk_wg_ensure_nat
 ensure_ufw_port "$PORT" udp wireguard-udp
 
 BRIDGE_OK=0
-if usk_wg_setup_tcp_bridge "$PORT" "$TCP_PORT"; then
+BRIDGE_ERR=""
+if usk_wg_setup_tcp_bridge_retry "$PORT" "$TCP_PORT" 51822 51823 51824 51825 51826 51827; then
   BRIDGE_OK=1
   TCP_PORT=$(usk_wg_tcp_port)
   TCP_PORT=$(echo "$TCP_PORT" | tr -dc '0-9')
   [ -n "$TCP_PORT" ] || TCP_PORT=51822
+else
+  BRIDGE_ERR="${WG_TCP_LAST_ERR:-wireguard_tcp_bridge_start_failed}"
 fi
 
 echo "USK_META:port=${PORT};tcp_port=${TCP_PORT}"
 if [ "$BRIDGE_OK" -ne 1 ]; then
   echo "USK_WARN:wireguard_tcp_bridge"
+  echo "USK_ERR: ${BRIDGE_ERR}"
+  if ! usk_wg_udp2raw_valid /usr/local/bin/udp2raw 2>/dev/null; then
+    echo "USK_HINT: rm -f /usr/local/bin/udp2raw && sudo bash $DIR/repair-wireguard.sh ${TCP_PORT}"
+  fi
+  journalctl -u udp2raw-wg -n 8 --no-pager 2>/dev/null | tail -5 || true
   usk_ok
   exit 0
 fi

@@ -82,7 +82,10 @@ if [ "$TRANSPORT" = "tcp" ]; then
   TCP_PORT=$(usk_wg_tcp_port)
   TCP_KEY=$(usk_wg_tcp_key)
   if [ -z "$TCP_PORT" ] || [ -z "$TCP_KEY" ]; then
-    usk_wg_setup_tcp_bridge "$PORT" 51822 || usk_wg_setup_tcp_bridge "$PORT" 51823 || true
+    if ! usk_wg_setup_tcp_bridge_retry "$PORT" 51822 51823 51824 51825 51826 51827; then
+      BRIDGE_ERR="${WG_TCP_LAST_ERR:-wireguard_tcp_not_installed}"
+      usk_json_fail "$BRIDGE_ERR"
+    fi
     TCP_PORT=$(usk_wg_tcp_port)
     TCP_KEY=$(usk_wg_tcp_key)
   fi

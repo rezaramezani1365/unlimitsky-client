@@ -45,7 +45,7 @@ fi
 ip_fwd=$(sysctl -n net.ipv4.ip_forward 2>/dev/null)
 
 udp2raw_ok=0
-[ -x /usr/local/bin/udp2raw ] && [ -s /usr/local/bin/udp2raw ] && udp2raw_ok=1
+usk_wg_udp2raw_valid /usr/local/bin/udp2raw 2>/dev/null && udp2raw_ok=1
 tcp_unit=0
 systemctl is-active --quiet udp2raw-wg 2>/dev/null && tcp_unit=1
 
