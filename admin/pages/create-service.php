@@ -173,6 +173,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $result['vless'] = $raw['vless'] ?? ($created['subscription'] ?? '');
                         $result['openvpn_proto'] = $raw['proto'] ?? ($provisionMeta['openvpn_proto'] ?? 'tcp');
                         $result['wireguard_transport'] = $raw['wireguard_transport'] ?? ($provisionMeta['wireguard_transport'] ?? '');
+                        $result['tcp_client_cmd'] = $raw['tcp_client_cmd'] ?? '';
                         $_SESSION['usk_create_result'] = $result;
                         usk_flash(__('create_success'));
                         header('Location: ' . usk_admin_url('create-service', array('created' => '1')));
@@ -522,6 +523,19 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
     <?php endif; ?>
     <?php if (!empty($result['client_dns'])) : ?>
         <p><strong><?= __('create_client_dns') ?>:</strong> <code><?= usk_esc($result['client_dns']) ?></code></p>
+    <?php endif; ?>
+    <?php
+    $wgTcpCmd = '';
+    if (($result['protocol'] ?? '') === 'wireguard' && strtolower((string) ($result['wireguard_transport'] ?? '')) === 'tcp') {
+        $wgTcpCmd = trim((string) ($result['tcp_client_cmd'] ?? ($result['raw']['tcp_client_cmd'] ?? '')));
+    }
+    ?>
+    <?php if ($wgTcpCmd !== '') : ?>
+        <div class="alert alert-warning mt-3 mb-0" role="alert">
+            <p class="mb-2"><strong><?= __('create_wg_tcp_title') ?></strong></p>
+            <p class="small mb-2"><?= __('create_wg_tcp_hint') ?></p>
+            <code class="d-block p-3" style="white-space:pre-wrap;word-break:break-all;direction:ltr;text-align:left;"><?= usk_esc($wgTcpCmd) ?></code>
+        </div>
     <?php endif; ?>
     <?php if (!empty($result['customer_email'])) : ?>
         <p><strong><?= __('create_customer_email') ?>:</strong> <code><?= usk_esc($result['customer_email']) ?></code></p>

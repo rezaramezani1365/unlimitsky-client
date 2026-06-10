@@ -115,10 +115,13 @@ if [ "$TRANSPORT" = "tcp" ]; then
   CONFIG="${CONFIG}
 
 # --- TCP mode (Iran / filtered networks) ---
-# 1) Download udp2raw for your OS: https://github.com/wangyu-/udp2raw/releases
-# 2) Run this tunnel BEFORE connecting WireGuard (keep it running):
+# AllowedIPs 0.0.0.0/0 = full tunnel (route all IPv4 via VPN). Correct for internet access.
+# Do NOT change Endpoint to the server IP — it must stay 127.0.0.1:${PORT} with udp2raw below.
+# Android/iOS WireGuard apps cannot run udp2raw — use UDP transport on phones, or a Windows/Linux PC.
+# 1) Download udp2raw: https://github.com/wangyu-/udp2raw/releases
+# 2) Run this in a terminal BEFORE enabling WireGuard (keep it running):
 # ${TCP_CLIENT_CMD}
-# 3) WireGuard Endpoint must stay 127.0.0.1:${PORT}"
+# 3) Wait until udp2raw prints ready, then connect WireGuard."
 fi
 
 QR_B64=""

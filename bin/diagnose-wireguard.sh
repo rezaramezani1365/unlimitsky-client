@@ -48,6 +48,12 @@ udp2raw_ok=0
 usk_wg_udp2raw_valid /usr/local/bin/udp2raw 2>/dev/null && udp2raw_ok=1
 tcp_unit=0
 systemctl is-active --quiet udp2raw-wg 2>/dev/null && tcp_unit=1
+tcp_port=""
+tcp_bridge_target=""
+if [ -f "/etc/systemd/system/udp2raw-wg.service" ]; then
+  tcp_port=$(usk_wg_tcp_port 2>/dev/null || true)
+  tcp_bridge_target=$(grep -oE '127\.0\.0\.1:[0-9]+' "/etc/systemd/system/udp2raw-wg.service" 2>/dev/null | head -1)
+fi
 
 issues=()
 [ ! -f "$conf" ] && issues+=("wireguard_not_installed")
@@ -59,6 +65,8 @@ wg show wg0 >/dev/null 2>&1 || issues+=("wg0_down")
 [ "$registry_count" -gt 0 ] 2>/dev/null && [ "$peer_count" -eq 0 ] 2>/dev/null && issues+=("registry_not_synced_to_wg0")
 [ "$ip_fwd" != "1" ] && issues+=("ip_forward_off")
 [ "$nat_pkts" = "0" ] 2>/dev/null && [ "$peer_count" -gt 0 ] 2>/dev/null && issues+=("no_nat_traffic_yet")
+[ "$tcp_unit" -eq 0 ] 2>/dev/null && [ -f "/etc/systemd/system/udp2raw-wg.service" ] && issues+=("udp2raw_service_down")
+[ -n "$tcp_bridge_target" ] && [ -n "$listen_port" ] && [ "$tcp_bridge_target" != "127.0.0.1:${listen_port}" ] && issues+=("tcp_bridge_port_mismatch")
 
 echo "USK_WG_DIAG"
 echo "wg0_up=$(wg show wg0 >/dev/null 2>&1 && echo 1 || echo 0)"
@@ -74,6 +82,8 @@ echo "nat_packets_subnet=${nat_pkts:-0}"
 echo "forward_packets_wg0=${fwd_wg:-0}"
 echo "udp2raw_binary=${udp2raw_ok}"
 echo "udp2raw_service=${tcp_unit}"
+echo "tcp_bridge_port=${tcp_port:-none}"
+echo "tcp_bridge_target=${tcp_bridge_target:-none}"
 if [ ${#issues[@]} -gt 0 ]; then
   echo "issues=$(IFS=,; echo "${issues[*]}")"
 else

@@ -345,7 +345,7 @@ class USK_ProtocolProvisioner
             $record['status'] = 'active';
         }
         if (!empty($record['meta']) && is_array($record['meta'])) {
-            foreach (array('public_key', 'client_ip', 'uuid', 'password', 'psk', 'config', 'qr_png', 'vpn_uri', 'wg_conf', 'endpoint', 'download_token', 'ovpn_filename', 'conf_filename', 'json_filename', 'client_dns', 'client_json', 'vless', 'proto', 'port', 'server_ip', 'max_connections', 'customer_email', 'usage_id', 'xray_email', 'email') as $k) {
+            foreach (array('public_key', 'client_ip', 'uuid', 'password', 'psk', 'config', 'qr_png', 'vpn_uri', 'wg_conf', 'endpoint', 'download_token', 'ovpn_filename', 'conf_filename', 'json_filename', 'client_dns', 'client_json', 'vless', 'proto', 'port', 'server_ip', 'max_connections', 'customer_email', 'usage_id', 'xray_email', 'email', 'wireguard_transport', 'tcp_client_cmd', 'tcp_port') as $k) {
                 if (isset($record['meta'][$k]) && $record['meta'][$k] !== '') {
                     $record[$k] = $record['meta'][$k];
                 }

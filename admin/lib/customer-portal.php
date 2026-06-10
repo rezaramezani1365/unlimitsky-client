@@ -85,6 +85,10 @@ class USK_CustomerPortal
         $downloadFilename = self::download_filename($protocol, $native['username'] ?? '', $meta);
         $renewPlans = USK_CustomerRenewal::plans_for_service($protocol, $code, $stored);
 
+        $wgTransport = strtolower(usk_client_meta_string($meta, 'wireguard_transport'));
+        $wgTcpCmd = usk_client_meta_string($meta, 'tcp_client_cmd');
+        $wgTcpMode = ($protocol === 'wireguard' && ($wgTransport === 'tcp' || ($wgTcpCmd !== '' && strpos(usk_client_meta_string($meta, 'endpoint'), '127.0.0.1:') === 0)));
+
         return array(
             'ok' => true,
             'order' => $order,
@@ -105,7 +109,11 @@ class USK_CustomerPortal
             'credentials' => self::credentials($protocol, $meta),
             'wg_conf' => usk_client_meta_string($meta, 'wg_conf'),
             'apps' => self::app_links($protocol),
+            'wireguard_transport' => $wgTransport,
+            'wireguard_tcp_mode' => $wgTcpMode,
+            'wireguard_tcp_cmd' => $wgTcpCmd,
             'show_qr' => in_array($protocol, array('xray', 'wireguard'), true)
+                && !$wgTcpMode
                 && ($primaryLink !== '' || $qrB64 !== ''),
             'show_copy_link' => in_array($protocol, array('xray', 'wireguard'), true) && $primaryLink !== '',
             'show_download' => in_array($protocol, array('openvpn', 'xray', 'wireguard'), true),
@@ -199,7 +207,14 @@ class USK_CustomerPortal
             $out[] = array('key' => 'username', 'label' => __('username'), 'value' => (string) ($meta['username'] ?? ''));
             $out[] = array('key' => 'password', 'label' => __('password'), 'value' => usk_client_meta_string($meta, 'password'));
         } elseif ($protocol === 'wireguard') {
+            $transport = strtolower(usk_client_meta_string($meta, 'wireguard_transport'));
+            $tcpCmd = usk_client_meta_string($meta, 'tcp_client_cmd');
             $endpoint = usk_client_meta_string($meta, 'endpoint');
+            if ($transport === 'tcp' || ($tcpCmd !== '' && strpos($endpoint, '127.0.0.1:') === 0)) {
+                if ($tcpCmd !== '') {
+                    $out[] = array('key' => 'tcp_tunnel', 'label' => __('portal_wg_tcp_cmd'), 'value' => $tcpCmd);
+                }
+            }
             if ($endpoint !== '') {
                 $out[] = array('key' => 'endpoint', 'label' => __('portal_cred_endpoint'), 'value' => $endpoint);
             }

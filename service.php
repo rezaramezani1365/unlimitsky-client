@@ -204,6 +204,22 @@ function portal_esc($s)
     </div>
 <?php endif; ?>
 
+<?php if (!empty($view['wireguard_tcp_mode'])) : ?>
+    <div class="portal-card" style="border-color:#f0ad4e;">
+        <h2><i class="fa-solid fa-plug"></i> <?= portal_esc(__('portal_wg_tcp_title')) ?></h2>
+        <p class="small text-muted mb-3"><?= portal_esc(__('portal_wg_tcp_hint')) ?></p>
+        <?php if (!empty($view['wireguard_tcp_cmd'])) : ?>
+        <div class="portal-link-box">
+            <input type="text" class="portal-link-input" id="portal-wg-tcp-cmd" readonly value="<?= portal_esc($view['wireguard_tcp_cmd']) ?>" dir="ltr" style="text-align:left;">
+            <button type="button" class="btn-portal-copy" data-copy-target="portal-wg-tcp-cmd">
+                <i class="fa-regular fa-copy"></i> <?= portal_esc(__('portal_copy')) ?>
+            </button>
+        </div>
+        <?php endif; ?>
+        <p class="small text-muted mt-3 mb-0"><?= portal_esc(__('portal_wg_tcp_steps')) ?></p>
+    </div>
+<?php endif; ?>
+
 <?php if (!empty($view['credentials'])) : ?>
     <div class="portal-card">
         <h2><i class="fa-solid fa-key"></i> <?= portal_esc(__('portal_credentials')) ?></h2>
@@ -222,7 +238,7 @@ function portal_esc($s)
 <?php if (!empty($view['show_download']) && !empty($view['download_url'])) : ?>
     <div class="portal-card">
         <h2><i class="fa-solid fa-download"></i> <?= portal_esc(__('portal_download_config')) ?></h2>
-        <p class="small text-muted"><?= portal_esc(__('portal_download_hint')) ?></p>
+        <p class="small <?= !empty($view['wireguard_tcp_mode']) ? 'text-warning' : 'text-muted' ?>"><?= portal_esc(!empty($view['wireguard_tcp_mode']) ? __('portal_wg_tcp_download_hint') : __('portal_download_hint')) ?></p>
         <a class="btn-portal-download" href="<?= portal_esc($view['download_url']) ?>" download="<?= portal_esc($view['download_filename'] ?? 'config') ?>">
             <i class="fa-solid fa-file-arrow-down"></i>
             <?php
