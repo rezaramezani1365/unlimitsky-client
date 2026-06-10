@@ -117,6 +117,7 @@ if [ "$AUTO" -eq 1 ] && usk_panel_is_installed "$WEB_ROOT"; then
     usk_remove_connections_cron
     usk_disable_live_stats_daemon "$WEB_ROOT"
     usk_ensure_connection_slot_hooks "$WEB_ROOT"
+    usk_ensure_l2tp_repair "$WEB_ROOT"
     usk_restart_php_fpm
     DEPLOY_REV=""
     [ -f "$WEB_ROOT/admin/data/.deploy-rev" ] && DEPLOY_REV="$(head -1 "$WEB_ROOT/admin/data/.deploy-rev" | cut -c1-12)"
@@ -170,6 +171,7 @@ cat > "$SUDOERS" <<SUDO
 www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/install-*.sh *
 www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/run-protocol-install.sh *
 www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/repair-*.sh *
+www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/diagnose-*.sh *
 www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/probe-protocol.sh *
 www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/add-user-*.sh *
 www-data ALL=(root) NOPASSWD: /bin/bash ${WEB_ROOT}/bin/disable-user-*.sh *
@@ -280,6 +282,7 @@ file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_S
     usk_remove_connections_cron
     usk_disable_live_stats_daemon "$WEB_ROOT"
     usk_ensure_connection_slot_hooks "$WEB_ROOT"
+    usk_ensure_l2tp_repair "$WEB_ROOT"
 
     usk_save_credentials "$CREDS_FILE" \
         "TYPE=client" \

@@ -13,23 +13,35 @@ if [ ! -f /etc/unlimitsky-l2tp.psk ]; then
 fi
 
 PSK=$(tr -d '\n\r' < /etc/unlimitsky-l2tp.psk)
+SERVER_IP=$(usk_l2tp_detect_ip)
 
 usk_l2tp_write_strongswan_compat
-usk_l2tp_write_ipsec "$PSK"
+usk_l2tp_write_ipsec "$PSK" "$SERVER_IP"
+usk_l2tp_write_xl2tpd
 usk_l2tp_write_ppp_options
 
-if [ -f /etc/xl2tpd/xl2tpd.conf ]; then
-  sed -i 's/require authentication = no/require authentication = yes/' /etc/xl2tpd/xl2tpd.conf 2>/dev/null || true
-fi
+touch /etc/ppp/chap-secrets
+chmod 600 /etc/ppp/chap-secrets
 
 usk_mark_installed l2tp "$USK_ROOT"
 usk_l2tp_sysctl
 usk_l2tp_setup_iptables "$L2TP_SUBNET"
+usk_l2tp_ensure_ufw
+
+bash "$DIR/setup-l2tp-usage.sh" 2>/dev/null || true
+
 usk_l2tp_restart_services
+sleep 2
 
-ensure_ufw_port 500 udp ipsec-ike
-ensure_ufw_port 4500 udp ipsec-nat-t
-ensure_ufw_port 1701 udp l2tp
+if ! usk_l2tp_verify_services; then
+  usk_l2tp_restart_services
+  sleep 2
+fi
 
-echo "USK_META:ports=500,4500,1701;port=1701"
+if ! usk_l2tp_verify_services; then
+  echo "USK_WARN: l2tp_service_check" >&2
+  usk_fail "l2tp_service_failed"
+fi
+
+echo "USK_META:ports=500,4500,1701;port=1701;server_ip=${SERVER_IP}"
 usk_ok

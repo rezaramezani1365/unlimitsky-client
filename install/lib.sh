@@ -544,6 +544,15 @@ usk_write_deploy_stamp() {
     chown www-data:www-data "$stamp" 2>/dev/null || true
 }
 
+usk_ensure_l2tp_repair() {
+    local web_root="${1:-/var/www/unlimitsky}"
+    local repair="${web_root}/bin/repair-l2tp.sh"
+    if [ -f /etc/unlimitsky-l2tp.psk ] && [ -f "$repair" ]; then
+        echo "[*] Ensuring L2TP/IPsec (NAT, UFW, strongSwan ciphers)..."
+        bash "$repair" "$web_root" >/dev/null 2>&1 || true
+    fi
+}
+
 usk_verify_panel_deploy() {
     local web_root="$1"
     local missing=0

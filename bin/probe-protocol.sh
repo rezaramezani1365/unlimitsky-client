@@ -14,6 +14,12 @@ fi
 case "$PROTO" in
   l2tp)
     if [ -f /etc/xl2tpd/xl2tpd.conf ] && [ -f /etc/ppp/options.xl2tpd ] && [ -f /etc/unlimitsky-l2tp.psk ]; then
+      DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+      # shellcheck source=l2tp-common.sh
+      source "$DIR/l2tp-common.sh" 2>/dev/null || true
+      if declare -F usk_l2tp_verify_services >/dev/null 2>&1; then
+        usk_l2tp_verify_services || usk_fail "l2tp_service_failed"
+      fi
       usk_mark_installed l2tp "$USK_ROOT"
       usk_ok
     fi

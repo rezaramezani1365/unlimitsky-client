@@ -9,7 +9,8 @@ USK_ROOT="${1:-/var/www/unlimitsky}"
 L2TP_SUBNET="10.10.10.0/24"
 
 apt-get update -qq
-if ! apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" strongswan xl2tpd ppp; then
+if ! apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" \
+    strongswan xl2tpd ppp iptables curl; then
   usk_fail "l2tp_packages_failed"
 fi
 
@@ -19,8 +20,10 @@ else
   PSK="unlimitsky$(openssl rand -hex 8)"
 fi
 
+SERVER_IP=$(usk_l2tp_detect_ip)
+
 usk_l2tp_write_strongswan_compat
-usk_l2tp_write_ipsec "$PSK"
+usk_l2tp_write_ipsec "$PSK" "$SERVER_IP"
 usk_l2tp_write_xl2tpd
 usk_l2tp_write_ppp_options
 
@@ -34,19 +37,29 @@ usk_mark_installed l2tp "$USK_ROOT"
 
 usk_l2tp_sysctl
 usk_l2tp_setup_iptables "$L2TP_SUBNET"
+usk_l2tp_ensure_ufw
 
 # Per-user volume metering: install the pppd ip-up/ip-down accounting hooks.
 bash "$DIR/setup-l2tp-usage.sh" 2>/dev/null || true
 
 usk_l2tp_restart_services
-
-ensure_ufw_port 500 udp ipsec-ike
-ensure_ufw_port 4500 udp ipsec-nat-t
-ensure_ufw_port 1701 udp l2tp
+sleep 2
 
 if [ ! -f /etc/xl2tpd/xl2tpd.conf ] || [ ! -f /etc/ppp/options.xl2tpd ]; then
   usk_fail "l2tp_config_failed"
 fi
 
-echo "USK_META:ports=500,4500,1701;port=1701"
+if ! usk_l2tp_verify_services; then
+  usk_l2tp_restart_services
+  sleep 2
+fi
+
+if ! usk_l2tp_verify_services; then
+  echo "USK_WARN: l2tp_service_check" >&2
+  journalctl -u xl2tpd -n 5 --no-pager 2>/dev/null || true
+  journalctl -u strongswan-starter -n 5 --no-pager 2>/dev/null || true
+  usk_fail "l2tp_service_failed"
+fi
+
+echo "USK_META:ports=500,4500,1701;port=1701;server_ip=${SERVER_IP}"
 usk_ok
