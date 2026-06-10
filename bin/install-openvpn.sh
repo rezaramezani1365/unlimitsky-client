@@ -26,8 +26,14 @@ if [ ! -f pki/ca.crt ]; then
   ./easyrsa gen-dh
 fi
 
+if [ -f /etc/openvpn/server.conf ] && [ ! -f /etc/openvpn/server-udp.conf ]; then
+  mv /etc/openvpn/server.conf /etc/openvpn/server.conf.bak.legacy 2>/dev/null || true
+  systemctl disable --now openvpn@server 2>/dev/null || true
+fi
+
 usk_openvpn_write_server "server-udp" "$UDP_PORT" "udp"
 usk_openvpn_write_server "server-tcp" "$TCP_PORT" "tcp"
+usk_openvpn_ensure_dev_names
 
 usk_openvpn_setup_nat
 

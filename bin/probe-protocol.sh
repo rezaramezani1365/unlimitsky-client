@@ -24,7 +24,7 @@ case "$PROTO" in
     usk_fail "wireguard_not_installed"
     ;;
   openvpn)
-    if [ -f /etc/openvpn/server-udp.conf ] || [ -f /etc/openvpn/server.conf ]; then
+    if [ -f /etc/openvpn/server-udp.conf ] || [ -f /etc/openvpn/server-tcp.conf ] || [ -f /etc/openvpn/server.conf ]; then
       usk_mark_installed openvpn "$USK_ROOT"
       usk_ok
     fi

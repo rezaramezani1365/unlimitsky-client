@@ -15,6 +15,7 @@ elif [ -f /etc/openvpn/server.conf ]; then
 fi
 TCP_PORT=${TCP_PORT:-443}
 
+usk_openvpn_ensure_dev_names
 usk_openvpn_setup_nat
 
 usk_openvpn_ensure_status_policy

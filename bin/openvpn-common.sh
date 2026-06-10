@@ -3,6 +3,9 @@
 OVPN_SUBNET="${OVPN_SUBNET:-10.9.0.0/24}"
 OVPN_NET="${OVPN_NET:-10.9.0.0}"
 OVPN_MASK="${OVPN_MASK:-255.255.255.0}"
+OVPN_TCP_SUBNET="${OVPN_TCP_SUBNET:-10.9.1.0/24}"
+OVPN_TCP_NET="${OVPN_TCP_NET:-10.9.1.0}"
+OVPN_TCP_MASK="${OVPN_TCP_MASK:-255.255.255.0}"
 OVPN_STATUS_DIR="${OVPN_STATUS_DIR:-/var/log/openvpn}"
 
 usk_openvpn_prepare_status_dir() {
@@ -42,8 +45,24 @@ usk_openvpn_main_iface() {
   ip route get 1.1.1.1 2>/dev/null | awk '{print $5; exit}'
 }
 
+usk_openvpn_ensure_dev_names() {
+  local cfg dev
+  for cfg in /etc/openvpn/server-udp.conf /etc/openvpn/server-tcp.conf; do
+    [ -f "$cfg" ] || continue
+    case "$cfg" in
+      *server-udp*) dev="tun0" ;;
+      *server-tcp*) dev="tun1" ;;
+      *) continue ;;
+    esac
+    if grep -qE '^dev[[:space:]]+tun[[:space:]]*$' "$cfg" 2>/dev/null \
+      || grep -qE '^dev[[:space:]]+tun$' "$cfg" 2>/dev/null; then
+      sed -i "s/^dev[[:space:]]*tun[[:space:]]*$/dev ${dev}/" "$cfg"
+    fi
+  done
+}
+
 usk_openvpn_setup_nat() {
-  local iface
+  local iface tun
   iface=$(usk_openvpn_main_iface)
   iface="${iface:-eth0}"
 
@@ -53,19 +72,24 @@ usk_openvpn_setup_nat() {
 
   if command -v iptables >/dev/null 2>&1; then
     iptables -C FORWARD -i tun+ -j ACCEPT 2>/dev/null \
-      || iptables -I FORWARD -i tun+ -j ACCEPT 2>/dev/null || true
+      || iptables -I FORWARD 1 -i tun+ -j ACCEPT 2>/dev/null || true
     iptables -C FORWARD -o tun+ -j ACCEPT 2>/dev/null \
-      || iptables -I FORWARD -o tun+ -j ACCEPT 2>/dev/null || true
+      || iptables -I FORWARD 1 -o tun+ -j ACCEPT 2>/dev/null || true
     iptables -t nat -C POSTROUTING -s "$OVPN_SUBNET" -o "$iface" -j MASQUERADE 2>/dev/null \
       || iptables -t nat -A POSTROUTING -s "$OVPN_SUBNET" -o "$iface" -j MASQUERADE 2>/dev/null || true
+    iptables -t nat -C POSTROUTING -s "$OVPN_TCP_SUBNET" -o "$iface" -j MASQUERADE 2>/dev/null \
+      || iptables -t nat -A POSTROUTING -s "$OVPN_TCP_SUBNET" -o "$iface" -j MASQUERADE 2>/dev/null || true
   fi
 
   if command -v ufw >/dev/null 2>&1; then
     if grep -q 'DEFAULT_FORWARD_POLICY="DROP"' /etc/default/ufw 2>/dev/null; then
       sed -i 's/DEFAULT_FORWARD_POLICY="DROP"/DEFAULT_FORWARD_POLICY="ACCEPT"/' /etc/default/ufw 2>/dev/null || true
     fi
-    ufw route allow in on tun0 out on "$iface" >/dev/null 2>&1 || true
-    ufw route allow in on "$iface" out on tun0 >/dev/null 2>&1 || true
+    for tun in tun0 tun1; do
+      ufw route allow in on "$tun" out on "$iface" >/dev/null 2>&1 || true
+      ufw route allow in on "$iface" out on "$tun" >/dev/null 2>&1 || true
+    done
+    ufw reload >/dev/null 2>&1 || true
   fi
 }
 
@@ -79,9 +103,14 @@ usk_openvpn_write_server() {
   status_log=$(usk_openvpn_status_log_path "$name")
   usk_openvpn_prepare_status_dir
 
-  local extra_notify=""
+  local extra_notify="" dev="tun0" net="$OVPN_NET" mask="$OVPN_MASK"
   local connect_hook
   connect_hook="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/openvpn-client-connect.sh"
+  case "$name" in
+    server-udp) dev="tun0" ;;
+    server-tcp) dev="tun1"; net="$OVPN_TCP_NET"; mask="$OVPN_TCP_MASK" ;;
+    *) dev="tun0" ;;
+  esac
   if [ "$proto" = "udp" ]; then
     extra_notify=$'\nexplicit-exit-notify 1'
   fi
@@ -89,13 +118,13 @@ usk_openvpn_write_server() {
   cat > "$cfg" <<OVPN
 port ${port}
 proto ${proto}
-dev tun
+dev ${dev}
 ca ${easy}/pki/ca.crt
 cert ${easy}/pki/issued/server.crt
 key ${easy}/pki/private/server.key
 dh ${easy}/pki/dh.pem
 topology subnet
-server ${OVPN_NET} ${OVPN_MASK}
+server ${net} ${mask}
 push "redirect-gateway def1 bypass-dhcp"
 push "dhcp-option DNS 1.1.1.1"
 push "dhcp-option DNS 8.8.8.8"

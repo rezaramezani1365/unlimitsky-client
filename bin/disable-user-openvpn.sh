@@ -13,12 +13,16 @@ if [ -d "$EASYRSA/pki" ] && [ -f "$EASYRSA/pki/issued/${USERNAME}.crt" ]; then
   cd "$EASYRSA"
   ./easyrsa --batch revoke "$USERNAME" 2>/dev/null || true
   ./easyrsa gen-crl 2>/dev/null || true
-  if [ -f pki/crl.pem ] && [ -f /etc/openvpn/server.conf ]; then
-    grep -q '^crl-verify' /etc/openvpn/server.conf || echo "crl-verify /etc/openvpn/easy-rsa/pki/crl.pem" >> /etc/openvpn/server.conf
+  if [ -f pki/crl.pem ]; then
     cp pki/crl.pem /etc/openvpn/crl.pem 2>/dev/null || true
-    sed -i 's|crl-verify.*|crl-verify /etc/openvpn/easy-rsa/pki/crl.pem|' /etc/openvpn/server.conf 2>/dev/null || true
+    for cfg in /etc/openvpn/server-udp.conf /etc/openvpn/server-tcp.conf /etc/openvpn/server.conf; do
+      [ -f "$cfg" ] || continue
+      grep -q '^crl-verify' "$cfg" || echo "crl-verify /etc/openvpn/easy-rsa/pki/crl.pem" >> "$cfg"
+      sed -i 's|crl-verify.*|crl-verify /etc/openvpn/easy-rsa/pki/crl.pem|' "$cfg" 2>/dev/null || true
+      name=$(basename "$cfg" .conf)
+      systemctl restart "openvpn@${name}" 2>/dev/null || true
+    done
   fi
-  systemctl restart openvpn@server 2>/dev/null || true
 fi
 
 echo "USK_OK"
