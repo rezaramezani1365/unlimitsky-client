@@ -40,13 +40,22 @@ elif grep -q '^ListenPort' /etc/wireguard/wg0.conf; then
 fi
 
 usk_wg_fix_postup_conf 2>/dev/null || true
+usk_wg_ensure_base_config 2>/dev/null || true
+usk_wg_sanitize_conf 2>/dev/null || true
 
 sysctl -w net.ipv4.ip_forward=1
 grep -q 'net.ipv4.ip_forward=1' /etc/sysctl.conf || echo 'net.ipv4.ip_forward=1' >> /etc/sysctl.conf
 
 systemctl enable wg-quick@wg0
-systemctl restart wg-quick@wg0 || systemctl start wg-quick@wg0
+if ! usk_wg_ensure_running; then
+  systemctl restart wg-quick@wg0 2>/dev/null || systemctl start wg-quick@wg0 2>/dev/null || true
+fi
 
+PORT=$(usk_wg_conf_port 2>/dev/null || echo "$PORT")
+PORT=$(echo "$PORT" | tr -dc '0-9')
+[ -n "$PORT" ] || PORT=51820
+
+usk_wg_sync_peers_from_conf 2>/dev/null || true
 usk_wg_ensure_nat
 
 ensure_ufw_port "$PORT" udp wireguard-udp

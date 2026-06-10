@@ -62,6 +62,12 @@ if [ -f "/etc/wireguard/wg0.conf" ] && [ -f "$WEB_ROOT/bin/repair-wireguard.sh" 
     bash "$WEB_ROOT/bin/repair-wireguard.sh" 51822 >/dev/null 2>&1 || true
 fi
 
+if { [ -f /etc/openvpn/server-udp.conf ] || [ -f /etc/openvpn/server.conf ]; } \
+    && [ -f "$WEB_ROOT/bin/repair-openvpn.sh" ]; then
+    echo "[*] Ensuring OpenVPN NAT + tun routing..."
+    bash "$WEB_ROOT/bin/repair-openvpn.sh" >/dev/null 2>&1 || true
+fi
+
 LIB="${INSTALL_DIR}/install/lib.sh"
 if [ -f "$LIB" ]; then
     # shellcheck source=/dev/null

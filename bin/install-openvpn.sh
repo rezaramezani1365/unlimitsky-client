@@ -34,6 +34,7 @@ fi
 usk_openvpn_write_server "server-udp" "$UDP_PORT" "udp"
 usk_openvpn_write_server "server-tcp" "$TCP_PORT" "tcp"
 usk_openvpn_ensure_dev_names
+usk_openvpn_ensure_status_policy
 
 usk_openvpn_setup_nat
 
