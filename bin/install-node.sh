@@ -6,7 +6,7 @@
 #   curl -fsSL http://HUB_IP:PORT/bin/install-node.sh | sudo bash -s -- \
 #     --hub-ip 1.2.3.4 --hub-port 8082 \
 #     --register-secret 'SECRET_FROM_PANEL' \
-#     --ssh-user root --ssh-pass 'YourRootPass' \
+#     --ssh-user ubuntu --ssh-pass 'YourUbuntuPass' \
 #     --name germany-1 --connect-host vpn.example.com
 #
 # Interactive (download first, then run — prompts work on a TTY):
@@ -26,6 +26,7 @@ NODE_NAME=""
 CONNECT_HOST=""
 SSH_PORT="22"
 HUB_SCHEME="http"
+HUB_PORT_EXPLICIT=0
 
 usage() {
   cat <<'HELP'
@@ -35,8 +36,8 @@ Required:
   --hub-ip IP           Main panel server IP or domain
   --hub-port PORT       Main panel HTTP port (default 8082)
   --register-secret S   Registration password (Admin → Nodes page on Hub)
-  --ssh-user USER       SSH user on THIS server (root recommended)
-  --ssh-pass PASS       SSH password on THIS server (Hub uses it for provisioning)
+  --ssh-user USER       SSH user on THIS Node VPS (NOT Hub login; use ubuntu if you ssh ubuntu@this-server)
+  --ssh-pass PASS       Password for that user on THIS Node (NOT Hub/panel password)
 
 Optional:
   --name NAME           Node display name (default: hostname)
@@ -47,7 +48,7 @@ Optional:
 Example (non-interactive via pipe):
   curl -fsSL http://1.2.3.4:8082/bin/install-node.sh | sudo bash -s -- \
     --hub-ip 1.2.3.4 --hub-port 8082 --register-secret abc123 \
-    --ssh-user root --ssh-pass 'secret' --name node-de --connect-host 5.6.7.8
+    --ssh-user ubuntu --ssh-pass 'secret' --name node-de --connect-host 5.6.7.8
 
 Example (interactive):
   curl -fsSL http://1.2.3.4:8082/bin/install-node.sh -o install-node.sh
@@ -92,7 +93,7 @@ Pass all required flags after "bash -s --":
   curl -fsSL ${scheme}://${hub}:${port}/bin/install-node.sh | sudo bash -s -- \\
     --hub-ip ${hub} --hub-port ${port} \\
     --register-secret 'SECRET_FROM_HUB_NODES_PAGE' \\
-    --ssh-user root --ssh-pass 'SSH_PASSWORD_ON_THIS_SERVER' \\
+    --ssh-user ubuntu --ssh-pass 'THIS_NODE_SSH_PASSWORD_NOT_HUB' \\
     --name node-name --connect-host PUBLIC_IP_OR_DOMAIN
 
 Or download and run interactively:
@@ -102,10 +103,59 @@ Or download and run interactively:
 EOF
 }
 
+normalize_hub_address() {
+  local raw="$HUB_IP"
+  raw="${raw#http://}"
+  raw="${raw#https://}"
+  raw="${raw%%/*}"
+
+  if [[ "$raw" == \[*\]:* ]]; then
+    local host="${raw%:*}"
+    local port_part="${raw##*:}"
+    HUB_IP="$host"
+    if [ "$HUB_PORT_EXPLICIT" -eq 0 ] && [[ "$port_part" =~ ^[0-9]+$ ]]; then
+      HUB_PORT="$port_part"
+    fi
+    return
+  fi
+
+  if [[ "$raw" == *:* ]]; then
+    local host="${raw%:*}"
+    local port_part="${raw##*:}"
+    if [[ "$port_part" =~ ^[0-9]+$ ]] && [ "$port_part" -ge 1 ] && [ "$port_part" -le 65535 ]; then
+      HUB_IP="$host"
+      if [ "$HUB_PORT_EXPLICIT" -eq 0 ]; then
+        HUB_PORT="$port_part"
+      fi
+      return
+    fi
+  fi
+
+  HUB_IP="$raw"
+}
+
+detect_default_ssh_user() {
+  if [ -f /etc/os-release ]; then
+    # shellcheck source=/dev/null
+    . /etc/os-release
+    case "${ID:-}" in
+      ubuntu|debian) echo "ubuntu"; return ;;
+    esac
+    case "${ID_LIKE:-}" in
+      *ubuntu*|*debian*) echo "ubuntu"; return ;;
+    esac
+  fi
+  if id -u ubuntu >/dev/null 2>&1; then
+    echo "ubuntu"
+    return
+  fi
+  echo "root"
+}
+
 while [ $# -gt 0 ]; do
   case "$1" in
     --hub-ip) HUB_IP="$2"; shift 2 ;;
-    --hub-port) HUB_PORT="$2"; shift 2 ;;
+    --hub-port) HUB_PORT="$2"; HUB_PORT_EXPLICIT=1; shift 2 ;;
     --register-secret) REGISTER_SECRET="$2"; shift 2 ;;
     --ssh-user) SSH_USER="$2"; shift 2 ;;
     --ssh-pass) SSH_PASS="$2"; shift 2 ;;
@@ -117,6 +167,10 @@ while [ $# -gt 0 ]; do
     *) echo "Unknown option: $1"; usage; exit 1 ;;
   esac
 done
+
+if [ -n "$HUB_IP" ]; then
+  normalize_hub_address
+fi
 
 if [ "$EUID" -ne 0 ]; then
   echo "USK_ERR: run_as_root"
@@ -169,17 +223,22 @@ detect_public_ip() {
 }
 
 echo "=== unlimitsky Node installer ==="
+echo "NOTE: --ssh-user/--ssh-pass = THIS Node server (where you run this script), NOT the Hub/panel server."
 
 if ! all_required_set; then
   if ! can_prompt; then
     show_missing_args_error
     exit 1
   fi
-  prompt_if_empty HUB_IP "Hub panel IP or domain" || true
+  prompt_if_empty HUB_IP "Hub panel IP or domain (IP only — no :port)" || true
+  if [ -n "$HUB_IP" ]; then
+    normalize_hub_address
+  fi
   prompt_if_empty HUB_PORT "Hub panel port" "8082" || true
   prompt_if_empty REGISTER_SECRET "Hub registration password (from Admin → Nodes)" || true
-  prompt_if_empty SSH_USER "SSH username on THIS server" "root" || true
-  prompt_secret SSH_PASS "SSH password on THIS server" || true
+  def_ssh=$(detect_default_ssh_user)
+  prompt_if_empty SSH_USER "SSH user on THIS Node (NOT Hub login; ubuntu if you ssh ubuntu@this-server)" "$def_ssh" || true
+  prompt_secret SSH_PASS "SSH password for ${SSH_USER:-$def_ssh} on THIS Node (NOT Hub/panel password)" || true
   prompt_if_empty NODE_NAME "Node name" "$(hostname -s 2>/dev/null || echo node)" || true
   if [ -z "$CONNECT_HOST" ]; then
     def_ip=$(detect_public_ip)
@@ -321,6 +380,13 @@ if [ "$http_code" != "200" ]; then
   fi
   if [ -n "$api_detail" ]; then
     echo "USK_DETAIL: ${api_detail}"
+  fi
+  if [ "$api_err" = "ssh_connect_failed" ]; then
+    if echo "$api_detail" | grep -qi 'permission denied'; then
+      echo "USK_HINT: Hub could not SSH as user=${SSH_USER}. On Ubuntu cloud images root password login is usually disabled."
+      echo "USK_HINT: Re-run with --ssh-user ubuntu and the ubuntu user's password (the same password you use for: ssh ubuntu@this-server)."
+      echo "USK_HINT: Verify from Hub: sshpass -p 'PASSWORD' ssh -o StrictHostKeyChecking=no ${SSH_USER}@${SSH_HOST}"
+    fi
   fi
   if [ -z "$api_err" ] && [ -n "$resp" ]; then
     echo "$resp"

@@ -66,7 +66,7 @@ $installCmd = sprintf(
     "curl -fsSL %s/bin/install-node.sh | sudo bash -s -- \\\n" .
     "  --hub-ip %s --hub-port %d \\\n" .
     "  --register-secret '%s' \\\n" .
-    "  --ssh-user root --ssh-pass 'YOUR_SSH_PASSWORD' \\\n" .
+    "  --ssh-user ubuntu --ssh-pass 'YOUR_UBUNTU_PASSWORD' \\\n" .
     "  --name YOUR_NODE_NAME --connect-host YOUR_PUBLIC_IP_OR_DOMAIN",
     $hubBase,
     $hubHost,
@@ -119,7 +119,8 @@ $installCmdInteractive = sprintf(
                 <?php endif; ?>
 
                 <p class="small mb-1"><strong><?= __('nodes_hub_address') ?></strong></p>
-                <code class="d-block p-2 user-select-all mb-3" dir="ltr"><?= usk_esc($hubHost) ?>:<?= $hubPort ?></code>
+                <code class="d-block p-2 user-select-all mb-1" dir="ltr"><?= usk_esc($hubHost) ?>:<?= $hubPort ?></code>
+                <p class="small text-muted mb-3"><?= __('nodes_hub_address_hint') ?></p>
 
                 <label class="form-label small"><?= __('nodes_register_secret') ?></label>
                 <code class="d-block p-2 user-select-all" dir="ltr" style="word-break:break-all;"><?= usk_esc($registerSecret) ?></code>
@@ -138,8 +139,15 @@ $installCmdInteractive = sprintf(
                     <li class="mb-1"><?= __('nodes_node_step_ubuntu') ?></li>
                     <li class="mb-1"><?= __('nodes_node_step_firewall') ?> <code dir="ltr"><?= usk_esc($hubHost) ?></code></li>
                     <li class="mb-1"><?= __('nodes_node_step_ssh_auth') ?></li>
+                    <li class="mb-1"><?= __('nodes_node_step_ssh_user') ?></li>
                     <li class="mb-1"><?= __('nodes_node_step_run_cmd') ?></li>
                 </ol>
+
+                <div class="alert alert-warning small mb-3">
+                    <strong><i class="fa-solid fa-triangle-exclamation"></i> <?= __('nodes_ssh_cred_warning_title') ?></strong>
+                    <p class="mb-2 mt-2"><?= __('nodes_ssh_cred_warning_body') ?></p>
+                    <p class="mb-0"><?= __('nodes_ssh_cred_warning_hub') ?></p>
+                </div>
 
                 <div class="mb-3">
                     <label class="form-label small"><?= __('nodes_install_cmd') ?></label>
@@ -174,6 +182,9 @@ $installCmdInteractive = sprintf(
                 <ul class="mb-0 mt-2 ps-3">
                     <li class="mb-1"><?= __('nodes_error_sshpass') ?></li>
                     <li class="mb-1"><?= __('nodes_error_ssh_firewall') ?></li>
+                    <li class="mb-1"><?= __('nodes_error_ssh_permission') ?></li>
+                    <li class="mb-1"><?= __('nodes_error_hub_port') ?></li>
+                    <li class="mb-1"><?= __('nodes_error_hub_credentials') ?></li>
                     <li><?= __('nodes_error_pipe_flags') ?></li>
                 </ul>
             </div>
