@@ -161,6 +161,21 @@ usk_firewall_allow_port() {
     fi
 }
 
+# Hub needs sshpass for password-based SSH to Node VPS (Admin → Nodes).
+usk_ensure_sshpass() {
+    if command -v sshpass >/dev/null 2>&1; then
+        return 0
+    fi
+    echo "[*] Installing sshpass (Hub → Node SSH)..."
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get install -y sshpass >/dev/null 2>&1 || apt-get install -y sshpass || true
+    if command -v sshpass >/dev/null 2>&1; then
+        return 0
+    fi
+    echo "[!] sshpass not installed — run: apt install -y sshpass (required for Nodes)" >&2
+    return 1
+}
+
 usk_save_credentials() {
     local file="$1"
     shift

@@ -61,6 +61,12 @@ else
     usk_restart_php_fpm 2>/dev/null || true
 fi
 
+if declare -F usk_ensure_sshpass >/dev/null 2>&1; then
+    usk_ensure_sshpass || true
+fi
+if declare -F usk_ensure_web_update_sudoers >/dev/null 2>&1; then
+    usk_ensure_web_update_sudoers "$WEB_ROOT"
+fi
 if declare -F usk_ensure_usage_cron >/dev/null 2>&1; then
     usk_ensure_usage_cron "$WEB_ROOT"
 fi

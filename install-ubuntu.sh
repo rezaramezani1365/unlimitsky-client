@@ -116,6 +116,7 @@ if [ "$AUTO" -eq 1 ] && usk_panel_is_installed "$WEB_ROOT"; then
     echo "[*] Existing panel detected — deploying latest files from ${SCRIPT_DIR}..."
     usk_deploy_panel_files "$SCRIPT_DIR" "$WEB_ROOT"
     usk_ensure_php_zip || true
+    usk_ensure_sshpass || true
     usk_secure_app_files "$WEB_ROOT"
     usk_ensure_web_update_sudoers "$WEB_ROOT"
     usk_ensure_usage_cron "$WEB_ROOT"
@@ -143,7 +144,9 @@ fi
 export DEBIAN_FRONTEND=noninteractive
 echo "[*] Installing packages (nginx, mysql, php)..."
 apt-get update -qq
-apt-get install -y nginx mysql-server php-cli php-fpm php-mysql php-curl php-json php-mbstring php-xml unzip curl sudo rsync openssl git jq
+apt-get install -y nginx mysql-server php-cli php-fpm php-mysql php-curl php-json php-mbstring php-xml unzip curl sudo rsync openssl git jq sshpass
+
+usk_ensure_sshpass || true
 
 echo "[*] Starting MySQL..."
 usk_mysql_ensure
@@ -323,4 +326,14 @@ usk_print_box \
     "$([ "$AUTO" -eq 1 ] && echo "" && echo "Saved: ${CREDS_FILE}")" \
     "$([ "$AUTO" -eq 0 ] && echo "Next: open ${PUBLIC_URL}/install/index.php")" \
     "" \
-    "Protocols: Admin → Protocols | WooCommerce plugin in wordpress-plugin/"
+    "Protocols: Admin → Protocols | WooCommerce plugin in wordpress-plugin/" \
+    "" \
+    "── Automatic on this Hub ──" \
+    "Panel, API, bin/ scripts, nginx /bin/, sudoers, sshpass, relay/tunnel scripts" \
+    "" \
+    "── Manual (Nodes / Pro) ──" \
+    "1. Admin → Pro License (vendor token)" \
+    "2. Second Ubuntu VPS: curl install-node.sh from Hub /bin/install-node.sh" \
+    "3. Admin → Nodes: register IP, SSH user/password, test SSH" \
+    "4. On Node: open VLESS TCP port + SSH (22) from Hub in cloud/ufw firewall" \
+    "5. Install Xray on Hub (Protocols) before node-backed services"
