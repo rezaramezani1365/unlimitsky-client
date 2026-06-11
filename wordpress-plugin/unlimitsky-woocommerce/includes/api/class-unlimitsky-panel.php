@@ -284,6 +284,25 @@ class USK_UnlimitSky_Panel
     /**
      * @return array{success:bool,error?:string,subscription_url?:string,portal_url?:string,service_code?:string,protocol?:string,expires_at?:string,volume_gb?:int,duration_days?:int}
      */
+    /**
+     * @return array{success:bool,error?:string,service_code?:string}
+     */
+    public static function delete_service(array $panel, string $serviceCode): array
+    {
+        $result = self::request($panel['login_link'], $panel['token'] ?? '', 'delete-service', [
+            'service_code' => preg_replace('/[^0-9]/', '', $serviceCode),
+        ], 'POST');
+
+        if (empty($result['ok'])) {
+            return ['success' => false, 'error' => $result['error'] ?? __('Delete failed on panel.', 'unlimitsky-wc')];
+        }
+
+        return [
+            'success'      => true,
+            'service_code' => (string) ($result['service_code'] ?? $serviceCode),
+        ];
+    }
+
     public static function extend_service(array $panel, string $serviceCode, string $planCode, string $protocol, string $signature, int $wcOrderId = 0): array
     {
         $result = self::request($panel['login_link'], $panel['token'] ?? '', 'extend-service', [

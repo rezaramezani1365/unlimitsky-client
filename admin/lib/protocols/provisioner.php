@@ -373,6 +373,36 @@ class USK_ProtocolProvisioner
         );
     }
 
+    /** Remove VPN user from hub or node (xray config, clients.json, panel data). */
+    public static function deprovision($protocol, $username)
+    {
+        require_once __DIR__ . '/limits.php';
+        return USK_ProtocolLimits::remove_from_server($protocol, $username);
+    }
+
+    /** Deprovision native VPN user and delete panel order row. */
+    public static function delete_service_for_order(array $order)
+    {
+        require_once __DIR__ . '/limits.php';
+        return USK_ProtocolLimits::delete_service_for_order($order);
+    }
+
+    /** Delete native service by 6-digit order code. */
+    public static function delete_service_by_code($serviceCode)
+    {
+        global $sql;
+        $serviceCode = preg_replace('/[^0-9]/', '', (string) $serviceCode);
+        if ($serviceCode === '' || !$sql instanceof mysqli) {
+            return array('ok' => false, 'error' => 'invalid_service_code');
+        }
+        $code_esc = $sql->real_escape_string($serviceCode);
+        $order = $sql->query("SELECT * FROM `orders` WHERE `code`='$code_esc' LIMIT 1")->fetch_assoc();
+        if (!$order) {
+            return array('ok' => false, 'error' => 'not_found');
+        }
+        return self::delete_service_for_order($order);
+    }
+
     public static function save_client_record($protocol, $username, array $record)
     {
         $dir = USK_ROOT . '/data/clients';

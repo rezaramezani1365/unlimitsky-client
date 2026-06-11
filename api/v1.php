@@ -8,6 +8,7 @@ require_once dirname(__DIR__) . '/admin/lib/panel-access.php';
 USK_PanelAccess::enforce_request_host();
 require_once dirname(__DIR__) . '/admin/lib/protocols/manager.php';
 require_once dirname(__DIR__) . '/admin/lib/protocols/provisioner.php';
+require_once dirname(__DIR__) . '/admin/lib/protocols/limits.php';
 require_once dirname(__DIR__) . '/admin/lib/client-dns.php';
 require_once dirname(__DIR__) . '/admin/lib/connect-host.php';
 require_once dirname(__DIR__) . '/admin/lib/panel-access.php';
@@ -425,6 +426,40 @@ if ($action === 'verify-renew') {
         'service_code' => $serviceCode,
         'protocol' => $protocol,
         'plan_code' => $planCode,
+    ));
+}
+
+if ($action === 'delete-service') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        usk_api_response(405, array('ok' => false, 'error' => 'method_not_allowed'));
+    }
+
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) {
+        usk_api_response(400, array('ok' => false, 'error' => 'invalid_json'));
+    }
+
+    $serviceCode = preg_replace('/[^0-9]/', '', (string) ($body['service_code'] ?? ''));
+    if ($serviceCode === '') {
+        usk_api_response(400, array('ok' => false, 'error' => 'service_code_required'));
+    }
+
+    $result = USK_ProtocolProvisioner::delete_service_by_code($serviceCode);
+    if (empty($result['ok']) && ($result['error'] ?? '') === 'not_found') {
+        usk_api_response(404, array('ok' => false, 'error' => 'not_found'));
+    }
+    if (!empty($result['deprovisioned']) && empty($result['ok'])) {
+        usk_api_response(500, array(
+            'ok' => false,
+            'error' => $result['error'] ?? 'deprovision_failed',
+            'service_code' => $serviceCode,
+        ));
+    }
+
+    usk_api_response(200, array(
+        'ok' => true,
+        'service_code' => $serviceCode,
+        'deprovisioned' => !empty($result['deprovisioned']),
     ));
 }
 

@@ -472,8 +472,15 @@ class USK_ProtocolLimits
     }
 
     /** Remove VPN user from server (manual action by reseller). */
-    public static function remove_from_server($protocol, $username)
+    public static function remove_from_server($protocol, $username, $skip_order_update = false)
     {
+        require_once __DIR__ . '/manager.php';
+        $protocol = USK_ProtocolManager::sanitize_key((string) $protocol);
+        $username = preg_replace('/[^a-zA-Z0-9_-]/', '', (string) $username);
+        if ($protocol === '' || $username === '') {
+            return array('ok' => false, 'error' => 'invalid_client');
+        }
+
         $clients = self::load_protocol_clients($protocol);
         $rec = isset($clients[$username]) && is_array($clients[$username]) ? $clients[$username] : array();
         $meta = self::client_meta($rec);
@@ -481,18 +488,41 @@ class USK_ProtocolLimits
 
         $args = self::remove_script_args($protocol, $username, $meta);
         $scriptName = 'remove-user-' . $protocol . '.sh';
+        $scriptOk = true;
+        $scriptError = null;
 
         if ($nodeId !== '') {
             require_once USK_ROOT . '/admin/lib/nodes.php';
             require_once USK_ROOT . '/admin/lib/node-ssh.php';
             $node = USK_Nodes::get($nodeId);
-            if ($node && USK_NodeSsh::sshpass_available()) {
-                USK_NodeSsh::run_script($node, $scriptName, $args, 120);
+            if (!$node) {
+                $scriptOk = false;
+                $scriptError = 'node_not_found';
+            } elseif (!USK_NodeSsh::sshpass_available()) {
+                $scriptOk = false;
+                $scriptError = 'sshpass_missing';
+            } else {
+                $remote = USK_NodeSsh::run_script($node, $scriptName, $args, 120);
+                if (empty($remote['ok'])) {
+                    $scriptOk = false;
+                    $scriptError = $remote['error'] ?? 'remote_failed';
+                }
             }
         } else {
             $script = USK_ROOT . '/bin/' . $scriptName;
-            if (file_exists($script)) {
-                @shell_exec(self::sudo_script_cmd($script, $args));
+            if (!file_exists($script)) {
+                $scriptOk = false;
+                $scriptError = 'remove_script_missing';
+            } else {
+                $out = (string) @shell_exec(self::sudo_script_cmd($script, $args));
+                if ($out !== '' && strpos($out, 'USK_ERR:') !== false) {
+                    $scriptOk = false;
+                    if (preg_match('/USK_ERR:\s*(.+)/', $out, $m)) {
+                        $scriptError = trim($m[1]);
+                    } else {
+                        $scriptError = 'remove_failed';
+                    }
+                }
             }
         }
 
@@ -501,7 +531,84 @@ class USK_ProtocolLimits
             self::save_protocol_clients($protocol, $clients);
         }
 
-        self::update_orders_by_client($protocol, $username, 'revoked');
+        if (!$skip_order_update) {
+            self::update_orders_by_client($protocol, $username, 'revoked');
+        }
+
+        return array('ok' => $scriptOk, 'error' => $scriptError);
+    }
+
+    /**
+     * Deprovision VPN user and delete panel order row.
+     *
+     * @return array{ok:bool,deprovisioned:bool,error?:string|null}
+     */
+    public static function delete_service_for_order(array $order)
+    {
+        $native = self::find_client_for_order($order);
+        $protocol = '';
+        $username = '';
+
+        if (is_array($native)) {
+            $protocol = (string) ($native['protocol'] ?? '');
+            $username = (string) ($native['username'] ?? '');
+        } elseif (($order['type'] ?? '') === 'native') {
+            $protocol = USK_ProtocolManager::sanitize_key((string) ($order['protocol'] ?? ''));
+            $from = (string) ($order['from_id'] ?? '');
+            if (strpos($from, 'native-') === 0) {
+                $username = preg_replace('/[^a-zA-Z0-9_-]/', '', substr($from, 7));
+            }
+        }
+
+        $shouldDeprovision = $protocol !== '' && $username !== '';
+        $deprovision = array('ok' => true, 'error' => null);
+        if ($shouldDeprovision) {
+            $deprovision = self::remove_from_server($protocol, $username, true);
+            if (empty($deprovision['ok'])) {
+                return array(
+                    'ok' => false,
+                    'deprovisioned' => true,
+                    'error' => $deprovision['error'] ?? 'deprovision_failed',
+                );
+            }
+        }
+
+        global $sql;
+        $id = (int) ($order['row'] ?? 0);
+        if ($sql instanceof mysqli && $id > 0) {
+            $sql->query("DELETE FROM `orders` WHERE `row`=$id");
+        }
+
+        return array(
+            'ok' => true,
+            'deprovisioned' => $shouldDeprovision,
+            'error' => null,
+        );
+    }
+
+    /** @return array{protocol:string,username:string}|null */
+    public static function resolve_native_client_for_order(array $order)
+    {
+        $native = self::find_client_for_order($order);
+        if (is_array($native)) {
+            return array(
+                'protocol' => (string) ($native['protocol'] ?? ''),
+                'username' => (string) ($native['username'] ?? ''),
+            );
+        }
+        if (($order['type'] ?? '') !== 'native') {
+            return null;
+        }
+        $protocol = USK_ProtocolManager::sanitize_key((string) ($order['protocol'] ?? ''));
+        $from = (string) ($order['from_id'] ?? '');
+        if ($protocol === '' || strpos($from, 'native-') !== 0) {
+            return null;
+        }
+        $username = preg_replace('/[^a-zA-Z0-9_-]/', '', substr($from, 7));
+        if ($username === '') {
+            return null;
+        }
+        return array('protocol' => $protocol, 'username' => $username);
     }
 
     /** @return array<int, string> */

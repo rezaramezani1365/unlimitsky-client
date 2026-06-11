@@ -9,6 +9,8 @@ class USK_Order_Handler
         add_action('woocommerce_order_status_completed', [$this, 'provision_services'], 10, 1);
         add_action('woocommerce_order_status_processing', [$this, 'provision_services'], 10, 1);
         add_action('woocommerce_payment_complete', [$this, 'provision_services'], 10, 1);
+        add_action('woocommerce_order_status_cancelled', [$this, 'deprovision_cancelled_order'], 10, 1);
+        add_action('woocommerce_order_status_refunded', [$this, 'deprovision_cancelled_order'], 10, 1);
 
         add_action('woocommerce_order_details_after_order_table', [$this, 'render_order_subscriptions'], 10, 1);
         add_action('woocommerce_email_after_order_table', [$this, 'render_email_subscriptions'], 10, 4);
@@ -16,6 +18,11 @@ class USK_Order_Handler
         add_action('init', [$this, 'register_my_account_endpoint']);
         add_filter('woocommerce_account_menu_items', [$this, 'add_my_account_menu']);
         add_action('woocommerce_account_vpn-services_endpoint', [$this, 'render_my_account_services']);
+    }
+
+    public function deprovision_cancelled_order(int $order_id): void
+    {
+        USK_Service_Creator::deprovision_order_services($order_id);
     }
 
     public function provision_services(int $order_id): void

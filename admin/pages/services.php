@@ -19,8 +19,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $native = $order ? USK_ProtocolLimits::find_client_for_order($order) : null;
 
     if ($action === 'delete_record' && $order) {
-        $sql->query("DELETE FROM `orders` WHERE `row`=$id");
-        usk_flash(__('service_record_deleted'));
+        $result = USK_ProtocolLimits::delete_service_for_order($order);
+        if (empty($result['ok'])) {
+            usk_flash(__('service_delete_failed') . ($result['error'] ? ' (' . $result['error'] . ')' : ''), 'error');
+            header('Location: ' . usk_admin_url('services', ['view' => $id]));
+            exit;
+        }
+        usk_flash(__('service_deleted'));
         header('Location: ' . usk_admin_url('services'));
         exit;
     }

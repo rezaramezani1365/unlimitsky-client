@@ -183,6 +183,52 @@ class USK_Service_Creator
         return (int) $wpdb->insert_id;
     }
 
+    public static function deprovision_order_services(int $order_id): void
+    {
+        global $wpdb;
+
+        $services = self::get_by_order($order_id);
+        if ($services === []) {
+            return;
+        }
+
+        foreach ($services as $service) {
+            if (($service['status'] ?? '') === 'cancelled') {
+                continue;
+            }
+            if (($service['panel_type'] ?? '') !== 'unlimitsky') {
+                continue;
+            }
+
+            $panel = USK_Panel_Manager::get_panel_by_name($service['panel_name'] ?? '');
+            if (!$panel) {
+                continue;
+            }
+
+            $serviceCode = preg_replace('/[^0-9]/', '', (string) ($service['service_code'] ?? ''));
+            if ($serviceCode === '') {
+                continue;
+            }
+
+            $result = USK_UnlimitSky_Panel::delete_service($panel, $serviceCode);
+            $wpdb->update(
+                USK_table('orders'),
+                ['status' => 'cancelled'],
+                ['id' => (int) $service['id']],
+                ['%s'],
+                ['%d']
+            );
+
+            $order = wc_get_order($order_id);
+            if ($order) {
+                $note = empty($result['success'])
+                    ? sprintf('[unlimitsky] Deprovision failed for #%s: %s', $serviceCode, $result['error'] ?? '')
+                    : sprintf('[unlimitsky] Service #%s removed from server.', $serviceCode);
+                $order->add_order_note($note);
+            }
+        }
+    }
+
     public static function get_by_order(int $order_id): array
     {
         global $wpdb;
