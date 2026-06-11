@@ -99,7 +99,7 @@ if ($action === 'nodes') {
     if (!USK_Nodes::can_use_nodes()) {
         usk_api_response(403, array('ok' => false, 'error' => 'nodes_pro_required'));
     }
-    require_once dirname(__DIR__) . '/admin/lib/node-relay.php';
+    require_once dirname(__DIR__) . '/admin/lib/node-protocols.php';
     $nodes = array();
     foreach (USK_Nodes::list_for_select() as $node) {
         $nodes[] = array(
@@ -112,7 +112,7 @@ if ($action === 'nodes') {
     usk_api_response(200, array(
         'ok' => true,
         'nodes' => $nodes,
-        'node_protocols' => USK_NodeRelay::supported(),
+        'node_protocols' => USK_NodeProtocols::supported(),
     ));
 }
 

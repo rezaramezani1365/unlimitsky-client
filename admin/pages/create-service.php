@@ -10,8 +10,8 @@ $canUseManualPlan = USK_License::is_pro();
 $nodeList = $canUseNodes ? USK_Nodes::list_for_select() : array();
 $nodeProtocolKeys = array();
 if ($canUseNodes) {
-    require_once dirname(__DIR__) . '/lib/node-relay.php';
-    $nodeProtocolKeys = USK_NodeRelay::supported();
+    require_once dirname(__DIR__) . '/lib/node-protocols.php';
+    $nodeProtocolKeys = USK_NodeProtocols::supported();
 }
 
 $result = null;
@@ -71,7 +71,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $installed = USK_ProtocolManager::installed_protocols();
             $protocol = USK_ProtocolManager::sanitize_key($_POST['protocol'] ?? '');
             $nodeIdEarly = preg_replace('/[^a-z0-9]/', '', (string) ($_POST['node_id'] ?? ''));
-            $protocolOk = $protocol !== '' && isset($installed[$protocol]);
+            $protocolOk = $protocol !== '' && (
+                ($nodeIdEarly !== '' && in_array($protocol, $nodeProtocolKeys, true))
+                || isset($installed[$protocol])
+            );
             if (!$protocolOk) {
                 usk_flash(__('create_protocol_invalid'), 'error');
             } else {
