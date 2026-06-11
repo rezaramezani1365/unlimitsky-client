@@ -231,7 +231,7 @@
   "license_vendor_not_configured": "To connect to the license server, copy the API token from the vendor panel: Admin → Settings → API token section → Copy token. Paste it below.",
   "license_vendor_token_label": "API token (api_secret)",
   "license_vendor_token_placeholder": "From vendor → Settings → Copy token",
-  "license_vendor_token_hint": "Server URL is fixed (vendor.iranip.online). Get the token from vendor Admin → Settings → API token → Copy token, then paste here.",
+  "license_vendor_token_hint": "Server URL is fixed (vendor.iranip.online:8081). Get the token from vendor Admin → Settings → API token → Copy token, then paste here.",
   "license_vendor_connect_btn": "Connect to license server",
   "license_vendor_save_token_btn": "Save token",
   "license_vendor_token_saved": "API token saved.",

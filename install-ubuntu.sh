@@ -29,7 +29,7 @@ ADMIN_USER="admin"
 ADMIN_PASS=""
 MUST_CHANGE=0
 LANG=fa
-DEFAULT_LICENSE_URL="http://vendor.iranip.online/api/v1.php"
+DEFAULT_LICENSE_URL="http://vendor.iranip.online:8081/api/v1.php"
 LICENSE_URL=""
 LICENSE_TOKEN=""
 OPEN_FW=0
@@ -60,7 +60,7 @@ Options:
   --admin-pass PASS      Admin password (default: admin — must change on first login)
   --must-change          Force password change on first login
   --lang fa|en           Panel language (default: fa)
-  --license-url URL      Vendor API URL (default: http://vendor.iranip.online/api/v1.php)
+  --license-url URL      Vendor API URL (default: http://vendor.iranip.online:8081/api/v1.php)
   --license-token TOKEN  Vendor api_secret (optional — or set in Admin → Pro License)
   --web-root PATH        Install path (default: /var/www/unlimitsky)
   --open-firewall        Allow port in ufw if active

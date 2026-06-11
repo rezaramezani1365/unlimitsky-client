@@ -6,8 +6,8 @@ class USK_License
     const CACHE_TTL = 14400;
     const GRACE_OFFLINE = 86400;
     const SIGN_SALT = 'USK-LIC-v2';
-    const DEFAULT_VENDOR_HOST = 'vendor.iranip.online';
-    const DEFAULT_VENDOR_LICENSE_URL = 'http://vendor.iranip.online/api/v1.php';
+    const DEFAULT_VENDOR_HOST = 'vendor.iranip.online:8081';
+    const DEFAULT_VENDOR_LICENSE_URL = 'http://vendor.iranip.online:8081/api/v1.php';
 
     private static $booted = false;
 
@@ -82,7 +82,80 @@ class USK_License
         if (self::is_placeholder_value($url)) {
             return self::DEFAULT_VENDOR_LICENSE_URL;
         }
-        return self::normalize_license_api_url($url);
+        $original = $url;
+        $url = self::normalize_license_api_url(self::fix_legacy_vendor_license_url($url));
+        if ($url !== '' && $url !== self::normalize_license_api_url($original)) {
+            self::maybe_migrate_stored_vendor_url($original, $url);
+        }
+        return $url;
+    }
+
+    /** Upgrade installs that saved vendor.iranip.online without :8081 (implicit port 80). */
+    private static function fix_legacy_vendor_license_url($url)
+    {
+        $url = trim((string) $url);
+        if ($url === '') {
+            return '';
+        }
+        $parsed = parse_url($url);
+        if (!is_array($parsed)) {
+            return $url;
+        }
+        $host = isset($parsed['host']) ? strtolower((string) $parsed['host']) : '';
+        if ($host !== 'vendor.iranip.online') {
+            return $url;
+        }
+        $port = isset($parsed['port']) ? (int) $parsed['port'] : 80;
+        if ($port !== 80) {
+            return $url;
+        }
+        $scheme = isset($parsed['scheme']) ? $parsed['scheme'] . '://' : 'http://';
+        $path = isset($parsed['path']) ? (string) $parsed['path'] : '';
+        return $scheme . 'vendor.iranip.online:8081' . $path;
+    }
+
+    private static function maybe_migrate_stored_vendor_url($oldUrl, $newUrl)
+    {
+        $oldNorm = self::normalize_license_api_url(self::fix_legacy_vendor_license_url($oldUrl));
+        if ($oldNorm === $newUrl) {
+            return;
+        }
+
+        $jsonPath = self::root_dir() . '/data/license-vendor.json';
+        if (is_readable($jsonPath)) {
+            $data = json_decode((string) file_get_contents($jsonPath), true);
+            if (is_array($data)) {
+                $stored = trim((string) ($data['license_server'] ?? ($data['url'] ?? '')));
+                if ($stored !== '' && self::normalize_license_api_url(self::fix_legacy_vendor_license_url($stored)) !== $newUrl) {
+                    $data['license_server'] = $newUrl;
+                    $data['updated_at'] = date('c');
+                    @file_put_contents($jsonPath, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+                }
+            }
+        }
+
+        $configFile = self::root_dir() . '/config.php';
+        if (!is_file($configFile) || !is_writable($configFile)) {
+            return;
+        }
+        $content = file_get_contents($configFile);
+        if ($content === false) {
+            return;
+        }
+        $escapedNew = addslashes($newUrl);
+        $updated = preg_replace(
+            "/(['\"]license_server['\"]\s*=>\s*['\"])([^'\"]*)(['\"])/",
+            '$1' . $escapedNew . '$3',
+            $content,
+            1
+        );
+        if ($updated !== null && $updated !== $content) {
+            @file_put_contents($configFile, $updated);
+            global $config;
+            if (is_array($config)) {
+                $config['license_server'] = $newUrl;
+            }
+        }
     }
 
     /**

@@ -22,8 +22,8 @@ $config = [
     'domain' => '[*DOMAIN*]',
     'token' => '[*TOKEN*]',
     'dev' => '[*DEV*]',
-    // Default license server: vendor.iranip.online (token set via Admin → Pro License)
-    'license_server' => 'http://vendor.iranip.online/api/v1.php',
+    // Default license server: vendor.iranip.online:8081 (token set via Admin → Pro License)
+    'license_server' => 'http://vendor.iranip.online:8081/api/v1.php',
     'license_api_token' => '[*LICENSE-TOKEN*]',
     'free_max_plans' => 1,
     'database' => [

@@ -231,7 +231,7 @@
   "license_vendor_not_configured": "برای اتصال به سرور لایسنس، توکن API را از پنل vendor کپی کن: Admin → Settings (تنظیمات) → بخش «توکن API» → دکمه «کپی توکن». سپس اینجا paste کن.",
   "license_vendor_token_label": "توکن API (api_secret)",
   "license_vendor_token_placeholder": "از vendor → Settings → کپی توکن",
-  "license_vendor_token_hint": "آدرس سرور ثابت است (vendor.iranip.online). توکن را از پنل vendor → Settings → «توکن API» → «کپی توکن» بگیر و اینجا وارد کن.",
+  "license_vendor_token_hint": "آدرس سرور ثابت است (vendor.iranip.online:8081). توکن را از پنل vendor → Settings → «توکن API» → «کپی توکن» بگیر و اینجا وارد کن.",
   "license_vendor_connect_btn": "اتصال به سرور لایسنس",
   "license_vendor_save_token_btn": "ذخیره توکن",
   "license_vendor_token_saved": "توکن API ذخیره شد.",
