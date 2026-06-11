@@ -1,5 +1,6 @@
 #!/bin/bash
 # Port-forward relay on a Node: client connects to NODE:PORT → Hub:PORT (VPN terminates on Hub).
+# Egress uses WireGuard (setup-node-tunnel.sh / setup-hub-node-tunnel.sh) so public IP = Node IP.
 # Usage:
 #   setup-node-relay.sh init
 #   setup-node-relay.sh add <tcp|udp> <listen_port> <hub_ip> <hub_port> [rule_id]

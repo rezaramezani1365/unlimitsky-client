@@ -11,6 +11,7 @@ DURATION_DAYS="${3:-0}"
 CLIENT_DNS="${4:-}"
 USK_CONNECT_HOST_ARG="${5:-}"
 XRAY_EMAIL="${6:-$USERNAME}"
+NODE_ID="${7:-}"
 if [ -z "$USERNAME" ]; then usk_json_fail "username_required"; fi
 XRAY_EMAIL=$(printf '%s' "$XRAY_EMAIL" | tr -c 'a-zA-Z0-9@._+-' '_' | cut -c1-96)
 [ -n "$XRAY_EMAIL" ] || XRAY_EMAIL="$USERNAME"
@@ -59,6 +60,26 @@ cp "$XRAY_CFG" "$CFG_BAK"
 if ! usk_xray_add_client "$XRAY_CFG" "$UUID" "$XRAY_EMAIL"; then
   rm -f "$CFG_BAK"
   usk_json_fail "xray_config_update_failed"
+fi
+
+if [ -n "$NODE_ID" ]; then
+  HUB_TUN_SCRIPT="${DIR}/setup-hub-node-tunnel.sh"
+  SEND_THROUGH=""
+  if [ -x "$HUB_TUN_SCRIPT" ]; then
+    SEND_THROUGH=$(/bin/bash "$HUB_TUN_SCRIPT" send-through "$NODE_ID" 2>/dev/null | sed -n 's/^USK_OK: send_through=//p' | head -1)
+  fi
+  if [ -z "$SEND_THROUGH" ]; then
+    rm -f "$CFG_BAK"
+    usk_json_fail "node_tunnel_not_ready"
+  fi
+  usk_xray_ensure_node_outbound "$XRAY_CFG" "$NODE_ID" "$SEND_THROUGH" || {
+    rm -f "$CFG_BAK"
+    usk_json_fail "xray_node_outbound_failed"
+  }
+  usk_xray_bind_user_to_node "$XRAY_CFG" "$XRAY_EMAIL" "$NODE_ID" || {
+    rm -f "$CFG_BAK"
+    usk_json_fail "xray_node_routing_failed"
+  }
 fi
 
 if ! usk_xray_test_config "$XRAY_CFG"; then

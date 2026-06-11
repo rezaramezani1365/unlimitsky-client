@@ -1085,5 +1085,100 @@ usk_xray_verify_or_fail() {
   return 0
 }
 
+usk_xray_node_outbound_tag() {
+  local node_id="$1"
+  echo "node-$(echo "$node_id" | tr -cd 'a-zA-Z0-9_-')"
+}
+
+usk_xray_ensure_node_outbound() {
+  local cfg="$1" node_id="$2" send_through="$3"
+  local tag tmp
+  [ -f "$cfg" ] || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+  [ -n "$node_id" ] && [ -n "$send_through" ] || return 1
+  tag=$(usk_xray_node_outbound_tag "$node_id")
+  tmp=$(mktemp)
+  if ! jq --arg tag "$tag" --arg st "$send_through" '
+    .outbounds = (
+      (.outbounds // []) | map(select(.tag != $tag))
+    ) + [{
+      protocol: "freedom",
+      tag: $tag,
+      settings: { domainStrategy: "UseIPv4", sendThrough: $st }
+    }]' "$cfg" > "$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  mv "$tmp" "$cfg"
+  usk_xray_fix_perms "$cfg"
+}
+
+usk_xray_bind_user_to_node() {
+  local cfg="$1" email="$2" node_id="$3"
+  local tag tmp
+  [ -f "$cfg" ] || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+  [ -n "$email" ] && [ -n "$node_id" ] || return 1
+  tag=$(usk_xray_node_outbound_tag "$node_id")
+  tmp=$(mktemp)
+  if ! jq --arg email "$email" --arg tag "$tag" '
+    .routing = (.routing // {domainStrategy:"IPIfNonMatch", rules:[]}) |
+    .routing.rules = (
+      [.routing.rules[]? | select(
+        (.user // []) | index($email) | not
+      )] + [{type:"field", user:[$email], outboundTag:$tag}]
+    )' "$cfg" > "$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  mv "$tmp" "$cfg"
+  usk_xray_fix_perms "$cfg"
+}
+
+usk_xray_unbind_user_node() {
+  local cfg="$1" email="$2"
+  local tmp
+  [ -f "$cfg" ] || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+  [ -n "$email" ] || return 1
+  tmp=$(mktemp)
+  if ! jq --arg email "$email" '
+    .routing.rules = [.routing.rules[]? | select(
+      (.user // []) | index($email) | not
+    )]' "$cfg" > "$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  mv "$tmp" "$cfg"
+  usk_xray_fix_perms "$cfg"
+}
+
+usk_xray_sync_node_egress_from_panel() {
+  local cfg="${1:-$XRAY_CFG}" panel_root="${2:-${PANEL_ROOT:-}}"
+  local panel_file send_through node_id email
+  [ -f "$cfg" ] || return 0
+  [ -n "$panel_root" ] || panel_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd || echo /var/www/unlimitsky)"
+  panel_file="${panel_root}/data/clients/xray.json"
+  [ -f "$panel_file" ] || return 0
+  command -v jq >/dev/null 2>&1 || return 0
+  local hub_script
+  hub_script="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)/setup-hub-node-tunnel.sh"
+  while IFS=$'\t' read -r node_id email; do
+    [ -n "$node_id" ] && [ -n "$email" ] || continue
+    send_through=""
+    if [ -x "$hub_script" ]; then
+      send_through=$(/bin/bash "$hub_script" send-through "$node_id" 2>/dev/null | sed -n 's/^USK_OK: send_through=//p' | head -1)
+    fi
+    [ -n "$send_through" ] || continue
+    usk_xray_ensure_node_outbound "$cfg" "$node_id" "$send_through" || true
+    usk_xray_bind_user_to_node "$cfg" "$email" "$node_id" || true
+  done < <(jq -r '
+    to_entries[] |
+    select((.value.node_id // "") != "" and (.value.status // "active") == "active") |
+    [(.value.node_id // ""), (.value.xray_email // .value.usage_id // .value.email // .key)] |
+    @tsv
+  ' "$panel_file" 2>/dev/null)
+}
+
 # Backward compat — VMess port no longer used
 USK_XRAY_VMESS_PORT=""

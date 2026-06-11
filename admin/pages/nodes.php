@@ -88,6 +88,9 @@ $installCmdInteractive = sprintf(
         <div class="alert alert-usk-info small py-2 px-3 mb-3">
             <i class="fa-solid fa-circle-info"></i> <?= __('nodes_roles_info') ?>
         </div>
+        <div class="alert alert-warning small py-2 px-3 mb-3">
+            <i class="fa-solid fa-shield-halved"></i> <?= __('nodes_wg_firewall') ?>
+        </div>
 
         <?php if (!$canNodes) : ?>
             <div class="alert alert-warning">

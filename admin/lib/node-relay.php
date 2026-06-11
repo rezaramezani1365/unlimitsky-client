@@ -31,8 +31,161 @@ class USK_NodeRelay
         return array(
             'node-receive-script.sh',
             'setup-node-relay.sh',
+            'setup-node-tunnel.sh',
             'remove-node-relay.sh',
         );
+    }
+
+    private static function hub_tunnel_script()
+    {
+        return rtrim((string) USK_ROOT, '/') . '/bin/setup-hub-node-tunnel.sh';
+    }
+
+    private static function run_hub_tunnel_cmd(array $args, $timeout = 90)
+    {
+        $script = self::hub_tunnel_script();
+        if (!is_readable($script)) {
+            return array('ok' => false, 'error' => 'hub_tunnel_script_missing', 'log' => '');
+        }
+        $cmd = 'sudo -n /bin/bash ' . escapeshellarg($script);
+        foreach ($args as $arg) {
+            $cmd .= ' ' . escapeshellarg((string) $arg);
+        }
+        $cmd .= ' 2>&1';
+        $out = shell_exec($cmd);
+        $out = (string) $out;
+        $ok = strpos($out, 'USK_OK') !== false || strpos($out, 'USK_JSON:') !== false;
+        return array('ok' => $ok, 'log' => $out);
+    }
+
+    private static function parse_tunnel_json($out)
+    {
+        if (!preg_match('/USK_JSON:(.+)$/s', (string) $out, $m)) {
+            return null;
+        }
+        $data = json_decode(trim($m[1]), true);
+        return is_array($data) ? $data : null;
+    }
+
+    public static function ensure_tunnel(array $node)
+    {
+        $nodeId = (string) ($node['id'] ?? '');
+        if ($nodeId === '') {
+            return array('ok' => false, 'error' => 'node_id_required');
+        }
+
+        $sync = self::sync_scripts($node);
+        if (empty($sync['ok'])) {
+            return $sync;
+        }
+
+        $root = self::node_root($node);
+        $remoteInit = sprintf(
+            'sudo -n /bin/bash %s/bin/setup-node-tunnel.sh init 2>&1',
+            escapeshellarg($root)
+        );
+        $initRes = USK_NodeSsh::run($node, $remoteInit, 60);
+        $logs = array((string) ($initRes['log'] ?? ''));
+
+        $hubPrepare = self::run_hub_tunnel_cmd(array('prepare', $nodeId), 90);
+        $logs[] = (string) ($hubPrepare['log'] ?? '');
+        if (empty($hubPrepare['ok'])) {
+            return array('ok' => false, 'error' => 'hub_tunnel_prepare_failed', 'log' => implode("\n", $logs));
+        }
+        $hubData = self::parse_tunnel_json($hubPrepare['log']);
+        if (!$hubData || empty($hubData['hub_public_key']) || empty($hubData['hub_endpoint']) || empty($hubData['hub_wg_port'])) {
+            return array('ok' => false, 'error' => 'hub_tunnel_prepare_parse_failed', 'log' => implode("\n", $logs));
+        }
+
+        $nodeEndpoint = USK_Nodes::connect_host_for_node($node);
+        $remotePubkey = sprintf(
+            'sudo -n /bin/bash %s/bin/setup-node-tunnel.sh pubkey %s 2>&1',
+            escapeshellarg($root),
+            escapeshellarg($nodeId)
+        );
+        $nodePubRes = USK_NodeSsh::run($node, $remotePubkey, 60);
+        $logs[] = (string) ($nodePubRes['log'] ?? '');
+        if (empty($nodePubRes['ok'])) {
+            return array('ok' => false, 'error' => 'node_tunnel_pubkey_failed', 'log' => implode("\n", $logs));
+        }
+        $nodeData = self::parse_tunnel_json($nodePubRes['log']);
+        if (!$nodeData || empty($nodeData['node_public_key']) || empty($nodeData['node_wg_port'])) {
+            return array('ok' => false, 'error' => 'node_tunnel_pubkey_parse_failed', 'log' => implode("\n", $logs));
+        }
+
+        $remoteEnsure = sprintf(
+            'sudo -n /bin/bash %s/bin/setup-node-tunnel.sh ensure %s %s %s %s 2>&1',
+            escapeshellarg($root),
+            escapeshellarg($nodeId),
+            escapeshellarg((string) $hubData['hub_public_key']),
+            escapeshellarg((string) $hubData['hub_endpoint']),
+            escapeshellarg((string) $hubData['hub_wg_port'])
+        );
+        $nodeEnsureRes = USK_NodeSsh::run($node, $remoteEnsure, 90);
+        $logs[] = (string) ($nodeEnsureRes['log'] ?? '');
+        if (empty($nodeEnsureRes['ok']) || strpos((string) ($nodeEnsureRes['log'] ?? ''), 'USK_OK') === false) {
+            return array('ok' => false, 'error' => 'node_tunnel_ensure_failed', 'log' => implode("\n", $logs));
+        }
+
+        $hubEnsure = self::run_hub_tunnel_cmd(array(
+            'ensure',
+            $nodeId,
+            (string) $nodeData['node_public_key'],
+            $nodeEndpoint,
+            (string) $nodeData['node_wg_port'],
+        ), 120);
+        $logs[] = (string) ($hubEnsure['log'] ?? '');
+        if (empty($hubEnsure['ok'])) {
+            return array('ok' => false, 'error' => 'hub_tunnel_ensure_failed', 'log' => implode("\n", $logs));
+        }
+
+        $sendThrough = '';
+        if (preg_match('/send_through=([0-9.]+)/', (string) ($hubEnsure['log'] ?? ''), $m)) {
+            $sendThrough = $m[1];
+        } elseif (!empty($hubData['hub_tunnel_ip'])) {
+            $sendThrough = (string) $hubData['hub_tunnel_ip'];
+        }
+
+        if ($sendThrough !== '' && USK_ProtocolManager::is_installed('xray')) {
+            self::sync_xray_node_egress($nodeId, $sendThrough);
+        }
+
+        return array(
+            'ok' => true,
+            'send_through' => $sendThrough,
+            'hub_wg_port' => (int) ($hubData['hub_wg_port'] ?? 0),
+            'node_wg_port' => (int) ($nodeData['node_wg_port'] ?? 0),
+            'log' => implode("\n", $logs),
+        );
+    }
+
+    public static function sync_xray_node_egress($nodeId, $sendThrough = '')
+    {
+        $nodeId = preg_replace('/[^a-z0-9]/', '', (string) $nodeId);
+        if ($nodeId === '') {
+            return array('ok' => false, 'error' => 'node_id_required');
+        }
+        if ($sendThrough === '') {
+            $st = self::run_hub_tunnel_cmd(array('send-through', $nodeId), 30);
+            if (empty($st['ok']) || !preg_match('/send_through=([0-9.]+)/', (string) ($st['log'] ?? ''), $m)) {
+                return array('ok' => false, 'error' => 'tunnel_not_ready', 'log' => (string) ($st['log'] ?? ''));
+            }
+            $sendThrough = $m[1];
+        }
+
+        $script = rtrim((string) USK_ROOT, '/') . '/bin/xray-sync-node-egress.sh';
+        if (!is_readable($script)) {
+            return array('ok' => false, 'error' => 'xray_sync_script_missing');
+        }
+        $cmd = sprintf(
+            'sudo -n /bin/bash %s %s %s 2>&1',
+            escapeshellarg($script),
+            escapeshellarg($nodeId),
+            escapeshellarg($sendThrough)
+        );
+        $out = (string) shell_exec($cmd);
+        $ok = strpos($out, 'USK_OK') !== false;
+        return array('ok' => $ok, 'log' => $out);
     }
 
     public static function hub_base()
@@ -243,6 +396,11 @@ class USK_NodeRelay
             return $init;
         }
 
+        $tunnel = self::ensure_tunnel($node);
+        if (empty($tunnel['ok'])) {
+            return $tunnel;
+        }
+
         $rules = self::relay_rules_for_protocol($protocol, $meta);
         if ($rules === array()) {
             return array('ok' => false, 'error' => 'relay_rules_empty');
@@ -264,6 +422,10 @@ class USK_NodeRelay
         $status = self::read_cached_status($node, $protocol);
         $status['relay_active'] = true;
         $status['relay_rules'] = $rules;
+        $status['tunnel_active'] = true;
+        $status['send_through'] = (string) ($tunnel['send_through'] ?? '');
+        $status['hub_wg_port'] = (int) ($tunnel['hub_wg_port'] ?? 0);
+        $status['node_wg_port'] = (int) ($tunnel['node_wg_port'] ?? 0);
         $status['updated_at'] = date('c');
         $status['verified_at'] = date('c');
         $status['hub_ip'] = self::hub_backend_ip();

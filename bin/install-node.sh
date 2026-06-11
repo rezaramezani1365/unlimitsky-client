@@ -282,6 +282,7 @@ echo "[*] Downloading worker scripts from Hub (${HUB_BASE})..."
 BIN_LIST=(
   node-receive-script.sh
   setup-node-relay.sh
+  setup-node-tunnel.sh
   remove-node-relay.sh
 )
 
@@ -313,6 +314,11 @@ chmod 440 "$SUDOERS"
 echo "[*] Initializing port relay (iptables forwarding to Hub)..."
 if [ -x "${NODE_ROOT}/bin/setup-node-relay.sh" ]; then
   USK_NODE_ROOT="$NODE_ROOT" bash "${NODE_ROOT}/bin/setup-node-relay.sh" init || echo "USK_WARN: relay_init_failed run manually on Hub"
+fi
+
+echo "[*] Initializing WireGuard egress tunnel worker..."
+if [ -x "${NODE_ROOT}/bin/setup-node-tunnel.sh" ]; then
+  USK_NODE_ROOT="$NODE_ROOT" bash "${NODE_ROOT}/bin/setup-node-tunnel.sh" init || echo "USK_WARN: tunnel_init_failed run from Hub when creating a service"
 fi
 
 is_private_ip() {

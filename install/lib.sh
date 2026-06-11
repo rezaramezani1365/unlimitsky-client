@@ -417,6 +417,12 @@ usk_ensure_web_update_sudoers() {
     if ! grep -qF 'xray-emergency-fix.sh' "$sudoers" 2>/dev/null; then
         echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/xray-emergency-fix.sh" >> "$sudoers"
     fi
+    if ! grep -qF 'setup-hub-node-tunnel.sh' "$sudoers" 2>/dev/null; then
+        echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/setup-hub-node-tunnel.sh *" >> "$sudoers"
+    fi
+    if ! grep -qF 'xray-sync-node-egress.sh' "$sudoers" 2>/dev/null; then
+        echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/bin/xray-sync-node-egress.sh *" >> "$sudoers"
+    fi
     if ! grep -qF 'panel-self-update.sh' "$sudoers" 2>/dev/null; then
         echo "www-data ALL=(root) NOPASSWD: /bin/bash ${web_root}/scripts/panel-self-update.sh *" >> "$sudoers"
     fi

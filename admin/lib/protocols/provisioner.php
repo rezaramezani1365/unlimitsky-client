@@ -96,9 +96,21 @@ class USK_ProtocolProvisioner
             }
         }
 
-        // VPN users are provisioned on the Hub; nodes only relay traffic.
+        // VPN users are provisioned on the Hub; nodes relay ingress and tunnel egress.
         if (!USK_ProtocolManager::is_installed($protocol)) {
             return array('ok' => false, 'error' => $protocol . '_not_installed');
+        }
+
+        if ($node !== null) {
+            $relay = USK_NodeRelay::ensure_for_protocol($node, $protocol, $meta);
+            if (empty($relay['ok'])) {
+                USK_Nodes::mark_seen($nodeId, 'offline', $relay['error'] ?? 'relay_failed');
+                return array(
+                    'ok' => false,
+                    'error' => self::interpret_output((string) ($relay['log'] ?? ''), $relay['error'] ?? 'relay_failed'),
+                    'log' => $relay['log'] ?? '',
+                );
+            }
         }
 
         $clientDns = USK_ClientDns::resolve((string) ($meta['client_dns'] ?? ''), $protocol);
@@ -145,6 +157,9 @@ class USK_ProtocolProvisioner
             $scriptArgs[] = $clientDns;
             $scriptArgs[] = $connectHost;
             $scriptArgs[] = $usageId;
+            if ($node !== null) {
+                $scriptArgs[] = $nodeId;
+            }
         } elseif ($protocol !== 'openvpn') {
             $scriptArgs[] = $connectHost;
         }
@@ -202,15 +217,6 @@ class USK_ProtocolProvisioner
             'qr_conf_png' => $data['qr_conf_png'] ?? '',
         );
         if ($node !== null) {
-            $relay = USK_NodeRelay::ensure_for_protocol($node, $protocol, $meta);
-            if (empty($relay['ok'])) {
-                USK_Nodes::mark_seen($nodeId, 'offline', $relay['error'] ?? 'relay_failed');
-                return array(
-                    'ok' => false,
-                    'error' => self::interpret_output((string) ($relay['log'] ?? ''), $relay['error'] ?? 'relay_failed'),
-                    'log' => $relay['log'] ?? '',
-                );
-            }
             $clientRecord['node_id'] = $nodeId;
             $clientRecord['server_ip'] = $connectHost;
         }
@@ -442,6 +448,12 @@ class USK_ProtocolProvisioner
             'relay_init_failed' => 'node_relay_failed',
             'relay_add_failed' => 'node_relay_failed',
             'relay_failed' => 'node_relay_failed',
+            'hub_tunnel_prepare_failed' => 'node_tunnel_failed',
+            'hub_tunnel_ensure_failed' => 'node_tunnel_failed',
+            'node_tunnel_ensure_failed' => 'node_tunnel_failed',
+            'node_tunnel_pubkey_failed' => 'node_tunnel_failed',
+            'node_tunnel_not_ready' => 'node_tunnel_failed',
+            'tunnel_not_ready' => 'node_tunnel_failed',
             'nodes_pro_required' => 'nodes_pro_required',
             'sshpass_missing' => 'nodes_sshpass_missing',
             'ssh_connect_failed' => 'nodes_test_failed',

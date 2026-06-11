@@ -16,6 +16,14 @@ if [ -f "$XRAY_CFG" ] && command -v jq >/dev/null 2>&1; then
       UUID=$(jq -r --arg u "$USERNAME" '.[] | select(.username==$u) | .uuid' "$CLIENTS" | head -1)
     fi
   fi
+  REGISTRY="$DATA_ROOT/xray/clients.json"
+  EMAIL=""
+  if [ -f "$REGISTRY" ]; then
+    EMAIL=$(jq -r --arg u "$USERNAME" '.[] | select(.username==$u) | (.xray_email // .usage_id // .email // "")' "$REGISTRY" | head -1)
+  fi
+  if [ -n "$EMAIL" ] && [ "$EMAIL" != "null" ]; then
+    usk_xray_unbind_user_node "$XRAY_CFG" "$EMAIL" || true
+  fi
   if [ -n "$UUID" ] && [ "$UUID" != "null" ]; then
     usk_xray_remove_client "$XRAY_CFG" "$UUID" || true
     usk_xray_service_restart || true
