@@ -98,7 +98,56 @@ class USK_NodeSsh
         return self::run($node, $remote, $timeout);
     }
 
-    private static function build_ssh_cmd($host, $port, $user, $password, $remoteCommand, $timeout)
+    /**
+     * Upload a local file to the node over SSH stdin (cat > remote).
+     */
+    public static function put_file(array $node, $localPath, $remotePath, $timeout = 90)
+    {
+        require_once __DIR__ . '/nodes.php';
+        $localPath = (string) $localPath;
+        $remotePath = (string) $remotePath;
+        if (!is_readable($localPath)) {
+            return array('ok' => false, 'error' => 'local_missing', 'log' => 'unreadable: ' . $localPath);
+        }
+
+        $cred = USK_Nodes::ssh_credentials($node);
+        if ($cred['host'] === '' || $cred['user'] === '' || $cred['password'] === '') {
+            return array('ok' => false, 'error' => 'node_credentials_missing');
+        }
+        if (!self::sshpass_available()) {
+            return array('ok' => false, 'error' => 'sshpass_missing');
+        }
+
+        $remote = sprintf(
+            'cat > %s && chmod 755 %s && test -s %s',
+            escapeshellarg($remotePath),
+            escapeshellarg($remotePath),
+            escapeshellarg($remotePath)
+        );
+        $wrapped = '(' . $remote . '); echo USK_EXIT:$?';
+        $cmd = self::build_ssh_cmd(
+            $cred['host'],
+            $cred['port'],
+            $cred['user'],
+            $cred['password'],
+            $wrapped,
+            max(15, (int) $timeout),
+            $localPath
+        );
+        if ($cmd === '') {
+            return array('ok' => false, 'error' => 'ssh_cmd_failed');
+        }
+
+        $out = @shell_exec($cmd);
+        $text = $out !== null ? (string) $out : '';
+        $exitCode = self::parse_remote_exit($text);
+        if ($exitCode !== 0 || strpos($text, 'USK_ERR:') !== false) {
+            return array('ok' => false, 'error' => 'put_failed', 'log' => $text, 'exit_code' => $exitCode);
+        }
+        return array('ok' => true, 'log' => $text, 'exit_code' => 0);
+    }
+
+    private static function build_ssh_cmd($host, $port, $user, $password, $remoteCommand, $timeout, $stdinFile = null)
     {
         $host = escapeshellarg($host);
         $user = escapeshellarg($user);
@@ -111,16 +160,30 @@ class USK_NodeSsh
 
         $sshOpts = '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15';
         $remoteEsc = escapeshellarg($remoteCommand);
-        $cmd = sprintf(
-            'timeout %d sshpass -f %s ssh %s -p %d %s@%s %s 2>&1',
-            (int) $timeout,
-            escapeshellarg($passFile),
-            $sshOpts,
-            (int) $port,
-            $user,
-            $host,
-            $remoteEsc
-        );
+        if ($stdinFile !== null && is_readable($stdinFile)) {
+            $cmd = sprintf(
+                'timeout %d sshpass -f %s ssh %s -p %d %s@%s %s < %s 2>&1',
+                (int) $timeout,
+                escapeshellarg($passFile),
+                $sshOpts,
+                (int) $port,
+                $user,
+                $host,
+                $remoteEsc,
+                escapeshellarg($stdinFile)
+            );
+        } else {
+            $cmd = sprintf(
+                'timeout %d sshpass -f %s ssh %s -p %d %s@%s %s 2>&1',
+                (int) $timeout,
+                escapeshellarg($passFile),
+                $sshOpts,
+                (int) $port,
+                $user,
+                $host,
+                $remoteEsc
+            );
+        }
 
         register_shutdown_function(function () use ($passFile) {
             @unlink($passFile);

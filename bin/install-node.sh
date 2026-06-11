@@ -315,6 +315,7 @@ BIN_LIST=(
   repair-l2tp.sh
   xray-fix-connectivity.sh
   refresh-xray-client-links.sh
+  node-receive-script.sh
 )
 
 for f in "${BIN_LIST[@]}"; do
@@ -325,11 +326,16 @@ for f in "${BIN_LIST[@]}"; do
   chmod +x "${NODE_ROOT}/bin/${f}"
 done
 
+# Hub sync (SSH push / curl) must be able to refresh bin/ as the SSH user
+chown -R "${SSH_USER}:${SSH_USER}" "${NODE_ROOT}/bin"
+chmod 755 "${NODE_ROOT}/bin"
+
 # Allow Hub SSH user to run provisioning without interactive sudo password
 SUDOERS="/etc/sudoers.d/unlimitsky-node"
 cat > "$SUDOERS" <<EOF
 # unlimitsky Hub remote provisioning
 ${SSH_USER} ALL=(root) NOPASSWD: /bin/bash ${NODE_ROOT}/bin/*.sh
+${SSH_USER} ALL=(root) NOPASSWD: /bin/chown -R ${SSH_USER}\\:${SSH_USER} ${NODE_ROOT}/bin
 EOF
 chmod 440 "$SUDOERS"
 

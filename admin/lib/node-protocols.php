@@ -76,41 +76,71 @@ class USK_NodeProtocols
             'enable-user-openvpn.sh',
             'disable-user-l2tp.sh',
             'enable-user-l2tp.sh',
+            'node-receive-script.sh',
         );
     }
 
     public static function sync_scripts(array $node)
     {
+        require_once __DIR__ . '/nodes.php';
         $root = self::node_root($node);
         $hub = self::hub_base();
-        $mkdir = sprintf(
-            'mkdir -p %s %s',
-            escapeshellarg($root . '/bin'),
-            escapeshellarg($root . '/data/protocol-installed')
+        $cred = USK_Nodes::ssh_credentials($node);
+        $sshUser = (string) ($cred['user'] ?? 'ubuntu');
+        $binDir = $root . '/bin';
+
+        $prep = sprintf(
+            'mkdir -p %s %s && (test -w %s || sudo -n chown -R %s:%s %s)',
+            escapeshellarg($binDir),
+            escapeshellarg($root . '/data/protocol-installed'),
+            escapeshellarg($binDir),
+            escapeshellarg($sshUser),
+            escapeshellarg($sshUser),
+            escapeshellarg($binDir)
         );
-        $prep = USK_NodeSsh::run($node, $mkdir, 30);
-        if (empty($prep['ok'])) {
-            return array('ok' => false, 'error' => 'sync_prepare_failed', 'log' => $prep['log'] ?? '');
+        $prepRes = USK_NodeSsh::run($node, $prep, 30);
+        if (empty($prepRes['ok'])) {
+            return array(
+                'ok' => false,
+                'error' => 'sync_prepare_failed',
+                'hub' => $hub,
+                'log' => trim((string) ($prepRes['log'] ?? '')),
+            );
         }
 
         $failed = array();
         $failLog = array();
+        $receiver = $binDir . '/node-receive-script.sh';
         foreach (self::script_manifest() as $file) {
-            $dest = $root . '/bin/' . $file;
+            $dest = $binDir . '/' . $file;
+            $hubLocal = rtrim((string) USK_ROOT, '/') . '/bin/' . $file;
             $url = $hub . '/bin/' . $file;
-            $cmd = sprintf(
-                'curl -fsSL %s -o %s && chmod +x %s && test -s %s',
-                escapeshellarg($url),
-                escapeshellarg($dest),
-                escapeshellarg($dest),
-                escapeshellarg($dest)
-            );
-            $res = USK_NodeSsh::run($node, $cmd, 90);
-            if (empty($res['ok']) || strpos((string) ($res['log'] ?? ''), 'USK_ERR:') !== false) {
+            $res = self::push_script_to_node($node, $file, $hubLocal, $url, $dest, $receiver, $root);
+
+            if (empty($res['ok'])) {
                 $failed[] = $file;
-                $tail = trim(substr((string) ($res['log'] ?? ''), -200));
-                $failLog[] = $file . ($tail !== '' ? ': ' . $tail : '');
+                $failLog[] = $file . ': ' . ($res['log'] ?? 'sync_failed');
+                continue;
             }
+
+            $verify = USK_NodeSsh::run($node, 'test -x ' . escapeshellarg($dest), 20);
+            if (empty($verify['ok'])) {
+                $failed[] = $file;
+                $diag = USK_NodeSsh::run(
+                    $node,
+                    'ls -la ' . escapeshellarg($binDir) . ' 2>&1 | tail -5',
+                    20
+                );
+                $tail = trim((string) ($diag['log'] ?? ''));
+                $failLog[] = $file . ': missing or not executable after sync'
+                    . ($tail !== '' ? ' — ' . $tail : '');
+            }
+        }
+
+        $log = $failLog === array() ? '' : implode("\n", $failLog);
+        if ($failed !== array() && strpos($log, 'not writable') === false) {
+            $log .= "\nHint: on node run: sudo chown -R " . $sshUser . ':' . $sshUser . ' ' . $binDir
+                . ' — or re-run install-node.sh from Hub Nodes page.';
         }
 
         return array(
@@ -118,7 +148,81 @@ class USK_NodeProtocols
             'failed' => $failed,
             'synced' => count(self::script_manifest()) - count($failed),
             'hub' => $hub,
-            'log' => $failLog === array() ? '' : implode("\n", $failLog),
+            'log' => $log,
+        );
+    }
+
+    /** Push one bin script: Hub filesystem over SSH first, curl from node as fallback. */
+    private static function push_script_to_node(
+        array $node,
+        $file,
+        $hubLocal,
+        $url,
+        $dest,
+        $receiver,
+        $root
+    ) {
+        if (!is_readable($hubLocal)) {
+            return array(
+                'ok' => false,
+                'log' => 'missing on hub disk: ' . $hubLocal . ' (run panel update on Hub)',
+            );
+        }
+
+        $staging = '/tmp/.usk-sync-' . preg_replace('/[^a-zA-Z0-9._-]/', '_', (string) $file);
+        $put = USK_NodeSsh::put_file($node, $hubLocal, $staging, 90);
+        if (!empty($put['ok'])) {
+            $move = sprintf(
+                'mv -f %s %s && chmod 755 %s && test -s %s',
+                escapeshellarg($staging),
+                escapeshellarg($dest),
+                escapeshellarg($dest),
+                escapeshellarg($dest)
+            );
+            $res = USK_NodeSsh::run($node, $move, 30);
+            if (!empty($res['ok'])) {
+                return $res;
+            }
+            $install = sprintf(
+                'test -x %s && sudo -n /bin/bash %s %s %s',
+                escapeshellarg($receiver),
+                escapeshellarg($receiver),
+                escapeshellarg($staging),
+                escapeshellarg($dest)
+            );
+            $res = USK_NodeSsh::run($node, $install, 60);
+            USK_NodeSsh::run($node, 'rm -f ' . escapeshellarg($staging), 10);
+            if (!empty($res['ok'])) {
+                return $res;
+            }
+        }
+
+        $curlCmd = self::build_curl_download_cmd($url, $dest, $staging);
+        $res = USK_NodeSsh::run($node, $curlCmd, 90);
+        USK_NodeSsh::run($node, 'rm -f ' . escapeshellarg($staging), 10);
+        if (!empty($res['ok'])) {
+            return $res;
+        }
+
+        $tail = trim(substr((string) ($res['log'] ?? $put['log'] ?? ''), -400));
+        return array('ok' => false, 'log' => $tail !== '' ? $tail : 'push and curl both failed');
+    }
+
+    private static function build_curl_download_cmd($url, $dest, $staging)
+    {
+        $errFile = $staging . '.err';
+        return sprintf(
+            'err=%s; code=$(curl -fsSL -w %%{http_code} -o %s %s 2>"$err" || echo fail); '
+            . 'if [ "$code" = "fail" ] || [ -z "$code" ] || [ "$code" = "000" ]; then '
+            . 'echo USK_ERR:curl_failed http=${code:-unknown}; cat "$err" 2>/dev/null; '
+            . 'ls -la %s 2>/dev/null; exit 1; fi; '
+            . 'chmod 755 %s && test -s %s',
+            escapeshellarg($errFile),
+            escapeshellarg($dest),
+            escapeshellarg($url),
+            escapeshellarg(dirname($dest)),
+            escapeshellarg($dest),
+            escapeshellarg($dest)
         );
     }
 
@@ -294,10 +398,32 @@ class USK_NodeProtocols
         $verify = USK_NodeSsh::run($node, 'test -x ' . escapeshellarg($script), 20);
         if (empty($verify['ok'])) {
             $hub = (string) ($sync['hub'] ?? self::hub_base());
+            $hubLocal = rtrim((string) USK_ROOT, '/') . '/bin/install-' . $proto . '.sh';
+            $diag = USK_NodeSsh::run(
+                $node,
+                'ls -la ' . escapeshellarg($root . '/bin') . ' 2>&1 | tail -8',
+                20
+            );
+            $log = sprintf(
+                'Missing on node after sync: %s (Hub %s/bin/install-%s.sh)',
+                $script,
+                $hub,
+                $proto
+            );
+            if (!is_readable($hubLocal)) {
+                $log .= "\nHub disk missing: " . $hubLocal . ' — run panel self-update on Hub.';
+            }
+            $tail = trim((string) ($diag['log'] ?? ''));
+            if ($tail !== '') {
+                $log .= "\nNode bin/: " . $tail;
+            }
+            if (!empty($sync['log'])) {
+                $log .= "\n" . trim((string) $sync['log']);
+            }
             return array(
                 'ok' => false,
                 'error' => 'node_scripts_sync_failed',
-                'log' => sprintf('Missing on node after sync: %s (Hub %s/bin/install-%s.sh)', $script, $hub, $proto),
+                'log' => $log,
             );
         }
 
