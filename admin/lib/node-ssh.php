@@ -50,22 +50,40 @@ class USK_NodeSsh
             return array('ok' => false, 'error' => 'empty_command');
         }
 
+        $wrapped = '(' . $remoteCommand . '); echo USK_EXIT:$?';
         $cmd = self::build_ssh_cmd(
             $cred['host'],
             $cred['port'],
             $cred['user'],
             $cred['password'],
-            $remoteCommand,
+            $wrapped,
             max(15, (int) $timeout)
         );
         $out = @shell_exec($cmd);
         $text = $out !== null ? (string) $out : '';
+        $exitCode = self::parse_remote_exit($text);
 
         if (strpos($text, 'USK_ERR:') !== false) {
-            return array('ok' => false, 'error' => 'remote_error', 'log' => $text);
+            return array('ok' => false, 'error' => 'remote_error', 'log' => $text, 'exit_code' => $exitCode);
         }
 
-        return array('ok' => true, 'log' => $text);
+        if ($exitCode !== 0) {
+            return array('ok' => false, 'error' => 'remote_exit_' . $exitCode, 'log' => $text, 'exit_code' => $exitCode);
+        }
+
+        return array('ok' => true, 'log' => $text, 'exit_code' => 0);
+    }
+
+    /** Strip USK_EXIT:N trailer appended to every remote command. */
+    private static function parse_remote_exit(&$text)
+    {
+        $text = (string) $text;
+        $exitCode = 0;
+        if (preg_match('/USK_EXIT:(\d+)\s*$/', $text, $m)) {
+            $exitCode = (int) $m[1];
+            $text = preg_replace('/\n?USK_EXIT:\d+\s*$/', '', $text);
+        }
+        return $exitCode;
     }
 
     public static function run_script(array $node, $scriptName, array $args = array(), $timeout = 180)

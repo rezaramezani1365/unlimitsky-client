@@ -681,7 +681,7 @@
   "node_protocols_intro": "پروتکل‌های VPN را روی این Node از طریق SSH نصب و بررسی کنید. قبل از ساخت سرویس روی Node باید پروتکل‌ها اینجا نصب شوند.",
   "node_protocols_sync_scripts": "همگام‌سازی اسکریپت‌ها از Hub",
   "node_protocols_sync_ok": "اسکریپت‌های worker از Hub به Node همگام شد.",
-  "node_protocols_sync_failed": "همگام‌سازی اسکریپت‌ها با Node ناموفق بود",
+  "node_protocols_sync_failed": "همگام‌سازی اسکریپت‌ها از Hub به Node ناموفق بود",
   "create_node_select": "سرور ساخت کانفیگ",
   "create_node_main": "سرور اصلی (Hub)",
   "create_node_hint": "Node از Xray، OpenVPN و L2TP پشتیبانی می‌کند. ابتدا پروتکل‌ها را روی Node نصب کنید (Nodeها → پروتکل‌ها).",

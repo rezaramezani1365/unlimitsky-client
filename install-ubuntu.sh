@@ -209,6 +209,11 @@ server {
     client_max_body_size 32m;
     server_tokens off;
 
+    location ^~ /bin/ {
+        default_type text/plain;
+        try_files \$uri =404;
+    }
+
     location ^~ /admin/data/ { deny all; return 404; }
     location ^~ /sql/ { deny all; return 404; }
     location = /config.php { deny all; return 404; }

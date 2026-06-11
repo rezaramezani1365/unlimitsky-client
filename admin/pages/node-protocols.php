@@ -29,8 +29,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!empty($sync['ok'])) {
             usk_flash(__('node_protocols_sync_ok'));
         } else {
-            $detail = !empty($sync['failed']) ? implode(', ', $sync['failed']) : '';
-            usk_flash(__('node_protocols_sync_failed') . ($detail !== '' ? ': ' . $detail : ''), 'error');
+            $failed = !empty($sync['failed']) ? implode(', ', $sync['failed']) : '';
+            $hub = trim((string) ($sync['hub'] ?? ''));
+            $msg = __('node_protocols_sync_failed');
+            if ($hub !== '') {
+                $msg .= ' (' . $hub . '/bin/)';
+            }
+            if ($failed !== '') {
+                $msg .= ': ' . $failed;
+            }
+            $tail = trim(substr((string) ($sync['log'] ?? ''), -350));
+            if ($tail !== '') {
+                $msg .= ' — ' . $tail;
+            }
+            usk_flash($msg, 'error');
         }
         header('Location: ' . usk_admin_url('node-protocols', array('node_id' => $nodeId)));
         exit;

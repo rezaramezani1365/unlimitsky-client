@@ -681,7 +681,7 @@
   "node_protocols_intro": "Install and verify VPN protocols on this Node via SSH. Protocols must be installed here before creating services on this Node.",
   "node_protocols_sync_scripts": "Sync scripts from Hub",
   "node_protocols_sync_ok": "Worker scripts synced from Hub to Node.",
-  "node_protocols_sync_failed": "Failed to sync scripts to Node",
+  "node_protocols_sync_failed": "Failed to sync scripts to Node from Hub",
   "create_node_select": "Provisioning server",
   "create_node_main": "Main server (Hub)",
   "create_node_hint": "Nodes support Xray, OpenVPN, and L2TP. Install protocols on the Node first (Nodes → Protocols).",

@@ -294,6 +294,9 @@ BIN_LIST=(
   collect-usage-stats.sh
   enforce-connection-limits.sh
   probe-protocol.sh
+  install-xray.sh
+  install-openvpn.sh
+  install-l2tp.sh
   add-user-xray.sh
   add-user-openvpn.sh
   add-user-l2tp.sh

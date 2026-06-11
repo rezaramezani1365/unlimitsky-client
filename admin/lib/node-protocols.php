@@ -94,17 +94,22 @@ class USK_NodeProtocols
         }
 
         $failed = array();
+        $failLog = array();
         foreach (self::script_manifest() as $file) {
             $dest = $root . '/bin/' . $file;
+            $url = $hub . '/bin/' . $file;
             $cmd = sprintf(
-                'curl -fsSL %s -o %s && chmod +x %s',
-                escapeshellarg($hub . '/bin/' . $file),
+                'curl -fsSL %s -o %s && chmod +x %s && test -s %s',
+                escapeshellarg($url),
+                escapeshellarg($dest),
                 escapeshellarg($dest),
                 escapeshellarg($dest)
             );
             $res = USK_NodeSsh::run($node, $cmd, 90);
             if (empty($res['ok']) || strpos((string) ($res['log'] ?? ''), 'USK_ERR:') !== false) {
                 $failed[] = $file;
+                $tail = trim(substr((string) ($res['log'] ?? ''), -200));
+                $failLog[] = $file . ($tail !== '' ? ': ' . $tail : '');
             }
         }
 
@@ -112,6 +117,8 @@ class USK_NodeProtocols
             'ok' => $failed === array(),
             'failed' => $failed,
             'synced' => count(self::script_manifest()) - count($failed),
+            'hub' => $hub,
+            'log' => $failLog === array() ? '' : implode("\n", $failLog),
         );
     }
 
@@ -268,10 +275,29 @@ class USK_NodeProtocols
 
         $sync = self::sync_scripts($node);
         if (empty($sync['ok'])) {
+            $hub = (string) ($sync['hub'] ?? self::hub_base());
+            $failed = implode(', ', $sync['failed'] ?? array());
+            $detail = trim((string) ($sync['log'] ?? ''));
+            $log = sprintf('Hub %s/bin/ — failed: %s', $hub, $failed);
+            if ($detail !== '') {
+                $log .= "\n" . $detail;
+            }
             return array(
                 'ok' => false,
                 'error' => 'node_scripts_sync_failed',
-                'log' => 'Failed: ' . implode(', ', $sync['failed'] ?? array()),
+                'log' => $log,
+            );
+        }
+
+        $root = self::node_root($node);
+        $script = $root . '/bin/install-' . $proto . '.sh';
+        $verify = USK_NodeSsh::run($node, 'test -x ' . escapeshellarg($script), 20);
+        if (empty($verify['ok'])) {
+            $hub = (string) ($sync['hub'] ?? self::hub_base());
+            return array(
+                'ok' => false,
+                'error' => 'node_scripts_sync_failed',
+                'log' => sprintf('Missing on node after sync: %s (Hub %s/bin/install-%s.sh)', $script, $hub, $proto),
             );
         }
 
@@ -279,9 +305,7 @@ class USK_NodeProtocols
             $ports = USK_ProtocolManager::parse_ports($proto, array());
         }
 
-        $root = self::node_root($node);
         $argv = USK_ProtocolManager::build_install_argv($proto, $ports);
-        $script = $root . '/bin/install-' . $proto . '.sh';
         $env = 'PANEL_ROOT=' . escapeshellarg($root) . ' USK_DATA_ROOT=/var/lib/unlimitsky';
         $remote = sprintf(
             'sudo -n env %s /bin/bash %s',
