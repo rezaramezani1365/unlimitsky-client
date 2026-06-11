@@ -60,6 +60,7 @@ class USK_Panel_Manager
             'status'       => sanitize_text_field($data['status'] ?? 'active'),
             'backend_ip'   => sanitize_text_field($data['backend_ip'] ?? ''),
             'backend_host' => sanitize_text_field($data['backend_host'] ?? ''),
+            'provision_node_id' => preg_replace('/[^a-z0-9]/', '', (string) ($data['provision_node_id'] ?? '')),
         ];
 
         if (!empty($data['id'])) {

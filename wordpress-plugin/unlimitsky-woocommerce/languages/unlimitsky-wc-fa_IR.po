@@ -70,3 +70,21 @@ msgstr "unlimitsky نیاز به نصب و فعال‌سازی ووکامرس د
 
 msgid "Volume / duration"
 msgstr "حجم / مدت"
+
+msgid "Provisioning server"
+msgstr "سرور تأمین سرویس"
+
+msgid "Main server (Hub)"
+msgstr "سرور اصلی (هاب)"
+
+msgid "VPN runs on the hub; clients connect to the selected node IP (tunnel). Empty = hub only."
+msgstr "VPN روی هاب اجرا می‌شود؛ مشتری به IP نود انتخاب‌شده وصل می‌شود (تونل). خالی = فقط هاب."
+
+msgid "Save API URL and key first, then edit this panel to load registered nodes."
+msgstr "ابتدا آدرس API و کلید را ذخیره کنید، سپس پنل را ویرایش کنید تا نودها بارگذاری شوند."
+
+msgid "No nodes registered on this panel yet."
+msgstr "هنوز نودی در این پنل ثبت نشده است."
+
+msgid "Node relay protocols: %s"
+msgstr "پروتکل‌های رله نود: %s"

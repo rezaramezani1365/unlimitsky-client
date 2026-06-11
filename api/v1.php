@@ -95,6 +95,27 @@ if ($action === 'plans') {
     ));
 }
 
+if ($action === 'nodes') {
+    if (!USK_Nodes::can_use_nodes()) {
+        usk_api_response(403, array('ok' => false, 'error' => 'nodes_pro_required'));
+    }
+    require_once dirname(__DIR__) . '/admin/lib/node-relay.php';
+    $nodes = array();
+    foreach (USK_Nodes::list_for_select() as $node) {
+        $nodes[] = array(
+            'id' => $node['id'],
+            'name' => $node['name'],
+            'connect_host' => $node['connect_host'],
+            'status' => $node['status'],
+        );
+    }
+    usk_api_response(200, array(
+        'ok' => true,
+        'nodes' => $nodes,
+        'node_protocols' => USK_NodeRelay::supported(),
+    ));
+}
+
 if ($action === 'create-service') {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         usk_api_response(405, array('ok' => false, 'error' => 'method_not_allowed'));
@@ -356,6 +377,8 @@ if ($action === 'create-service') {
         'vpn_uri' => $created['vpn_uri'] ?? '',
         'wg_conf' => $created['wg_conf'] ?? '',
         'expires_at' => $created['expires_at'] ?? null,
+        'node_id' => $created['node_id'] ?? '',
+        'node_name' => $created['node_name'] ?? '',
     ));
 }
 

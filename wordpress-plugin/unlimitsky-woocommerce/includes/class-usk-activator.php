@@ -30,6 +30,7 @@ class USK_Activator
             dns_slug varchar(50) DEFAULT NULL,
             backend_ip varchar(45) DEFAULT NULL,
             backend_host varchar(255) DEFAULT NULL,
+            provision_node_id varchar(20) DEFAULT NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             UNIQUE KEY code (code)
@@ -82,9 +83,22 @@ class USK_Activator
             KEY proxy_token (proxy_token)
         ) $charset;");
 
+        self::maybe_add_panel_columns($prefix . 'panels');
         self::maybe_add_columns($prefix . 'orders');
 
         flush_rewrite_rules();
+    }
+
+    private static function maybe_add_panel_columns(string $table): void
+    {
+        global $wpdb;
+        $cols = $wpdb->get_col("DESC {$table}", 0);
+        if (!is_array($cols)) {
+            return;
+        }
+        if (!in_array('provision_node_id', $cols, true)) {
+            $wpdb->query("ALTER TABLE {$table} ADD provision_node_id varchar(20) DEFAULT NULL");
+        }
     }
 
     private static function maybe_add_columns(string $table): void

@@ -96,6 +96,49 @@ $native_protocols = [
                             </select>
                         </td>
                     </tr>
+                    <tr class="usk-unlimitsky-field">
+                        <th><label for="provision_node_id"><?php esc_html_e('Provisioning server', 'unlimitsky-wc'); ?></label></th>
+                        <td>
+                            <?php
+                            $selected_node = $panel['provision_node_id'] ?? '';
+                            $has_api_creds = $is_edit && !empty($panel['login_link']) && !empty($panel['token']);
+                            ?>
+                            <select name="provision_node_id" id="provision_node_id">
+                                <option value=""><?php esc_html_e('Main server (Hub)', 'unlimitsky-wc'); ?></option>
+                                <?php if (!empty($panel_nodes)) : ?>
+                                    <?php foreach ($panel_nodes as $node) : ?>
+                                        <option value="<?php echo esc_attr($node['id']); ?>" data-connect-host="<?php echo esc_attr($node['connect_host'] ?? ''); ?>" <?php selected($selected_node, $node['id']); ?>>
+                                            <?php
+                                            echo esc_html(($node['name'] ?? $node['id']) . ' — ' . ($node['connect_host'] ?? ''));
+                                            if (!empty($node['status']) && $node['status'] !== 'online') {
+                                                echo ' (' . esc_html($node['status']) . ')';
+                                            }
+                                            ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </select>
+                            <p class="description">
+                                <?php esc_html_e('VPN runs on the hub; clients connect to the selected node IP (tunnel). Empty = hub only.', 'unlimitsky-wc'); ?>
+                            </p>
+                            <?php if (!$has_api_creds) : ?>
+                                <p class="description"><?php esc_html_e('Save API URL and key first, then edit this panel to load registered nodes.', 'unlimitsky-wc'); ?></p>
+                            <?php elseif ($panel_nodes_error !== '') : ?>
+                                <p class="description" style="color:#b32d2e;"><?php echo esc_html($panel_nodes_error); ?></p>
+                            <?php elseif (empty($panel_nodes)) : ?>
+                                <p class="description"><?php esc_html_e('No nodes registered on this panel yet.', 'unlimitsky-wc'); ?></p>
+                            <?php elseif (!empty($panel_node_protocols)) : ?>
+                                <p class="description">
+                                    <?php
+                                    printf(
+                                        esc_html__('Node relay protocols: %s', 'unlimitsky-wc'),
+                                        esc_html(implode(', ', $panel_node_protocols))
+                                    );
+                                    ?>
+                                </p>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
                     <tr class="usk-external-field">
                         <th><label for="login_link_ext"><?php esc_html_e('آدرس پنل', 'unlimitsky-wc'); ?></label></th>
                         <td><input type="url" name="login_link_ext" id="login_link_ext" class="regular-text" placeholder="https://panel.example.com" value="<?php echo esc_attr($panel['login_link'] ?? ''); ?>"></td>
@@ -203,6 +246,7 @@ $native_protocols = [
                             <th><?php esc_html_e('نوع', 'unlimitsky-wc'); ?></th>
                             <th><?php esc_html_e('اتصال', 'unlimitsky-wc'); ?></th>
                             <th><?php esc_html_e('IP مقصد', 'unlimitsky-wc'); ?></th>
+                            <th><?php esc_html_e('Provisioning server', 'unlimitsky-wc'); ?></th>
                             <th><?php esc_html_e('تعداد', 'unlimitsky-wc'); ?></th>
                             <th><?php esc_html_e('عملیات', 'unlimitsky-wc'); ?></th>
                         </tr>
@@ -214,6 +258,17 @@ $native_protocols = [
                                 <td><?php echo esc_html($p['type']); ?></td>
                                 <td><code><?php echo esc_html(USK_Dns_Settings::connect_host()); ?></code></td>
                                 <td><?php echo esc_html(USK_Dns_Settings::backend_ip_for_panel($p) ?: '—'); ?></td>
+                                <td>
+                                    <?php
+                                    if (($p['type'] ?? '') !== 'unlimitsky') {
+                                        echo '—';
+                                    } elseif (!empty($p['provision_node_id'])) {
+                                        echo esc_html($panel_node_labels[(int) $p['id']] ?? $p['provision_node_id']);
+                                    } else {
+                                        esc_html_e('Main server (Hub)', 'unlimitsky-wc');
+                                    }
+                                    ?>
+                                </td>
                                 <td><?php echo esc_html($p['count_create']); ?></td>
                                 <td>
                                     <a href="<?php echo esc_url(add_query_arg(['page' => 'unlimitsky', 'edit' => $p['id']], admin_url('admin.php'))); ?>"><?php esc_html_e('ویرایش', 'unlimitsky-wc'); ?></a> |
@@ -273,5 +328,23 @@ $native_protocols = [
     }
     document.getElementById('usk-panel-type').addEventListener('change', togglePanelFields);
     togglePanelFields();
+
+    var nodeSelect = document.getElementById('provision_node_id');
+    var backendIp = document.getElementById('backend_ip');
+    if (nodeSelect && backendIp) {
+        nodeSelect.addEventListener('change', function() {
+            var opt = nodeSelect.options[nodeSelect.selectedIndex];
+            var host = opt ? opt.getAttribute('data-connect-host') : '';
+            if (host && (!backendIp.value || backendIp.dataset.autoFilled === '1')) {
+                backendIp.value = host;
+                backendIp.dataset.autoFilled = '1';
+            } else if (!nodeSelect.value) {
+                delete backendIp.dataset.autoFilled;
+            }
+        });
+        backendIp.addEventListener('input', function() {
+            delete backendIp.dataset.autoFilled;
+        });
+    }
 })();
 </script>

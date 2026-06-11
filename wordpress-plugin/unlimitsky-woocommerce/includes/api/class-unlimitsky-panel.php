@@ -109,6 +109,29 @@ class USK_UnlimitSky_Panel
     }
 
     /**
+     * @return array{nodes:array<int,array{id:string,name:string,connect_host:string,status?:string}>,node_protocols:array<int,string>,error?:string}
+     */
+    public static function list_nodes(string $api_url, string $api_key): array
+    {
+        $result = self::request($api_url, $api_key, 'nodes');
+        if (empty($result['ok'])) {
+            return [
+                'nodes' => [],
+                'node_protocols' => [],
+                'error' => $result['error'] ?? '',
+            ];
+        }
+        $data = $result['data'] ?? [];
+        $nodes = $data['nodes'] ?? [];
+        $protocols = $data['node_protocols'] ?? [];
+
+        return [
+            'nodes' => is_array($nodes) ? $nodes : [],
+            'node_protocols' => is_array($protocols) ? $protocols : [],
+        ];
+    }
+
+    /**
      * @return array{success:bool, subscription_url?:string, config_links?:string, username?:string, error?:string}
      */
     public static function create_service(array $panel, int $volume_gb, int $duration_days, string $username, string $protocol = '', int $wc_order_id = 0, string $plan_code = '', string $openvpn_proto = 'tcp', string $wireguard_transport = 'tcp', string $external_panel_code = '', string $customer_email = ''): array
@@ -182,6 +205,10 @@ class USK_UnlimitSky_Panel
         }
         if ($plan_code !== '') {
             $payload['plan_code'] = $plan_code;
+        }
+        $provisionNodeId = preg_replace('/[^a-z0-9]/', '', (string) ($panel['provision_node_id'] ?? ''));
+        if ($provisionNodeId !== '') {
+            $payload['node_id'] = $provisionNodeId;
         }
         if ($protocol === 'openvpn') {
             $openvpn_proto = strtolower($openvpn_proto);

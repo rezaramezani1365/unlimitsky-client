@@ -31,3 +31,21 @@ msgstr "Duration"
 
 msgid "days"
 msgstr "days"
+
+msgid "Provisioning server"
+msgstr "Provisioning server"
+
+msgid "Main server (Hub)"
+msgstr "Main server (Hub)"
+
+msgid "VPN runs on the hub; clients connect to the selected node IP (tunnel). Empty = hub only."
+msgstr "VPN runs on the hub; clients connect to the selected node IP (tunnel). Empty = hub only."
+
+msgid "Save API URL and key first, then edit this panel to load registered nodes."
+msgstr "Save API URL and key first, then edit this panel to load registered nodes."
+
+msgid "No nodes registered on this panel yet."
+msgstr "No nodes registered on this panel yet."
+
+msgid "Node relay protocols: %s"
+msgstr "Node relay protocols: %s"

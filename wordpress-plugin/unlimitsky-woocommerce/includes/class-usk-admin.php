@@ -90,9 +90,36 @@ class USK_Admin
         $panel   = $edit_id ? USK_Panel_Manager::get_panel($edit_id) : null;
         $panels  = USK_Panel_Manager::get_panels(false);
 
+        $panel_nodes = [];
+        $panel_node_protocols = [];
+        $panel_nodes_error = '';
+        $panel_node_labels = [];
+
+        foreach ($panels as $p) {
+            if (($p['type'] ?? '') !== 'unlimitsky' || empty($p['provision_node_id']) || empty($p['login_link']) || empty($p['token'])) {
+                continue;
+            }
+            $nl = USK_UnlimitSky_Panel::list_nodes($p['login_link'], $p['token']);
+            foreach ($nl['nodes'] ?? [] as $node) {
+                if (($node['id'] ?? '') === $p['provision_node_id']) {
+                    $panel_node_labels[(int) $p['id']] = ($node['name'] ?? $node['id']) . ' — ' . ($node['connect_host'] ?? '');
+                    break;
+                }
+            }
+            if (!isset($panel_node_labels[(int) $p['id']])) {
+                $panel_node_labels[(int) $p['id']] = $p['provision_node_id'];
+            }
+        }
+
         if ($panel) {
             $sanayi_setting = USK_Panel_Manager::get_sanayi_setting($panel['code']);
             $marzban_inbounds = USK_Panel_Manager::get_marzban_inbounds($panel['code']);
+            if (($panel['type'] ?? '') === 'unlimitsky' && !empty($panel['login_link']) && !empty($panel['token'])) {
+                $nodeList = USK_UnlimitSky_Panel::list_nodes($panel['login_link'], $panel['token']);
+                $panel_nodes = $nodeList['nodes'] ?? [];
+                $panel_node_protocols = $nodeList['node_protocols'] ?? [];
+                $panel_nodes_error = $nodeList['error'] ?? '';
+            }
         }
 
         include USK_WC_PLUGIN_DIR . 'admin/views/panels.php';
@@ -148,9 +175,26 @@ class USK_Admin
             'status'       => $_POST['status'] ?? 'active',
             'backend_ip'   => $_POST['backend_ip'] ?? '',
             'backend_host' => $_POST['backend_host'] ?? '',
+            'provision_node_id' => $_POST['provision_node_id'] ?? '',
         ]);
 
         $panel = USK_Panel_Manager::get_panel($panel_id);
+
+        if ($panel && ($panel['type'] ?? '') === 'unlimitsky' && !empty($panel['provision_node_id']) && trim((string) ($_POST['backend_ip'] ?? '')) === '') {
+            $nodeList = USK_UnlimitSky_Panel::list_nodes($panel['login_link'], $panel['token'] ?? '');
+            foreach ($nodeList['nodes'] ?? [] as $node) {
+                if (($node['id'] ?? '') === $panel['provision_node_id'] && !empty($node['connect_host'])) {
+                    global $wpdb;
+                    $wpdb->update(
+                        USK_table('panels'),
+                        ['backend_ip' => sanitize_text_field($node['connect_host'])],
+                        ['id' => $panel_id]
+                    );
+                    $panel['backend_ip'] = $node['connect_host'];
+                    break;
+                }
+            }
+        }
 
         if ($panel['type'] === 'sanayi') {
             USK_Panel_Manager::save_sanayi_setting(
