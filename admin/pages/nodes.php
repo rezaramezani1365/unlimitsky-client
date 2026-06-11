@@ -83,7 +83,11 @@ $installCmdInteractive = sprintf(
 <div class="usk-card mb-4">
     <div class="usk-card-header"><i class="fa-solid fa-sitemap"></i> <?= __('nav_nodes') ?></div>
     <div class="p-3">
-        <p class="text-muted small"><?= __('nodes_intro') ?></p>
+        <p class="text-muted small mb-3"><?= __('nodes_intro') ?></p>
+
+        <div class="alert alert-usk-info small py-2 px-3 mb-3">
+            <i class="fa-solid fa-circle-info"></i> <?= __('nodes_roles_info') ?>
+        </div>
 
         <?php if (!$canNodes) : ?>
             <div class="alert alert-warning">
@@ -91,21 +95,32 @@ $installCmdInteractive = sprintf(
                 <a class="btn btn-sm btn-usk-primary ms-2" href="<?= usk_admin_url('license') ?>"><?= __('license_activate') ?></a>
             </div>
         <?php else : ?>
-            <?php if (!$sshpassOk) : ?>
-            <div class="alert alert-danger small">
-                <i class="fa-solid fa-triangle-exclamation"></i> <?= __('nodes_sshpass_missing') ?>
-            </div>
-            <?php endif; ?>
+            <div class="border border-secondary rounded p-3 mb-3">
+                <h6 class="mb-2"><i class="fa-solid fa-server text-usk"></i> <?= __('nodes_part_a_title') ?></h6>
+                <p class="small text-muted mb-2"><?= __('nodes_part_a_intro') ?></p>
+                <ol class="small mb-3 ps-3">
+                    <li class="mb-1"><?= __('nodes_hub_step_license') ?></li>
+                    <li class="mb-1">
+                        <?= __('nodes_hub_step_sshpass') ?>
+                        <code class="d-inline-block mt-1 user-select-all" dir="ltr">sudo apt install -y sshpass</code>
+                    </li>
+                    <li class="mb-1">
+                        <?= __('nodes_hub_step_update') ?>
+                        — <a href="<?= usk_admin_url('updates') ?>"><?= __('nav_updates') ?></a>
+                    </li>
+                    <li class="mb-1"><?= __('nodes_hub_step_secret') ?></li>
+                    <li class="mb-1"><?= __('nodes_hub_step_note_address') ?></li>
+                </ol>
 
-            <h6 class="mt-3"><?= __('nodes_install_title') ?></h6>
-            <p class="small text-muted"><?= __('nodes_install_steps') ?></p>
-            <ol class="small">
-                <li><?= __('nodes_step_register_secret') ?></li>
-                <li><?= __('nodes_step_run_on_remote') ?></li>
-                <li><?= __('nodes_step_replace_placeholders') ?></li>
-            </ol>
+                <?php if (!$sshpassOk) : ?>
+                <div class="alert alert-danger small mb-3">
+                    <i class="fa-solid fa-triangle-exclamation"></i> <?= __('nodes_sshpass_missing') ?>
+                </div>
+                <?php endif; ?>
 
-            <div class="mb-3">
+                <p class="small mb-1"><strong><?= __('nodes_hub_address') ?></strong></p>
+                <code class="d-block p-2 user-select-all mb-3" dir="ltr"><?= usk_esc($hubHost) ?>:<?= $hubPort ?></code>
+
                 <label class="form-label small"><?= __('nodes_register_secret') ?></label>
                 <code class="d-block p-2 user-select-all" dir="ltr" style="word-break:break-all;"><?= usk_esc($registerSecret) ?></code>
                 <form method="post" class="mt-2">
@@ -116,16 +131,51 @@ $installCmdInteractive = sprintf(
                 </form>
             </div>
 
-            <div class="mb-3">
-                <label class="form-label small"><?= __('nodes_install_cmd') ?></label>
-                <p class="small text-muted mb-1"><?= __('nodes_install_cmd_note') ?></p>
-                <code class="d-block p-3 user-select-all" dir="ltr" style="word-break:break-all; white-space:pre-wrap;"><?= usk_esc($installCmd) ?></code>
+            <div class="border border-secondary rounded p-3 mb-3">
+                <h6 class="mb-2"><i class="fa-solid fa-cloud text-usk"></i> <?= __('nodes_part_b_title') ?></h6>
+                <p class="small text-muted mb-2"><?= __('nodes_part_b_intro') ?></p>
+                <ol class="small mb-3 ps-3">
+                    <li class="mb-1"><?= __('nodes_node_step_ubuntu') ?></li>
+                    <li class="mb-1"><?= __('nodes_node_step_firewall') ?> <code dir="ltr"><?= usk_esc($hubHost) ?></code></li>
+                    <li class="mb-1"><?= __('nodes_node_step_ssh_auth') ?></li>
+                    <li class="mb-1"><?= __('nodes_node_step_run_cmd') ?></li>
+                </ol>
+
+                <div class="mb-3">
+                    <label class="form-label small"><?= __('nodes_install_cmd') ?></label>
+                    <p class="small text-muted mb-1"><?= __('nodes_install_cmd_note') ?></p>
+                    <code class="d-block p-3 user-select-all" dir="ltr" style="word-break:break-all; white-space:pre-wrap;"><?= usk_esc($installCmd) ?></code>
+                </div>
+
+                <p class="small text-muted mb-1"><?= __('nodes_node_step_interactive') ?></p>
+                <div class="mb-0">
+                    <label class="form-label small"><?= __('nodes_install_cmd_interactive') ?></label>
+                    <p class="small text-muted mb-1"><?= __('nodes_install_interactive_note') ?></p>
+                    <code class="d-block p-3 user-select-all" dir="ltr" style="word-break:break-all; white-space:pre-wrap;"><?= usk_esc($installCmdInteractive) ?></code>
+                </div>
             </div>
 
-            <div class="mb-3">
-                <label class="form-label small"><?= __('nodes_install_cmd_interactive') ?></label>
-                <p class="small text-muted mb-1"><?= __('nodes_install_interactive_note') ?></p>
-                <code class="d-block p-3 user-select-all" dir="ltr" style="word-break:break-all; white-space:pre-wrap;"><?= usk_esc($installCmdInteractive) ?></code>
+            <div class="border border-secondary rounded p-3 mb-3">
+                <h6 class="mb-2"><i class="fa-solid fa-check-double text-usk"></i> <?= __('nodes_part_c_title') ?></h6>
+                <p class="small text-muted mb-2"><?= __('nodes_part_c_intro') ?></p>
+                <ol class="small mb-0 ps-3">
+                    <li class="mb-1"><?= __('nodes_hub_step_test_ssh') ?></li>
+                    <li class="mb-1">
+                        <?= __('nodes_hub_step_create_service') ?>
+                        — <a href="<?= usk_admin_url('create-service') ?>"><?= __('create_title') ?></a>
+                        <span class="text-muted">(<?= __('nodes_xray_only') ?>)</span>
+                    </li>
+                    <li class="mb-1"><?= __('nodes_hub_step_open_port') ?></li>
+                </ol>
+            </div>
+
+            <div class="alert alert-warning small mb-0">
+                <strong><i class="fa-solid fa-triangle-exclamation"></i> <?= __('nodes_common_errors_title') ?></strong>
+                <ul class="mb-0 mt-2 ps-3">
+                    <li class="mb-1"><?= __('nodes_error_sshpass') ?></li>
+                    <li class="mb-1"><?= __('nodes_error_ssh_firewall') ?></li>
+                    <li><?= __('nodes_error_pipe_flags') ?></li>
+                </ul>
             </div>
         <?php endif; ?>
     </div>
