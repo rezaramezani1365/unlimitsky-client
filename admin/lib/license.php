@@ -6,6 +6,8 @@ class USK_License
     const CACHE_TTL = 14400;
     const GRACE_OFFLINE = 86400;
     const SIGN_SALT = 'USK-LIC-v2';
+    const DEFAULT_VENDOR_HOST = 'vendor.iranip.online';
+    const DEFAULT_VENDOR_LICENSE_URL = 'http://vendor.iranip.online/api/v1.php';
 
     private static $booted = false;
 
@@ -58,39 +60,166 @@ class USK_License
         return $peer['source'] ?? '';
     }
 
+    public static function default_vendor_host()
+    {
+        return self::DEFAULT_VENDOR_HOST;
+    }
+
+    public static function default_vendor_license_url()
+    {
+        return self::DEFAULT_VENDOR_LICENSE_URL;
+    }
+
+    private static function is_placeholder_value($value)
+    {
+        $value = trim((string) $value);
+        return $value === '' || strpos($value, '[*') === 0;
+    }
+
+    private static function resolve_vendor_url($url)
+    {
+        $url = trim((string) $url);
+        if (self::is_placeholder_value($url)) {
+            return self::DEFAULT_VENDOR_LICENSE_URL;
+        }
+        return self::normalize_license_api_url($url);
+    }
+
+    /**
+     * @return array{ok:bool,error?:string}
+     */
+    public static function save_vendor_token($token)
+    {
+        $token = trim((string) $token);
+        if ($token === '' || self::is_placeholder_value($token)) {
+            return array('ok' => false, 'error' => 'vendor_token_required');
+        }
+
+        $dir = self::root_dir() . '/data';
+        if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
+            return array('ok' => false, 'error' => 'vendor_token_write_failed');
+        }
+
+        $path = $dir . '/license-vendor.json';
+        $payload = array(
+            'license_server' => self::DEFAULT_VENDOR_LICENSE_URL,
+            'api_token' => $token,
+            'updated_at' => date('c'),
+        );
+        if (@file_put_contents($path, json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)) === false) {
+            return array('ok' => false, 'error' => 'vendor_token_write_failed');
+        }
+        @chmod($path, 0640);
+
+        self::update_config_vendor_credentials($token);
+        self::$peerVendorCache = null;
+
+        return array('ok' => true);
+    }
+
+    private static function update_config_vendor_credentials($token)
+    {
+        $configFile = self::root_dir() . '/config.php';
+        if (!is_file($configFile) || !is_writable($configFile)) {
+            return;
+        }
+
+        $content = file_get_contents($configFile);
+        if ($content === false) {
+            return;
+        }
+
+        $escapedToken = addslashes($token);
+        $escapedUrl = addslashes(self::DEFAULT_VENDOR_LICENSE_URL);
+        $updated = preg_replace(
+            "/(['\"]license_api_token['\"]\s*=>\s*['\"])([^'\"]*)(['\"])/",
+            '$1' . $escapedToken . '$3',
+            $content,
+            1
+        );
+        if ($updated !== null) {
+            $content = $updated;
+        }
+        $updated = preg_replace(
+            "/(['\"]license_server['\"]\s*=>\s*['\"])([^'\"]*)(['\"])/",
+            '$1' . $escapedUrl . '$3',
+            $content,
+            1
+        );
+        if ($updated !== null) {
+            $content = $updated;
+        }
+
+        if (@file_put_contents($configFile, $content) !== false) {
+            global $config;
+            if (is_array($config)) {
+                $config['license_api_token'] = $token;
+                $config['license_server'] = self::DEFAULT_VENDOR_LICENSE_URL;
+            }
+        }
+    }
+
     /** @return array{url:string,token:string,source:string}|null */
     private static function resolve_peer_vendor()
     {
         if (self::$peerVendorCache !== null) {
-            return self::$peerVendorCache['url'] !== '' ? self::$peerVendorCache : null;
+            return self::$peerVendorCache['token'] !== '' ? self::$peerVendorCache : null;
         }
+
+        $url = '';
+        $token = '';
+        $source = '';
 
         global $config;
-        $url = isset($config['license_server']) ? trim((string) $config['license_server']) : '';
-        $token = isset($config['license_api_token']) ? trim((string) $config['license_api_token']) : '';
-        if ($url !== '' && $url !== '[*LICENSE-SERVER*]' && $token !== '' && $token !== '[*LICENSE-TOKEN*]') {
-            self::$peerVendorCache = array('url' => $url, 'token' => $token, 'source' => 'config.php');
-            return self::$peerVendorCache;
-        }
-
-        foreach (self::peer_vendor_json_paths() as $path) {
-            $parsed = self::parse_vendor_json_file($path);
-            if ($parsed !== null) {
-                self::$peerVendorCache = $parsed;
-                return self::$peerVendorCache;
+        $cfgUrl = isset($config['license_server']) ? trim((string) $config['license_server']) : '';
+        $cfgToken = isset($config['license_api_token']) ? trim((string) $config['license_api_token']) : '';
+        if (!self::is_placeholder_value($cfgToken)) {
+            $token = $cfgToken;
+            $source = 'config.php';
+            if (!self::is_placeholder_value($cfgUrl)) {
+                $url = $cfgUrl;
             }
         }
 
-        foreach (self::peer_vendor_config_paths() as $path) {
-            $parsed = self::parse_vendor_config_php($path);
-            if ($parsed !== null) {
-                self::$peerVendorCache = $parsed;
-                return self::$peerVendorCache;
+        if ($token === '') {
+            foreach (self::peer_vendor_json_paths() as $path) {
+                $parsed = self::parse_vendor_json_file($path);
+                if ($parsed !== null) {
+                    $token = $parsed['token'];
+                    $source = $parsed['source'];
+                    if ($url === '' && $parsed['url'] !== '') {
+                        $url = $parsed['url'];
+                    }
+                    break;
+                }
             }
         }
 
-        self::$peerVendorCache = array('url' => '', 'token' => '', 'source' => '');
-        return null;
+        if ($token === '') {
+            foreach (self::peer_vendor_config_paths() as $path) {
+                $parsed = self::parse_vendor_config_php($path);
+                if ($parsed !== null) {
+                    $token = $parsed['token'];
+                    $source = $parsed['source'];
+                    if ($url === '' && $parsed['url'] !== '') {
+                        $url = $parsed['url'];
+                    }
+                    break;
+                }
+            }
+        }
+
+        if ($token === '') {
+            self::$peerVendorCache = array('url' => '', 'token' => '', 'source' => '');
+            return null;
+        }
+
+        self::$peerVendorCache = array(
+            'url' => self::resolve_vendor_url($url),
+            'token' => $token,
+            'source' => $source,
+        );
+        return self::$peerVendorCache;
     }
 
     /** @return string[] */

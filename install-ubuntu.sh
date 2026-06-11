@@ -29,6 +29,7 @@ ADMIN_USER="admin"
 ADMIN_PASS=""
 MUST_CHANGE=0
 LANG=fa
+DEFAULT_LICENSE_URL="http://vendor.iranip.online/api/v1.php"
 LICENSE_URL=""
 LICENSE_TOKEN=""
 OPEN_FW=0
@@ -59,8 +60,8 @@ Options:
   --admin-pass PASS      Admin password (default: admin — must change on first login)
   --must-change          Force password change on first login
   --lang fa|en           Panel language (default: fa)
-  --license-url URL      Vendor API URL (optional)
-  --license-token TOKEN  Vendor api_secret (optional)
+  --license-url URL      Vendor API URL (default: http://vendor.iranip.online/api/v1.php)
+  --license-token TOKEN  Vendor api_secret (optional — or set in Admin → Pro License)
   --web-root PATH        Install path (default: /var/www/unlimitsky)
   --open-firewall        Allow port in ufw if active
 
@@ -92,7 +93,11 @@ echo json_encode(["license_server" => $url, "api_token" => $t], JSON_UNESCAPED_S
 ' "$vendor_cfg" 2>/dev/null
 }
 
-if [ -z "$LICENSE_URL" ] || [ -z "$LICENSE_TOKEN" ]; then
+if [ -z "$LICENSE_URL" ]; then
+    LICENSE_URL="$DEFAULT_LICENSE_URL"
+fi
+
+if [ -z "$LICENSE_TOKEN" ]; then
     DETECTED_JSON="$(usk_auto_detect_license_vendor || true)"
     if [ -n "$DETECTED_JSON" ]; then
         LICENSE_URL="$(php -r '$j=json_decode(file_get_contents("php://stdin"),true); echo is_array($j)?($j["license_server"]??""):"";' <<<"$DETECTED_JSON")"

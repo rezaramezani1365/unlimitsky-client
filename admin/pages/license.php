@@ -11,6 +11,46 @@ $presence = USK_License::last_presence_sync();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $act = isset($_POST['action']) ? $_POST['action'] : '';
+    if ($act === 'connect_vendor' || $act === 'save_vendor_token') {
+        $token = isset($_POST['license_api_token']) ? trim((string) $_POST['license_api_token']) : '';
+        if ($token === '' && $act === 'connect_vendor' && USK_License::vendor_configured()) {
+            $res = USK_License::sync_presence_with_vendor(true);
+            if (!empty($res['ok'])) {
+                usk_flash(__('license_vendor_sync_ok'));
+            } else {
+                $err = isset($res['error']) ? $res['error'] : 'error';
+                usk_flash(__('license_vendor_sync_failed') . ': ' . usk_license_error_message($err), 'error');
+            }
+            header('Location: ' . usk_admin_url('license'));
+            exit;
+        }
+        if ($token === '') {
+            usk_flash(__('license_vendor_token_required'), 'error');
+            header('Location: ' . usk_admin_url('license'));
+            exit;
+        }
+        $saved = USK_License::save_vendor_token($token);
+        if (empty($saved['ok'])) {
+            $err = isset($saved['error']) ? $saved['error'] : 'error';
+            usk_flash(__('license_vendor_token_save_failed') . ': ' . usk_license_error_message($err), 'error');
+            header('Location: ' . usk_admin_url('license'));
+            exit;
+        }
+        if ($act === 'save_vendor_token') {
+            usk_flash(__('license_vendor_token_saved'));
+            header('Location: ' . usk_admin_url('license'));
+            exit;
+        }
+        $res = USK_License::sync_presence_with_vendor(true);
+        if (!empty($res['ok'])) {
+            usk_flash(__('license_vendor_connect_ok'));
+        } else {
+            $err = isset($res['error']) ? $res['error'] : 'error';
+            usk_flash(__('license_vendor_connect_saved_sync_failed') . ': ' . usk_license_error_message($err), 'error');
+        }
+        header('Location: ' . usk_admin_url('license'));
+        exit;
+    }
     if ($act === 'sync_vendor') {
         $res = USK_License::sync_presence_with_vendor(true);
         if (!empty($res['ok'])) {
@@ -114,6 +154,11 @@ if (USK_Migration::needs_license_reactivation()) :
 <div class="usk-card mb-4">
     <div class="usk-card-header"><?= __('license_vendor_title') ?></div>
     <div class="p-3">
+        <p class="mb-3 small text-muted">
+            <?= __('license_vendor_host_label') ?>:
+            <code dir="ltr"><?= usk_esc(USK_License::default_vendor_host()) ?></code>
+            <span class="text-muted">(<code dir="ltr"><?= usk_esc(USK_License::default_vendor_license_url()) ?></code>)</span>
+        </p>
         <?php if ($vendorConfigured) : ?>
         <p class="mb-2 small text-muted"><?= __('license_vendor_configured') ?><?php if ($vendorSource !== '') : ?> <code dir="ltr"><?= usk_esc($vendorSource) ?></code><?php endif; ?></p>
         <?php if (!empty($presence['synced_at'])) : ?>
@@ -128,13 +173,24 @@ if (USK_Migration::needs_license_reactivation()) :
         </p>
         <?php endif; ?>
         <p class="small text-muted mb-3"><?= __('license_vendor_auto_note') ?></p>
-        <form method="post" class="d-inline">
+        <form method="post" class="d-inline me-2">
             <input type="hidden" name="action" value="sync_vendor">
             <button type="submit" class="btn btn-outline-usk btn-sm"><?= __('license_vendor_sync_btn') ?></button>
         </form>
         <?php else : ?>
-        <p class="small mb-0 text-warning"><?= __('license_vendor_not_configured') ?></p>
+        <p class="small mb-3"><?= __('license_vendor_not_configured') ?></p>
         <?php endif; ?>
+        <form method="post" class="mt-2">
+            <div class="form-group mb-3">
+                <label><?= __('license_vendor_token_label') ?></label>
+                <input class="form-control" type="password" name="license_api_token" dir="ltr" autocomplete="off" placeholder="<?= __('license_vendor_token_placeholder') ?>" <?= $vendorConfigured ? '' : 'required' ?>>
+                <p class="small text-muted mt-1 mb-0"><?= __('license_vendor_token_hint') ?></p>
+            </div>
+            <button type="submit" name="action" value="connect_vendor" class="btn btn-usk-primary btn-sm"><?= __('license_vendor_connect_btn') ?></button>
+            <?php if ($vendorConfigured) : ?>
+            <button type="submit" name="action" value="save_vendor_token" class="btn btn-outline-usk btn-sm ms-1"><?= __('license_vendor_save_token_btn') ?></button>
+            <?php endif; ?>
+        </form>
     </div>
 </div>
 

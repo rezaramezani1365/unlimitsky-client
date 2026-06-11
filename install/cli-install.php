@@ -74,7 +74,7 @@ $db_pass = usk_cli_arg('db-pass');
 $admin_user = trim(usk_cli_arg('admin-user', 'admin')) ?: 'admin';
 $admin_pass = usk_cli_arg('admin-pass');
 $lang = in_array(usk_cli_arg('lang', 'fa'), array('fa', 'en'), true) ? usk_cli_arg('lang', 'fa') : 'fa';
-$license_server = trim(usk_cli_arg('license-server'));
+$license_server = trim(usk_cli_arg('license-server', 'http://vendor.iranip.online/api/v1.php'));
 $license_token = trim(usk_cli_arg('license-token'));
 $must_change = usk_cli_flag('must-change');
 
