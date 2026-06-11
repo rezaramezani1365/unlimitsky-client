@@ -268,8 +268,31 @@ if ! command -v xray >/dev/null 2>&1 && [ ! -x /usr/local/bin/xray ]; then
   fi
 fi
 
-SSH_HOST=$(detect_public_ip)
-[ -n "$SSH_HOST" ] || SSH_HOST="$CONNECT_HOST"
+is_private_ip() {
+  local ip="$1"
+  [[ "$ip" =~ ^10\. ]] && return 0
+  [[ "$ip" =~ ^192\.168\. ]] && return 0
+  [[ "$ip" =~ ^127\. ]] && return 0
+  [[ "$ip" =~ ^172\.(1[6-9]|2[0-9]|3[01])\. ]] && return 0
+  return 1
+}
+
+resolve_ssh_host() {
+  local detected
+  detected=$(detect_public_ip)
+  if [ -n "$detected" ] && ! is_private_ip "$detected"; then
+    echo "$detected"
+    return
+  fi
+  if [ -n "$CONNECT_HOST" ] && ! is_private_ip "$CONNECT_HOST"; then
+    echo "$CONNECT_HOST"
+    return
+  fi
+  [ -n "$detected" ] && echo "$detected" || echo "$CONNECT_HOST"
+}
+
+SSH_HOST=$(resolve_ssh_host)
+echo "[*] Hub will SSH to ${SSH_HOST}:${SSH_PORT} (connect_host=${CONNECT_HOST})"
 
 payload=$(jq -nc \
   --arg name "$NODE_NAME" \
@@ -281,14 +304,31 @@ payload=$(jq -nc \
   '{name:$name, ssh_host:$host, ssh_port:$port, ssh_user:$user, ssh_password:$pass, connect_host:$connect}')
 
 echo "[*] Registering node with Hub..."
-resp=$(curl -fsSL -X POST "${HUB_BASE}/api/node-register.php" \
+resp_file=$(mktemp)
+http_code=$(curl -sS -w '%{http_code}' -o "$resp_file" -X POST "${HUB_BASE}/api/node-register.php" \
   -H "Content-Type: application/json" \
   -H "X-USK-Register-Secret: ${REGISTER_SECRET}" \
-  -d "$payload" 2>&1) || {
-  echo "USK_ERR: hub_register_failed"
-  echo "$resp" | tail -20
+  -d "$payload") || http_code="000"
+resp=$(cat "$resp_file" 2>/dev/null || true)
+rm -f "$resp_file"
+
+if [ "$http_code" != "200" ]; then
+  api_err=$(echo "$resp" | jq -r '.error // empty' 2>/dev/null)
+  api_detail=$(echo "$resp" | jq -r '.detail // empty' 2>/dev/null)
+  echo "USK_ERR: hub_register_failed http=${http_code}"
+  if [ -n "$api_err" ]; then
+    echo "USK_ERR: api_error=${api_err}"
+  fi
+  if [ -n "$api_detail" ]; then
+    echo "USK_DETAIL: ${api_detail}"
+  fi
+  if [ -z "$api_err" ] && [ -n "$resp" ]; then
+    echo "$resp"
+  elif [ -z "$api_err" ]; then
+    echo "curl failed (http_code=${http_code})"
+  fi
   exit 1
-}
+fi
 
 if ! echo "$resp" | jq -e '.ok == true' >/dev/null 2>&1; then
   echo "USK_ERR: hub_rejected"
