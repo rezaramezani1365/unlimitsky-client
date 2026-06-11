@@ -6,6 +6,7 @@ require_once USK_ROOT . '/config.php';
 require_once USK_ROOT . '/admin/lib/panel-access.php';
 require_once USK_ROOT . '/admin/lib/license.php';
 require_once USK_ROOT . '/admin/lib/nodes.php';
+require_once USK_ROOT . '/admin/lib/node-relay.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -48,6 +49,14 @@ $result = USK_Nodes::register(array(
 
 if (empty($result['ok'])) {
     usk_node_register_response(400, $result);
+}
+
+$nodeId = (string) ($result['node_id'] ?? '');
+if ($nodeId !== '') {
+    $node = USK_Nodes::get($nodeId);
+    if ($node) {
+        USK_NodeRelay::init_node($node);
+    }
 }
 
 usk_node_register_response(200, $result);

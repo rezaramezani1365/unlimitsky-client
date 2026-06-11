@@ -269,6 +269,8 @@ if ($action === 'create-service') {
         $wc_order_id,
         array(
             'max_connections' => $max_connections,
+            'node_id' => $created['node_id'] ?? '',
+            'node_name' => $created['node_name'] ?? '',
             'customer_email' => $created['customer_email'] ?? $customer_email,
             'usage_id' => $created['usage_id'] ?? $usage_id,
             'xray_email' => $created['xray_email'] ?? '',

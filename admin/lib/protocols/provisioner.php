@@ -80,8 +80,20 @@ class USK_ProtocolProvisioner
         }
 
         $nodeId = preg_replace('/[^a-z0-9]/', '', (string) ($meta['node_id'] ?? ''));
+        $node = null;
         if ($nodeId !== '') {
-            return self::create_on_node($protocol, $username, $volume_gb, $duration_days, $meta, $nodeId);
+            $check = USK_Nodes::assert_can_use_nodes();
+            if (empty($check['ok'])) {
+                return $check;
+            }
+            $node = USK_Nodes::get($nodeId);
+            if (!$node) {
+                return array('ok' => false, 'error' => 'node_not_found');
+            }
+            require_once dirname(__DIR__) . '/node-relay.php';
+            if (!in_array($protocol, USK_NodeRelay::supported(), true)) {
+                return array('ok' => false, 'error' => 'nodes_protocol_unsupported');
+            }
         }
 
         if (!USK_ProtocolManager::is_installed($protocol)) {
@@ -93,11 +105,15 @@ class USK_ProtocolProvisioner
         $customerEmail = self::sanitize_customer_email($meta['customer_email'] ?? '');
         $usageId = self::usage_id_for($protocol, $username, $customerEmail, $meta);
 
-        $connectHost = USK_ConnectHost::resolve(
-            isset($meta['server_ip']) && (string) $meta['server_ip'] !== ''
-                ? (string) $meta['server_ip']
-                : null
-        );
+        if ($node !== null) {
+            $connectHost = USK_Nodes::connect_host_for_node($node);
+        } else {
+            $connectHost = USK_ConnectHost::resolve(
+                isset($meta['server_ip']) && (string) $meta['server_ip'] !== ''
+                    ? (string) $meta['server_ip']
+                    : null
+            );
+        }
 
         $script = USK_ROOT . '/bin/add-user-' . $protocol . '.sh';
         if (!file_exists($script)) {
@@ -166,7 +182,7 @@ class USK_ProtocolProvisioner
             }
         }
 
-        self::save_client_record($protocol, $username, array(
+        $clientRecord = array(
             'volume_gb' => (int) $volume_gb,
             'duration_days' => (int) $duration_days,
             'expires_at' => !empty($data['expires_at']) ? $data['expires_at'] : ($duration_days > 0 ? date('c', strtotime('+' . (int) $duration_days . ' days')) : null),
@@ -183,9 +199,24 @@ class USK_ProtocolProvisioner
             'max_connections' => max(1, (int) ($meta['max_connections'] ?? 1)),
             'vpn_uri' => $vpnUri !== '' ? $vpnUri : null,
             'qr_conf_png' => $data['qr_conf_png'] ?? '',
-        ));
+        );
+        if ($node !== null) {
+            $relay = USK_NodeRelay::ensure_for_protocol($node, $protocol, $meta);
+            if (empty($relay['ok'])) {
+                USK_Nodes::mark_seen($nodeId, 'offline', $relay['error'] ?? 'relay_failed');
+                return array(
+                    'ok' => false,
+                    'error' => self::interpret_output((string) ($relay['log'] ?? ''), $relay['error'] ?? 'relay_failed'),
+                    'log' => $relay['log'] ?? '',
+                );
+            }
+            $clientRecord['node_id'] = $nodeId;
+            $clientRecord['server_ip'] = $connectHost;
+        }
 
-        return array(
+        self::save_client_record($protocol, $username, $clientRecord);
+
+        $result = array(
             'ok' => true,
             'username' => $username,
             'protocol' => $protocol,
@@ -209,148 +240,11 @@ class USK_ProtocolProvisioner
             'xray_email' => $protocol === 'xray' ? $usageId : '',
             'raw' => $data,
         );
-    }
-
-    private static function create_on_node($protocol, $username, $volume_gb, $duration_days, array $meta, $nodeId)
-    {
-        $check = USK_Nodes::assert_can_use_nodes();
-        if (empty($check['ok'])) {
-            return $check;
+        if ($node !== null) {
+            $result['node_id'] = $nodeId;
+            $result['node_name'] = $node['name'] ?? $nodeId;
         }
-
-        $node = USK_Nodes::get($nodeId);
-        if (!$node) {
-            return array('ok' => false, 'error' => 'node_not_found');
-        }
-
-        require_once dirname(__DIR__) . '/node-protocols.php';
-        $nodeProtocols = USK_NodeProtocols::supported();
-        if (!in_array($protocol, $nodeProtocols, true)) {
-            return array('ok' => false, 'error' => 'nodes_protocol_unsupported');
-        }
-
-        USK_NodeProtocols::sync_scripts($node);
-        if (!USK_NodeProtocols::is_installed($node, $protocol)) {
-            return array('ok' => false, 'error' => $protocol . '_not_installed');
-        }
-
-        $clientDns = USK_ClientDns::resolve((string) ($meta['client_dns'] ?? ''), $protocol);
-        $connectHost = USK_Nodes::connect_host_for_node($node);
-        $customerEmail = self::sanitize_customer_email($meta['customer_email'] ?? '');
-        $usageId = self::usage_id_for($protocol, $username, $customerEmail, $meta);
-
-        $scriptName = 'add-user-' . $protocol . '.sh';
-        $scriptArgs = array(
-            $username,
-            (string) (int) $volume_gb,
-            (string) (int) $duration_days,
-        );
-        if ($protocol === 'openvpn') {
-            $ovpnProto = strtolower((string) ($meta['openvpn_proto'] ?? 'tcp'));
-            if (!in_array($ovpnProto, array('udp', 'tcp'), true)) {
-                $ovpnProto = 'tcp';
-            }
-            $st = USK_NodeProtocols::get_status($node, 'openvpn');
-            $scriptArgs[] = $ovpnProto;
-            $scriptArgs[] = (string) (int) ($st['udp_port'] ?? 1194);
-            $scriptArgs[] = (string) (int) ($st['tcp_port'] ?? 443);
-            $scriptArgs[] = $connectHost;
-            $scriptArgs[] = $clientDns;
-        } elseif ($protocol === 'xray') {
-            $scriptArgs[] = $clientDns;
-            $scriptArgs[] = $connectHost;
-            $scriptArgs[] = $usageId;
-        } elseif ($protocol === 'l2tp') {
-            $scriptArgs[] = $connectHost;
-        }
-
-        $remote = USK_NodeSsh::run_script($node, $scriptName, $scriptArgs, 240);
-        $out = (string) ($remote['log'] ?? '');
-
-        if (empty($remote['ok'])) {
-            USK_Nodes::mark_seen($nodeId, 'offline', $remote['error'] ?? 'remote_failed');
-            return array(
-                'ok' => false,
-                'error' => self::interpret_output($out, $remote['error'] ?? 'provision_failed'),
-                'log' => $out,
-            );
-        }
-
-        if (!preg_match('/USK_JSON:(.+)$/s', $out, $m)) {
-            USK_Nodes::mark_seen($nodeId, 'offline', 'invalid_provision_output');
-            return array(
-                'ok' => false,
-                'error' => self::interpret_output($out, 'invalid_provision_output'),
-                'log' => $out,
-            );
-        }
-
-        $data = json_decode(trim($m[1]), true);
-        if (!is_array($data) || empty($data['ok'])) {
-            USK_Nodes::mark_seen($nodeId, 'offline', 'provision_parse_error');
-            return array('ok' => false, 'error' => 'provision_parse_error', 'log' => $out);
-        }
-
-        USK_Nodes::mark_seen($nodeId, 'online');
-
-        $config = $data['config'] ?? ($data['links'] ?? '');
-        $links = $data['links'] ?? $config;
-        $vpnUri = trim((string) ($data['vpn_uri'] ?? ''));
-        $subscription = $vpnUri !== '' ? $vpnUri : ($data['subscription_url'] ?? $links);
-        if ($protocol === 'xray') {
-            $vlessLink = trim((string) ($data['vless'] ?? ''));
-            if ($vlessLink !== '') {
-                $subscription = $vlessLink;
-            }
-        }
-
-        self::save_client_record($protocol, $username, array(
-            'volume_gb' => (int) $volume_gb,
-            'duration_days' => (int) $duration_days,
-            'expires_at' => !empty($data['expires_at']) ? $data['expires_at'] : ($duration_days > 0 ? date('c', strtotime('+' . (int) $duration_days . ' days')) : null),
-            'meta' => $data,
-            'public_key' => $data['public_key'] ?? null,
-            'uuid' => $data['uuid'] ?? null,
-            'status' => 'active',
-            'source' => $meta['source'] ?? 'admin',
-            'wc_order_id' => $meta['wc_order_id'] ?? null,
-            'customer_email' => $customerEmail !== '' ? $customerEmail : null,
-            'usage_id' => $usageId,
-            'xray_email' => $protocol === 'xray' ? $usageId : null,
-            'email' => $protocol === 'xray' ? $usageId : ($customerEmail !== '' ? $customerEmail : null),
-            'max_connections' => max(1, (int) ($meta['max_connections'] ?? 1)),
-            'vpn_uri' => $vpnUri !== '' ? $vpnUri : null,
-            'qr_conf_png' => $data['qr_conf_png'] ?? '',
-            'node_id' => $nodeId,
-            'server_ip' => $connectHost,
-        ));
-
-        return array(
-            'ok' => true,
-            'username' => $username,
-            'protocol' => $protocol,
-            'config' => $config,
-            'links' => $links,
-            'subscription' => $subscription,
-            'vpn_uri' => $vpnUri,
-            'wg_conf' => $data['wg_conf'] ?? '',
-            'qr_png' => $data['qr_png'] ?? '',
-            'download_token' => $data['download_token'] ?? '',
-            'conf_filename' => $data['conf_filename'] ?? '',
-            'json_filename' => $data['json_filename'] ?? '',
-            'client_dns' => $data['client_dns'] ?? '',
-            'client_json' => $data['client_json'] ?? '',
-            'vless' => $data['vless'] ?? '',
-            'expires_at' => $data['expires_at'] ?? null,
-            'volume_gb' => (int) $volume_gb,
-            'duration_days' => (int) $duration_days,
-            'customer_email' => $customerEmail,
-            'usage_id' => $usageId,
-            'xray_email' => $protocol === 'xray' ? $usageId : '',
-            'raw' => $data,
-            'node_id' => $nodeId,
-            'node_name' => $node['name'] ?? $nodeId,
-        );
+        return $result;
     }
 
     public static function save_client_record($protocol, $username, array $record)
@@ -544,6 +438,9 @@ class USK_ProtocolProvisioner
             'nodes_xray_only' => 'nodes_xray_only',
             'nodes_protocol_unsupported' => 'nodes_protocol_unsupported',
             'node_scripts_sync_failed' => 'node_protocols_sync_failed',
+            'relay_init_failed' => 'node_relay_failed',
+            'relay_add_failed' => 'node_relay_failed',
+            'relay_failed' => 'node_relay_failed',
             'nodes_pro_required' => 'nodes_pro_required',
             'sshpass_missing' => 'nodes_sshpass_missing',
             'ssh_connect_failed' => 'nodes_test_failed',

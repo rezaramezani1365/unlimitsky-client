@@ -21,6 +21,7 @@ require_once __DIR__ . '/connect-host.php';
 require_once __DIR__ . '/panel-access.php';
 require_once __DIR__ . '/nodes.php';
 require_once __DIR__ . '/node-ssh.php';
+require_once __DIR__ . '/node-relay.php';
 require_once __DIR__ . '/woocommerce-shop.php';
 require_once __DIR__ . '/backup.php';
 require_once __DIR__ . '/migration.php';
@@ -118,7 +119,7 @@ function usk_admin_removed_pages()
 /** Pages reachable by URL but not shown in the sidebar. */
 function usk_admin_extra_pages()
 {
-    return array('node-protocols');
+    return array();
 }
 
 function usk_admin_allowed_pages()

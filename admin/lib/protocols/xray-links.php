@@ -148,6 +148,16 @@ class USK_XrayLinks
         }
         $username = trim((string) ($username !== '' ? $username : ($rec['username'] ?? '')));
         $label = ($username !== '' ? $username : 'user') . '-vless';
-        return self::build_uri($uuid, $label);
+        $host = null;
+        if (!empty($rec['server_ip'])) {
+            $host = (string) $rec['server_ip'];
+        } elseif (!empty($rec['node_id'])) {
+            require_once dirname(__DIR__) . '/nodes.php';
+            $node = USK_Nodes::get((string) $rec['node_id']);
+            if ($node) {
+                $host = USK_Nodes::connect_host_for_node($node);
+            }
+        }
+        return self::build_uri($uuid, $label, $host);
     }
 }

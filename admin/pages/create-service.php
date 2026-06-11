@@ -10,8 +10,8 @@ $canUseManualPlan = USK_License::is_pro();
 $nodeList = $canUseNodes ? USK_Nodes::list_for_select() : array();
 $nodeProtocolKeys = array();
 if ($canUseNodes) {
-    require_once dirname(__DIR__) . '/lib/node-protocols.php';
-    $nodeProtocolKeys = USK_NodeProtocols::supported();
+    require_once dirname(__DIR__) . '/lib/node-relay.php';
+    $nodeProtocolKeys = USK_NodeRelay::supported();
 }
 
 $result = null;
@@ -23,14 +23,6 @@ USK_ProtocolManager::refresh_all_status();
 $installed = USK_ProtocolManager::installed_protocols();
 $protocolPortDefaults = array();
 $protocolListForCreate = $installed;
-foreach ($nodeProtocolKeys as $npk) {
-    if (!isset($protocolListForCreate[$npk])) {
-        $allProtos = USK_ProtocolManager::list();
-        if (isset($allProtos[$npk])) {
-            $protocolListForCreate[$npk] = $allProtos[$npk];
-        }
-    }
-}
 foreach ($protocolListForCreate as $pkey => $pmeta) {
     $protocolPortDefaults[$pkey] = USK_ProtocolManager::port_defaults_for_create($pkey);
 }
@@ -79,10 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $installed = USK_ProtocolManager::installed_protocols();
             $protocol = USK_ProtocolManager::sanitize_key($_POST['protocol'] ?? '');
             $nodeIdEarly = preg_replace('/[^a-z0-9]/', '', (string) ($_POST['node_id'] ?? ''));
-            $protocolOk = $protocol !== '' && (
-                isset($installed[$protocol])
-                || ($nodeIdEarly !== '' && in_array($protocol, $nodeProtocolKeys, true))
-            );
+            $protocolOk = $protocol !== '' && isset($installed[$protocol]);
             if (!$protocolOk) {
                 usk_flash(__('create_protocol_invalid'), 'error');
             } else {
@@ -261,6 +250,12 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         <code dir="ltr"><?= usk_esc(USK_ConnectHost::display()) ?></code>
         — <a href="<?= usk_admin_url('settings') ?>#connect-host"><?= __('settings_connect_host_link') ?></a>
     </p>
+    <?php if ($canUseNodes && !empty($nodeList)) : ?>
+    <p class="alert alert-usk-info small py-2 px-3 mb-3">
+        <i class="fa-solid fa-sitemap"></i>
+        <?= __('create_node_hub_relay_hint') ?>
+    </p>
+    <?php endif; ?>
 
     <?php if (!$canUsePanels) : ?>
     <div class="alert alert-usk-info small py-2 px-3 mb-3">
@@ -317,7 +312,7 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
                     <?php endwhile; ?>
                 </select>
             </div>
-            <div class="form-group native-field" id="create-node-wrap" style="display:none;">
+            <div class="form-group native-field" id="create-node-wrap" style="display:none;" data-has-nodes="<?= ($canUseNodes && !empty($nodeList)) ? '1' : '0' ?>">
                 <label><?= __('create_node_select') ?></label>
                 <select class="form-control" name="node_id" id="create-node-select">
                     <option value=""><?= __('create_node_main') ?></option>
@@ -339,7 +334,7 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
                     <option value="">—</option>
                     <?php foreach ($protocolListForCreate as $key => $meta) : ?>
                         <option value="<?= usk_esc($key) ?>" data-node-capable="<?= in_array($key, $nodeProtocolKeys, true) ? '1' : '0' ?>">
-                            <?= usk_esc($meta['name']) ?><?= !isset($installed[$key]) && in_array($key, $nodeProtocolKeys, true) ? ' (' . __('create_node_only') . ')' : '' ?>
+                            <?= usk_esc($meta['name']) ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
@@ -501,12 +496,31 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
         if (panel) panel.required = !isNative;
         var planSel = document.getElementById('plan-select');
         if (planSel) planSel.required = !isManual;
-        if (isNative) updatePortFields();
+        if (isNative) {
+            updatePortFields();
+            updateNodeWrap();
+        }
+    }
+    function updateNodeWrap() {
+        var wrap = document.getElementById('create-node-wrap');
+        var protoEl = document.getElementById('native-protocol');
+        if (!wrap || !protoEl) return;
+        var hasNodes = wrap.getAttribute('data-has-nodes') === '1';
+        var opt = protoEl.options[protoEl.selectedIndex];
+        var nodeCapable = opt && opt.getAttribute('data-node-capable') === '1';
+        wrap.style.display = (hasNodes && nodeCapable) ? '' : 'none';
+        if (!nodeCapable) {
+            var sel = document.getElementById('create-node-select');
+            if (sel) sel.value = '';
+        }
     }
     mode.addEventListener('change', toggle);
     planSource.addEventListener('change', toggle);
     var protoEl = document.getElementById('native-protocol');
-    if (protoEl) protoEl.addEventListener('change', updatePortFields);
+    if (protoEl) protoEl.addEventListener('change', function() {
+        updatePortFields();
+        updateNodeWrap();
+    });
     toggle();
 })();
 </script>

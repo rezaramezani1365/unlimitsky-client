@@ -227,9 +227,6 @@ $installCmdInteractive = sprintf(
                     </td>
                     <td class="small"><?= usk_esc(USK_Nodes::format_last_run_at($node['last_seen'] ?? '')) ?></td>
                     <td class="text-nowrap">
-                        <a class="btn btn-sm btn-outline-usk" href="<?= usk_admin_url('node-protocols', array('node_id' => $node['id'] ?? '')) ?>">
-                            <?= __('node_protocols_btn') ?>
-                        </a>
                         <form method="post" class="d-inline">
                             <input type="hidden" name="action" value="test">
                             <input type="hidden" name="node_id" value="<?= usk_esc($node['id'] ?? '') ?>">

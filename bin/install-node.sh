@@ -273,49 +273,16 @@ fi
 systemctl enable ssh 2>/dev/null || systemctl enable sshd 2>/dev/null || true
 systemctl start ssh 2>/dev/null || systemctl start sshd 2>/dev/null || true
 
-mkdir -p "$NODE_ROOT/bin" "$DATA_ROOT/xray" /usr/local/etc/xray
-chmod 755 "$NODE_ROOT" "$DATA_ROOT"
+mkdir -p "$NODE_ROOT/bin" "$NODE_ROOT/data/relay"
+chmod 755 "$NODE_ROOT" "$NODE_ROOT/bin" "$NODE_ROOT/data"
 
 HUB_BASE="${HUB_SCHEME}://${HUB_IP}:${HUB_PORT}"
 echo "[*] Downloading worker scripts from Hub (${HUB_BASE})..."
 
 BIN_LIST=(
-  usk-common.sh
-  provision-common.sh
-  xray-common.sh
-  xray-stats-state.sh
-  enforce-xray-iplimit.sh
-  install-fail2ban-iplimit.sh
-  openvpn-common.sh
-  l2tp-common.sh
-  setup-l2tp-usage.sh
-  l2tp-ip-up.sh
-  l2tp-ip-down.sh
-  collect-usage-stats.sh
-  enforce-connection-limits.sh
-  probe-protocol.sh
-  install-xray.sh
-  install-openvpn.sh
-  install-l2tp.sh
-  add-user-xray.sh
-  add-user-openvpn.sh
-  add-user-l2tp.sh
-  remove-user-xray.sh
-  remove-user-openvpn.sh
-  remove-user-l2tp.sh
-  remove-user-wireguard.sh
-  disable-user-xray.sh
-  enable-user-xray.sh
-  disable-user-openvpn.sh
-  enable-user-openvpn.sh
-  disable-user-l2tp.sh
-  enable-user-l2tp.sh
-  repair-xray.sh
-  repair-openvpn.sh
-  repair-l2tp.sh
-  xray-fix-connectivity.sh
-  refresh-xray-client-links.sh
   node-receive-script.sh
+  setup-node-relay.sh
+  remove-node-relay.sh
 )
 
 for f in "${BIN_LIST[@]}"; do
@@ -326,8 +293,8 @@ for f in "${BIN_LIST[@]}"; do
   chmod +x "${NODE_ROOT}/bin/${f}"
 done
 
-# Hub sync (SSH push / curl) must be able to refresh bin/ as the SSH user
-chown -R "${SSH_USER}:${SSH_USER}" "${NODE_ROOT}/bin"
+# Hub sync (SSH push / curl) must be able to refresh the whole node tree as the SSH user
+chown -R "${SSH_USER}:${SSH_USER}" "${NODE_ROOT}"
 chmod 755 "${NODE_ROOT}/bin"
 
 # Allow Hub SSH user to run provisioning without interactive sudo password
@@ -335,18 +302,17 @@ SUDOERS="/etc/sudoers.d/unlimitsky-node"
 cat > "$SUDOERS" <<EOF
 # unlimitsky Hub remote provisioning
 ${SSH_USER} ALL=(root) NOPASSWD: /bin/bash ${NODE_ROOT}/bin/*.sh
-${SSH_USER} ALL=(root) NOPASSWD: /bin/chown -R ${SSH_USER}\\:${SSH_USER} ${NODE_ROOT}/bin
+${SSH_USER} ALL=(root) NOPASSWD: /bin/mkdir -p ${NODE_ROOT}/bin, /bin/mkdir -p ${NODE_ROOT}/data, /bin/mkdir -p ${NODE_ROOT}/data/*
+${SSH_USER} ALL=(root) NOPASSWD: /bin/chown -R ${SSH_USER}\\:${SSH_USER} ${NODE_ROOT}
+${SSH_USER} ALL=(root) NOPASSWD: /usr/bin/tee ${NODE_ROOT}/bin/*
+${SSH_USER} ALL=(root) NOPASSWD: /bin/chmod 755 ${NODE_ROOT}/bin/*
+${SSH_USER} ALL=(root) NOPASSWD: /usr/bin/test -s ${NODE_ROOT}/bin/*
 EOF
 chmod 440 "$SUDOERS"
 
-# Optional: install Xray if missing
-if ! command -v xray >/dev/null 2>&1 && [ ! -x /usr/local/bin/xray ]; then
-  echo "[*] Xray not found — installing (VLESS Reality)..."
-  if curl -fsSL "${HUB_BASE}/bin/install-xray.sh" -o /tmp/usk-install-xray.sh; then
-    chmod +x /tmp/usk-install-xray.sh
-    PANEL_ROOT="$NODE_ROOT" USK_DATA_ROOT="$DATA_ROOT" bash /tmp/usk-install-xray.sh 443 || echo "USK_WARN: xray_install_failed run manually"
-    rm -f /tmp/usk-install-xray.sh
-  fi
+echo "[*] Initializing port relay (iptables forwarding to Hub)..."
+if [ -x "${NODE_ROOT}/bin/setup-node-relay.sh" ]; then
+  USK_NODE_ROOT="$NODE_ROOT" bash "${NODE_ROOT}/bin/setup-node-relay.sh" init || echo "USK_WARN: relay_init_failed run manually on Hub"
 fi
 
 is_private_ip() {

@@ -118,12 +118,23 @@ class USK_NodeSsh
             return array('ok' => false, 'error' => 'sshpass_missing');
         }
 
-        $remote = sprintf(
-            'cat > %s && chmod 755 %s && test -s %s',
-            escapeshellarg($remotePath),
-            escapeshellarg($remotePath),
-            escapeshellarg($remotePath)
-        );
+        $nodeRoot = rtrim((string) ($node['remote_root'] ?? '/opt/unlimitsky-node'), '/');
+        $needsSudo = strpos($remotePath, $nodeRoot . '/') === 0;
+        if ($needsSudo) {
+            $remote = sprintf(
+                'sudo -n tee %s >/dev/null && sudo -n chmod 755 %s && sudo -n test -s %s',
+                escapeshellarg($remotePath),
+                escapeshellarg($remotePath),
+                escapeshellarg($remotePath)
+            );
+        } else {
+            $remote = sprintf(
+                'cat > %s && chmod 755 %s && test -s %s',
+                escapeshellarg($remotePath),
+                escapeshellarg($remotePath),
+                escapeshellarg($remotePath)
+            );
+        }
         $wrapped = '(' . $remote . '); echo USK_EXIT:$?';
         $cmd = self::build_ssh_cmd(
             $cred['host'],
