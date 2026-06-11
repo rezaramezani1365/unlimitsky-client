@@ -88,6 +88,14 @@ if ! usk_xray_test_config "$XRAY_CFG"; then
   usk_json_fail "xray_config_test_failed"
 fi
 
+if usk_xray_port_has_relay_dnat "$VLESS_PORT"; then
+  usk_node_clear_relay_rules "$DIR" 2>/dev/null || true
+  if usk_xray_port_has_relay_dnat "$VLESS_PORT"; then
+    rm -f "$CFG_BAK"
+    usk_json_fail "xray_relay_dnat_conflict port=${VLESS_PORT}"
+  fi
+fi
+
 if ! usk_xray_service_restart; then
   mv "$CFG_BAK" "$XRAY_CFG"
   systemctl restart xray 2>/dev/null || true
@@ -97,6 +105,9 @@ fi
 rm -f "$CFG_BAK"
 
 if ! usk_xray_port_listening "$VLESS_PORT"; then
+  if usk_xray_port_has_relay_dnat "$VLESS_PORT"; then
+    usk_json_fail "xray_relay_dnat_conflict port=${VLESS_PORT}"
+  fi
   usk_json_fail "xray_vless_port_not_listening port=${VLESS_PORT}"
 fi
 

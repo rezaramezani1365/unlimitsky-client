@@ -8,6 +8,9 @@ export USK_DATA_ROOT="${USK_DATA_ROOT:-/var/lib/unlimitsky}"
 mkdir -p "$USK_DATA_ROOT/xray" /usr/local/etc/xray
 chmod 755 "$USK_DATA_ROOT" "$USK_DATA_ROOT/xray" 2>/dev/null || true
 
+# On-node mode: drop Hub relay DNAT so clients hit local Xray instead of forwarded Hub port.
+usk_node_clear_relay_rules "$DIR" 2>/dev/null || true
+
 VLESS_PORT="${1:-${USK_XRAY_VLESS_PORT:-443}}"
 VLESS_PORT=$(echo "$VLESS_PORT" | tr -dc '0-9')
 [ -n "$VLESS_PORT" ] && [ "$VLESS_PORT" -ge 1 ] && [ "$VLESS_PORT" -le 65535 ] 2>/dev/null || VLESS_PORT=443

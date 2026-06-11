@@ -9,6 +9,7 @@ VLESS_PORT=$(echo "$VLESS_PORT" | tr -dc '0-9')
 [ -n "$VLESS_PORT" ] && [ "$VLESS_PORT" -ge 1 ] && [ "$VLESS_PORT" -le 65535 ] 2>/dev/null || VLESS_PORT=443
 
 PANEL_ROOT="${PANEL_ROOT:-$(dirname "$DIR")}"
+usk_node_clear_relay_rules "$DIR" 2>/dev/null || true
 if [ -f "$XRAY_CFG" ]; then
   EXISTING_PORT=$(usk_xray_vless_port_from_config "$XRAY_CFG" 2>/dev/null || true)
   if [ -n "$EXISTING_PORT" ] && [ "$EXISTING_PORT" -ge 1 ] 2>/dev/null; then

@@ -237,7 +237,11 @@ class USK_ProtocolProvisioner
             USK_Nodes::mark_seen($nodeId, 'offline', $ensure['error'] ?? 'install_failed');
             return array(
                 'ok' => false,
-                'error' => self::interpret_output((string) ($ensure['log'] ?? ''), $ensure['error'] ?? ($protocol . '_not_installed')),
+                'error' => self::node_provision_error(
+                    self::interpret_output((string) ($ensure['log'] ?? ''), $ensure['error'] ?? ($protocol . '_not_installed')),
+                    $protocol,
+                    (string) ($ensure['log'] ?? '')
+                ),
                 'log' => $ensure['log'] ?? '',
             );
         }
@@ -279,7 +283,11 @@ class USK_ProtocolProvisioner
             USK_Nodes::mark_seen($nodeId, 'offline', $remote['error'] ?? 'remote_failed');
             return array(
                 'ok' => false,
-                'error' => self::interpret_output($out, $remote['error'] ?? 'provision_failed'),
+                'error' => self::node_provision_error(
+                    self::interpret_output($out, $remote['error'] ?? 'provision_failed'),
+                    $protocol,
+                    $out
+                ),
                 'log' => $out,
             );
         }
@@ -288,7 +296,11 @@ class USK_ProtocolProvisioner
             USK_Nodes::mark_seen($nodeId, 'offline', 'invalid_provision_output');
             return array(
                 'ok' => false,
-                'error' => self::interpret_output($out, 'invalid_provision_output'),
+                'error' => self::node_provision_error(
+                    self::interpret_output($out, 'invalid_provision_output'),
+                    $protocol,
+                    $out
+                ),
                 'log' => $out,
             );
         }
@@ -508,6 +520,22 @@ class USK_ProtocolProvisioner
         USK_ProtocolLimits::save_protocol_clients($protocol, $clients);
     }
 
+    private static function node_provision_error($code, $protocol, $log = '')
+    {
+        $code = trim((string) $code);
+        $log = (string) $log;
+        if ($code === 'xray_relay_dnat_conflict' || strpos($log, 'xray_relay_dnat_conflict') !== false) {
+            return 'xray_relay_dnat_conflict';
+        }
+        if ($protocol === 'xray' && strpos($log, 'xray_vless_port_not_listening') !== false) {
+            return 'node_xray_port_not_listening';
+        }
+        if ($protocol === 'xray' && (strpos($log, 'xray_restart_failed') !== false || $code === 'xray_restart_failed')) {
+            return 'node_xray_restart_failed';
+        }
+        return $code;
+    }
+
     public static function error_label($code)
     {
         $code = preg_replace('/\s+port=\d+.*$/', '', trim((string) $code));
@@ -518,6 +546,10 @@ class USK_ProtocolProvisioner
             'xray_config_invalid' => 'err_xray_config_invalid',
             'xray_config_update_failed' => 'err_xray_config_invalid',
             'xray_vless_port_not_listening' => 'err_xray_not_running',
+            'xray_relay_dnat_conflict' => 'err_xray_relay_dnat_conflict',
+            'node_xray_port_not_listening' => 'err_node_xray_port_not_listening',
+            'node_xray_restart_failed' => 'err_node_xray_restart_failed',
+            'relay_clear_failed' => 'err_node_relay_clear_failed',
             'xray_reality_keygen_failed' => 'err_xray_reality_keygen_failed',
             'xray_config_test_failed' => 'err_xray_config_invalid',
             'xray_restart_failed' => 'err_xray_restart_failed',

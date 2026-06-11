@@ -19,7 +19,8 @@ cp "$XRAY_CFG" "${XRAY_CFG}.bak.$(date +%s)" 2>/dev/null || true
 port=$(usk_xray_vless_port_from_config "$XRAY_CFG" 2>/dev/null || echo 443)
 clients=$(usk_xray_load_clients "$XRAY_CFG")
 
-echo "[1/5] Clearing connection-limit iptables (USK_XRAY_CONN)..."
+echo "[1/5] Clearing relay DNAT and connection-limit iptables..."
+usk_node_clear_relay_rules "$DIR" 2>/dev/null || true
 usk_xray_clear_slot_iptables "${port:-443}"
 if command -v iptables >/dev/null 2>&1; then
   echo "      INPUT jump rules: $(iptables -S INPUT 2>/dev/null | grep -c USK_XRAY_CONN || echo 0)"

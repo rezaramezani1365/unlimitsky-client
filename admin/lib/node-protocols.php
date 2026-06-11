@@ -62,6 +62,8 @@ class USK_NodeProtocols
             'repair-xray.sh',
             'repair-openvpn.sh',
             'repair-l2tp.sh',
+            'setup-node-relay.sh',
+            'remove-node-relay.sh',
             'xray-fix-connectivity.sh',
             'refresh-xray-client-links.sh',
             'add-user-xray.sh',
@@ -370,6 +372,28 @@ class USK_NodeProtocols
         return $status;
     }
 
+    /** Remove Hub relay DNAT on node so direct on-node VPN can bind the public port. */
+    public static function clear_relay_rules(array $node)
+    {
+        $root = self::node_root($node);
+        $script = $root . '/bin/remove-node-relay.sh';
+        $remote = sprintf(
+            'sudo -n /bin/bash %s 2>&1',
+            escapeshellarg($script)
+        );
+        $res = USK_NodeSsh::run($node, $remote, 60);
+        $out = (string) ($res['log'] ?? '');
+        $ok = strpos($out, 'USK_OK') !== false;
+        if (!$ok && strpos($out, 'setup_script_missing') !== false) {
+            $ok = true;
+        }
+        return array(
+            'ok' => $ok,
+            'log' => $out,
+            'error' => $ok ? '' : 'relay_clear_failed',
+        );
+    }
+
     /** Ensure protocol is installed on node (sync scripts, auto-install if missing). */
     public static function ensure_installed(array $node, $proto, array $ports = array())
     {
@@ -386,6 +410,8 @@ class USK_NodeProtocols
                 'log' => (string) ($sync['log'] ?? ''),
             );
         }
+
+        self::clear_relay_rules($node);
 
         if (self::is_installed($node, $proto)) {
             return array('ok' => true);
@@ -454,6 +480,8 @@ class USK_NodeProtocols
         if (empty($ports)) {
             $ports = USK_ProtocolManager::parse_ports($proto, array());
         }
+
+        self::clear_relay_rules($node);
 
         $argv = USK_ProtocolManager::build_install_argv($proto, $ports);
         $env = 'PANEL_ROOT=' . escapeshellarg($root) . ' USK_DATA_ROOT=/var/lib/unlimitsky';

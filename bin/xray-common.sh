@@ -705,6 +705,27 @@ usk_xray_clear_slot_iptables() {
   fi
 }
 
+usk_xray_port_has_relay_dnat() {
+  local port="$1"
+  [ -n "$port" ] || return 1
+  command -v iptables >/dev/null 2>&1 || return 1
+  iptables -t nat -S PREROUTING 2>/dev/null | grep -qE -- "--dport ${port} .*DNAT"
+}
+
+usk_node_clear_relay_rules() {
+  local bin_dir="${1:-}"
+  [ -n "$bin_dir" ] || bin_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  local rm_script="${bin_dir}/remove-node-relay.sh"
+  if [ ! -x "$rm_script" ]; then
+    return 0
+  fi
+  if [ "$EUID" -eq 0 ]; then
+    /bin/bash "$rm_script" 2>/dev/null || true
+  else
+    sudo -n /bin/bash "$rm_script" 2>/dev/null || true
+  fi
+}
+
 usk_xray_reject_ip_on_port() {
   local ip="$1"
   local port="$2"

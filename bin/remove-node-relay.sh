@@ -17,8 +17,16 @@ if [ ! -x "${DIR}/setup-node-relay.sh" ]; then
   usk_err "setup_script_missing"
 fi
 
+run_setup() {
+  if [ "$EUID" -eq 0 ]; then
+    /bin/bash "${DIR}/setup-node-relay.sh" "$@"
+  else
+    sudo -n /bin/bash "${DIR}/setup-node-relay.sh" "$@"
+  fi
+}
+
 if [ -n "$RULE_ID" ]; then
-  sudo -n /bin/bash "${DIR}/setup-node-relay.sh" remove "$RULE_ID"
+  run_setup remove "$RULE_ID"
   exit 0
 fi
 
@@ -33,7 +41,7 @@ ids=$(jq -r '.[].id' "$RULES_FILE" 2>/dev/null || true)
 count=0
 for id in $ids; do
   [ -z "$id" ] && continue
-  sudo -n /bin/bash "${DIR}/setup-node-relay.sh" remove "$id" >/dev/null 2>&1 || true
+  run_setup remove "$id" >/dev/null 2>&1 || true
   count=$((count + 1))
 done
 
