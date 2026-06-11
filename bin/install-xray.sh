@@ -46,6 +46,7 @@ UUID=$(cat /proc/sys/kernel/random/uuid)
 
 if [ -f "$XRAY_CFG" ]; then
   cp "$XRAY_CFG" "${XRAY_CFG}.bak.$(date +%s)" 2>/dev/null || true
+  usk_xray_dedupe_config_clients "$XRAY_CFG" 2>/dev/null || true
 fi
 
 usk_xray_migrate_legacy_config "$XRAY_CFG" 2>/dev/null || true
@@ -56,6 +57,8 @@ if [ "$EXISTING_VLESS" = "[]" ] || [ "$EXISTING_VLESS" = "null" ] || [ -z "$EXIS
 fi
 
 usk_xray_ensure_reality_params || usk_fail "xray_reality_keygen_failed"
+
+EXISTING_VLESS=$(usk_xray_normalize_clients "$EXISTING_VLESS")
 
 if ! usk_xray_write_config "$XRAY_CFG" "$EXISTING_VLESS" "$VLESS_PORT"; then
   usk_fail "xray_config_json_failed"
@@ -87,6 +90,7 @@ if ! usk_xray_verify_or_fail "$XRAY_CFG"; then
 fi
 
 usk_xray_rebuild_clients_in_config "$XRAY_CFG" "$PANEL_ROOT" 1 2>/dev/null || true
+usk_xray_dedupe_config_clients "$XRAY_CFG" 2>/dev/null || true
 source "$DIR/provision-common.sh" 2>/dev/null || true
 usk_xray_clear_slot_iptables "${VLESS_PORT}" 2>/dev/null || true
 REFRESHED=$(usk_xray_refresh_stored_links "$PANEL_ROOT" 2>/dev/null || echo 0)

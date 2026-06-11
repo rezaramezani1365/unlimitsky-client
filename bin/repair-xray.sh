@@ -21,12 +21,14 @@ mkdir -p /usr/local/etc/xray
 
 if [ -f "$XRAY_CFG" ]; then
   cp "$XRAY_CFG" "${XRAY_CFG}.bak.$(date +%s)" 2>/dev/null || true
+  usk_xray_dedupe_config_clients "$XRAY_CFG" 2>/dev/null || true
 fi
 
 EXISTING_VLESS=$(usk_xray_collect_all_clients_json "$XRAY_CFG" "$PANEL_ROOT" 2>/dev/null || usk_xray_load_clients "$XRAY_CFG")
 if [ "$EXISTING_VLESS" = "[]" ] || [ "$EXISTING_VLESS" = "null" ]; then
   EXISTING_VLESS="[{\"id\":\"$UUID\",\"email\":\"bootstrap\",\"flow\":\"xtls-rprx-vision\"}]"
 fi
+EXISTING_VLESS=$(usk_xray_normalize_clients "$EXISTING_VLESS")
 
 usk_xray_ensure_reality_params || usk_fail "xray_reality_keygen_failed"
 usk_xray_migrate_legacy_config "$XRAY_CFG" 2>/dev/null || true
@@ -43,6 +45,7 @@ usk_xray_verify_or_fail "$XRAY_CFG" || exit 1
 
 usk_xray_ensure_stats_policy "$XRAY_CFG" 2>/dev/null || true
 usk_xray_rebuild_clients_in_config "$XRAY_CFG" "$PANEL_ROOT" 1 2>/dev/null || true
+usk_xray_dedupe_config_clients "$XRAY_CFG" 2>/dev/null || true
 source "$DIR/provision-common.sh" 2>/dev/null || true
 usk_xray_refresh_stored_links "$PANEL_ROOT" 2>/dev/null || true
 usk_xray_test_config "$XRAY_CFG" 2>/dev/null || usk_fail "xray_config_test_failed"

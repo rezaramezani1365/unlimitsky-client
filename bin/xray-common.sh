@@ -1,6 +1,23 @@
 #!/bin/bash
 # Shared Xray helpers — VLESS + Reality (Iran-optimized, IPv4-only clients)
 XRAY_CFG="${XRAY_CFG:-/usr/local/etc/xray/config.json}"
+
+usk_xray_resolve_cfg() {
+  if [ -n "${XRAY_CFG:-}" ] && [ -f "$XRAY_CFG" ]; then
+    export XRAY_CFG
+    return 0
+  fi
+  if [ -f /usr/local/etc/xray/config.json ]; then
+    XRAY_CFG=/usr/local/etc/xray/config.json
+  elif [ -f /etc/xray/config.json ]; then
+    XRAY_CFG=/etc/xray/config.json
+  else
+    XRAY_CFG="${XRAY_CFG:-/usr/local/etc/xray/config.json}"
+  fi
+  export XRAY_CFG
+}
+
+usk_xray_resolve_cfg
 USK_XRAY_VLESS_PORT="${USK_XRAY_VLESS_PORT:-443}"
 USK_XRAY_REALITY_FILE="${USK_DATA_ROOT:-/var/lib/unlimitsky}/xray/reality.params"
 USK_XRAY_DEFAULT_DEST="www.microsoft.com:443"
@@ -182,7 +199,7 @@ usk_xray_load_clients() {
        and (.id | length) == 36
        and ((.id | split("-") | map(length)) == [8,4,4,4,12]))
      | {id, email: ((.email // "user") | tostring), flow: ((.flow // "xtls-rprx-vision") | tostring)}
-    ] | unique_by(.id)
+    ] | unique_by(.id) | group_by(.email) | map(last)
   ' "$cfg" 2>/dev/null || echo '[]'
 }
 
@@ -193,7 +210,9 @@ usk_xray_normalize_clients() {
       id: .id,
       email: ((.email // "user") | tostring),
       flow: "xtls-rprx-vision"
-    }] | unique_by(.id)
+    }]
+    | unique_by(.id)
+    | group_by(.email) | map(last)
   ' 2>/dev/null || echo '[]'
 }
 
@@ -398,6 +417,7 @@ usk_xray_collect_all_clients_json() {
     | map(select(.status? // "active" == "active"))
     | map({id, email, flow: "xtls-rprx-vision", level: 0})
     | unique_by(.id)
+    | group_by(.email) | map(last)
   ' <(echo "$cfg_json") <(echo "$panel_json") <(echo "$reg_json") 2>/dev/null || echo "$cfg_json"
 }
 
@@ -574,13 +594,20 @@ usk_xray_add_client() {
   local cfg="$1"
   local uuid="$2"
   local email="$3"
-  local tmp
+  local tmp existing_id
+  existing_id=$(jq -r --arg email "$email" '
+    [.inbounds[]? | select(.protocol == "vless") | .settings.clients[]?
+     | select(.email == $email) | .id] | first // empty
+  ' "$cfg" 2>/dev/null || true)
+  if [ -n "$existing_id" ] && [ "$existing_id" != "$uuid" ]; then
+    uuid="$existing_id"
+  fi
   tmp=$(mktemp)
   if ! jq --arg id "$uuid" --arg email "$email" '
     .inbounds |= map(
       if .protocol == "vless" then
         .settings.clients = ((.settings.clients // [])
-          | map(select(.id != $id))
+          | map(select(.id != $id and .email != $email))
           | . + [{id: $id, email: $email, flow: "xtls-rprx-vision", level: 0}])
       else . end
     )' "$cfg" > "$tmp"; then
@@ -774,7 +801,8 @@ usk_xray_rebuild_clients_in_config() {
   cfg_clients=$(usk_xray_load_clients "$cfg")
   merged=$(jq -s '
     def by_id: reduce .[] as $c ({}; if ($c.id // "") != "" then . + {($c.id): $c} else . end);
-    (.[0] | by_id) + (.[1] | by_id) | to_entries | map(.value) | unique_by(.id)
+    (.[0] | by_id) + (.[1] | by_id) | to_entries | map(.value)
+    | unique_by(.id) | group_by(.email) | map(last)
   ' <(echo "$cfg_clients") <(echo "$clients_json") 2>/dev/null || echo "$clients_json")
   [ -n "$merged" ] && [ "$merged" != "null" ] && clients_json="$merged"
 
@@ -959,10 +987,34 @@ usk_xray_service_restart() {
   systemctl is-active xray >/dev/null 2>&1 || systemctl is-active xray.service >/dev/null 2>&1
 }
 
+usk_xray_dedupe_config_clients() {
+  local cfg="${1:-$XRAY_CFG}"
+  [ -f "$cfg" ] || return 0
+  command -v jq >/dev/null 2>&1 || return 0
+  local clients tmp
+  clients=$(usk_xray_load_clients "$cfg")
+  clients=$(usk_xray_normalize_clients "$clients")
+  [ -n "$clients" ] && [ "$clients" != "null" ] || return 0
+  tmp=$(mktemp)
+  if ! jq --argjson clients "$clients" '
+    .inbounds |= map(
+      if .protocol == "vless" then
+        .settings.clients = $clients
+      else . end
+    )' "$cfg" > "$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  mv "$tmp" "$cfg"
+  usk_xray_fix_perms "$cfg"
+  return 0
+}
+
 usk_xray_test_config() {
   local cfg="$1"
   local bin out
   bin=$(usk_xray_bin) || return 1
+  usk_xray_dedupe_config_clients "$cfg" 2>/dev/null || true
   usk_xray_fix_perms "$cfg"
   if id nobody >/dev/null 2>&1; then
     out=$(sudo -u nobody "$bin" run -test -config "$cfg" 2>&1) || {

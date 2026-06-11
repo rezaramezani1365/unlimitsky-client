@@ -96,8 +96,9 @@ class USK_ProtocolProvisioner
             }
         }
 
+        // VPN users are provisioned on the Hub; nodes only relay traffic.
         if (!USK_ProtocolManager::is_installed($protocol)) {
-            return array('ok' => false, 'error' => 'protocol_not_installed');
+            return array('ok' => false, 'error' => $protocol . '_not_installed');
         }
 
         $clientDns = USK_ClientDns::resolve((string) ($meta['client_dns'] ?? ''), $protocol);

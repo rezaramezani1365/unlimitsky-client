@@ -34,6 +34,7 @@ if ! usk_xray_force_sync_panel_clients "$XRAY_CFG" "$PANEL_ROOT"; then
   fi
 fi
 usk_xray_ensure_stats_policy "$XRAY_CFG" || true
+usk_xray_dedupe_config_clients "$XRAY_CFG" 2>/dev/null || true
 
 echo "[4/6] Test + restart Xray..."
 usk_xray_test_config "$XRAY_CFG" || { echo "USK_ERR: xray_config_test_failed" >&2; exit 1; }

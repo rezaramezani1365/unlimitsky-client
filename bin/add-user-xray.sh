@@ -20,6 +20,7 @@ if [ "$DURATION_DAYS" -gt 0 ] 2>/dev/null; then
   EXPIRES=$(date -Iseconds -d "+${DURATION_DAYS} days" 2>/dev/null || date -Iseconds)
 fi
 
+usk_xray_resolve_cfg
 if [ ! -f "$XRAY_CFG" ]; then
   usk_json_fail "xray_not_installed"
 fi
@@ -39,7 +40,15 @@ usk_xray_ensure_stats_policy "$XRAY_CFG" 2>/dev/null || true
 usk_xray_ports_from_config "$XRAY_CFG"
 VLESS_PORT="$USK_XRAY_VLESS_PORT"
 
-UUID=$(cat /proc/sys/kernel/random/uuid)
+EXISTING_UUID=$(jq -r --arg email "$XRAY_EMAIL" '
+  [.inbounds[]? | select(.protocol == "vless") | .settings.clients[]?
+   | select(.email == $email) | .id] | first // empty
+' "$XRAY_CFG" 2>/dev/null || true)
+if [ -n "$EXISTING_UUID" ]; then
+  UUID="$EXISTING_UUID"
+else
+  UUID=$(cat /proc/sys/kernel/random/uuid)
+fi
 PANEL_ROOT="${PANEL_ROOT:-$(dirname "$DIR")}"
 SERVER_IP=$(usk_xray_resolve_connect_host "$PANEL_ROOT" 2>/dev/null || true)
 [ -n "$SERVER_IP" ] || SERVER_IP=$(usk_server_ip)

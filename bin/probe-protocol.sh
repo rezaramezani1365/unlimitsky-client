@@ -41,6 +41,12 @@ case "$PROTO" in
       usk_mark_installed xray "$USK_ROOT"
       usk_ok
     fi
+    if command -v xray >/dev/null 2>&1 || [ -x /usr/local/bin/xray ]; then
+      if systemctl is-active xray >/dev/null 2>&1 || systemctl is-active xray.service >/dev/null 2>&1; then
+        usk_mark_installed xray "$USK_ROOT"
+        usk_ok
+      fi
+    fi
     usk_fail "xray_not_installed"
     ;;
   cisco)
