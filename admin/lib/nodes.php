@@ -129,6 +129,24 @@ class USK_Nodes
         @chmod(self::store_file(), 0640);
     }
 
+    public static function save_protocol_status($id, $proto, array $status)
+    {
+        $id = (string) $id;
+        $proto = USK_ProtocolManager::sanitize_key($proto);
+        if ($id === '' || $proto === '') {
+            return;
+        }
+        $nodes = self::all();
+        if (!isset($nodes[$id])) {
+            return;
+        }
+        if (!is_array($nodes[$id]['protocols'] ?? null)) {
+            $nodes[$id]['protocols'] = array();
+        }
+        $nodes[$id]['protocols'][$proto] = $status;
+        self::save_all($nodes);
+    }
+
     public static function get($id)
     {
         $id = (string) $id;

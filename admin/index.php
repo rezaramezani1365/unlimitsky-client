@@ -30,7 +30,7 @@ if (in_array($page, usk_admin_removed_pages(), true)) {
     header('Location: ' . usk_admin_url($target));
     exit;
 }
-$allowed = array_keys(usk_admin_nav());
+$allowed = usk_admin_allowed_pages();
 if (!in_array($page, $allowed, true)) {
     $page = 'dashboard';
 }

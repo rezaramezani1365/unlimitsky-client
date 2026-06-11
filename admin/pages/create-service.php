@@ -8,6 +8,11 @@ $canUsePanels = USK_License::can_use_external_panels();
 $canUseNodes = USK_Nodes::can_use_nodes();
 $canUseManualPlan = USK_License::is_pro();
 $nodeList = $canUseNodes ? USK_Nodes::list_for_select() : array();
+$nodeProtocolKeys = array();
+if ($canUseNodes) {
+    require_once dirname(__DIR__) . '/lib/node-protocols.php';
+    $nodeProtocolKeys = USK_NodeProtocols::supported();
+}
 
 $result = null;
 if (!empty($_GET['created']) && !empty($_SESSION['usk_create_result'])) {
@@ -17,10 +22,17 @@ if (!empty($_GET['created']) && !empty($_SESSION['usk_create_result'])) {
 USK_ProtocolManager::refresh_all_status();
 $installed = USK_ProtocolManager::installed_protocols();
 $protocolPortDefaults = array();
-foreach (USK_ProtocolManager::list() as $pkey => $pmeta) {
-    if (isset($installed[$pkey])) {
-        $protocolPortDefaults[$pkey] = USK_ProtocolManager::port_defaults_for_create($pkey);
+$protocolListForCreate = $installed;
+foreach ($nodeProtocolKeys as $npk) {
+    if (!isset($protocolListForCreate[$npk])) {
+        $allProtos = USK_ProtocolManager::list();
+        if (isset($allProtos[$npk])) {
+            $protocolListForCreate[$npk] = $allProtos[$npk];
+        }
     }
+}
+foreach ($protocolListForCreate as $pkey => $pmeta) {
+    $protocolPortDefaults[$pkey] = USK_ProtocolManager::port_defaults_for_create($pkey);
 }
 $clientDnsPanel = USK_ClientDns::get();
 $clientDnsForJs = array(
@@ -66,7 +78,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($mode === 'native') {
             $installed = USK_ProtocolManager::installed_protocols();
             $protocol = USK_ProtocolManager::sanitize_key($_POST['protocol'] ?? '');
-            if ($protocol === '' || !isset($installed[$protocol])) {
+            $nodeIdEarly = preg_replace('/[^a-z0-9]/', '', (string) ($_POST['node_id'] ?? ''));
+            $protocolOk = $protocol !== '' && (
+                isset($installed[$protocol])
+                || ($nodeIdEarly !== '' && in_array($protocol, $nodeProtocolKeys, true))
+            );
+            if (!$protocolOk) {
                 usk_flash(__('create_protocol_invalid'), 'error');
             } else {
                 $code = (string) rand(111111, 999999);
@@ -105,8 +122,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     } elseif (!USK_Nodes::get($nodeId)) {
                         usk_flash(__('nodes_not_found'), 'error');
                         $nodeBlocked = true;
-                    } elseif ($protocol !== 'xray') {
-                        usk_flash(__('nodes_xray_only'), 'error');
+                    } elseif (!in_array($protocol, $nodeProtocolKeys, true)) {
+                        usk_flash(__('nodes_protocol_unsupported'), 'error');
                         $nodeBlocked = true;
                     } else {
                         $provisionMeta['node_id'] = $nodeId;
@@ -313,18 +330,20 @@ $plans = $sql->query("SELECT * FROM `category` WHERE `status`='active'");
                 <?php elseif (!$canUseNodes) : ?>
                     <p class="text-muted small mt-1"><?= __('nodes_pro_required') ?></p>
                 <?php else : ?>
-                    <p class="text-muted small mt-1 mb-0"><?= __('create_node_hint') ?></p>
+                    <p class="text-muted small mt-1 mb-0" id="create-node-hint"><?= __('create_node_hint') ?></p>
                 <?php endif; ?>
             </div>
             <div class="form-group native-field">
                 <label><?= __('protocol') ?></label>
                 <select class="form-control" name="protocol" id="native-protocol">
                     <option value="">—</option>
-                    <?php foreach ($installed as $key => $meta) : ?>
-                        <option value="<?= usk_esc($key) ?>"><?= usk_esc($meta['name']) ?></option>
+                    <?php foreach ($protocolListForCreate as $key => $meta) : ?>
+                        <option value="<?= usk_esc($key) ?>" data-node-capable="<?= in_array($key, $nodeProtocolKeys, true) ? '1' : '0' ?>">
+                            <?= usk_esc($meta['name']) ?><?= !isset($installed[$key]) && in_array($key, $nodeProtocolKeys, true) ? ' (' . __('create_node_only') . ')' : '' ?>
+                        </option>
                     <?php endforeach; ?>
                 </select>
-                <?php if (empty($installed)) : ?>
+                <?php if (empty($protocolListForCreate)) : ?>
                     <p class="text-muted small mt-1"><?= __('create_no_protocols') ?> <a href="<?= usk_admin_url('protocols') ?>"><?= __('nav_protocols') ?></a></p>
                 <?php endif; ?>
             </div>

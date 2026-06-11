@@ -115,6 +115,17 @@ function usk_admin_removed_pages()
     return array('coupons', 'payments', 'password');
 }
 
+/** Pages reachable by URL but not shown in the sidebar. */
+function usk_admin_extra_pages()
+{
+    return array('node-protocols');
+}
+
+function usk_admin_allowed_pages()
+{
+    return array_merge(array_keys(usk_admin_nav()), usk_admin_extra_pages());
+}
+
 /** Sidebar navigation (single source of truth). */
 function usk_admin_nav()
 {

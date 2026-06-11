@@ -169,9 +169,11 @@ $installCmdInteractive = sprintf(
                 <ol class="small mb-0 ps-3">
                     <li class="mb-1"><?= __('nodes_hub_step_test_ssh') ?></li>
                     <li class="mb-1">
+                        <?= __('nodes_hub_step_install_protocols') ?>
+                    </li>
+                    <li class="mb-1">
                         <?= __('nodes_hub_step_create_service') ?>
                         — <a href="<?= usk_admin_url('create-service') ?>"><?= __('create_title') ?></a>
-                        <span class="text-muted">(<?= __('nodes_xray_only') ?>)</span>
                     </li>
                     <li class="mb-1"><?= __('nodes_hub_step_open_port') ?></li>
                 </ol>
@@ -225,6 +227,9 @@ $installCmdInteractive = sprintf(
                     </td>
                     <td class="small"><?= usk_esc(USK_Nodes::format_last_run_at($node['last_seen'] ?? '')) ?></td>
                     <td class="text-nowrap">
+                        <a class="btn btn-sm btn-outline-usk" href="<?= usk_admin_url('node-protocols', array('node_id' => $node['id'] ?? '')) ?>">
+                            <?= __('node_protocols_btn') ?>
+                        </a>
                         <form method="post" class="d-inline">
                             <input type="hidden" name="action" value="test">
                             <input type="hidden" name="node_id" value="<?= usk_esc($node['id'] ?? '') ?>">

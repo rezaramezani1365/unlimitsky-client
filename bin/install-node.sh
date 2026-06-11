@@ -287,16 +287,29 @@ BIN_LIST=(
   enforce-xray-iplimit.sh
   install-fail2ban-iplimit.sh
   openvpn-common.sh
+  l2tp-common.sh
+  setup-l2tp-usage.sh
+  l2tp-ip-up.sh
+  l2tp-ip-down.sh
   collect-usage-stats.sh
   enforce-connection-limits.sh
-  remove-user-xray.sh
-  remove-user-wireguard.sh
-  remove-user-openvpn.sh
+  probe-protocol.sh
   add-user-xray.sh
+  add-user-openvpn.sh
+  add-user-l2tp.sh
+  remove-user-xray.sh
+  remove-user-openvpn.sh
+  remove-user-l2tp.sh
+  remove-user-wireguard.sh
   disable-user-xray.sh
   enable-user-xray.sh
-  remove-user-xray.sh
+  disable-user-openvpn.sh
+  enable-user-openvpn.sh
+  disable-user-l2tp.sh
+  enable-user-l2tp.sh
   repair-xray.sh
+  repair-openvpn.sh
+  repair-l2tp.sh
   xray-fix-connectivity.sh
   refresh-xray-client-links.sh
 )
