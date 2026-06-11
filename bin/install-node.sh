@@ -2,15 +2,16 @@
 # Install unlimitsky Node worker on a remote VPS and register with the main (Hub) panel.
 # No per-node token — use Hub IP/port + this server's SSH user/password + register password from Hub admin.
 #
-# Interactive:
-#   curl -fsSL http://HUB_IP:PORT/bin/install-node.sh | sudo bash -s
-#
-# Non-interactive:
-#   sudo bash install-node.sh \
+# Non-interactive (recommended — pipe cannot read prompts from stdin):
+#   curl -fsSL http://HUB_IP:PORT/bin/install-node.sh | sudo bash -s -- \
 #     --hub-ip 1.2.3.4 --hub-port 8082 \
 #     --register-secret 'SECRET_FROM_PANEL' \
 #     --ssh-user root --ssh-pass 'YourRootPass' \
 #     --name germany-1 --connect-host vpn.example.com
+#
+# Interactive (download first, then run — prompts work on a TTY):
+#   curl -fsSL http://HUB_IP:PORT/bin/install-node.sh -o install-node.sh
+#   sudo bash install-node.sh
 #
 set -euo pipefail
 
@@ -43,10 +44,62 @@ Optional:
   --ssh-port PORT       SSH port on this server (default 22)
   --hub-scheme http|https
 
-Example:
-  sudo bash install-node.sh --hub-ip 1.2.3.4 --hub-port 8082 \
-    --register-secret abc123 --ssh-user root --ssh-pass 'secret' --name node-de
+Example (non-interactive via pipe):
+  curl -fsSL http://1.2.3.4:8082/bin/install-node.sh | sudo bash -s -- \
+    --hub-ip 1.2.3.4 --hub-port 8082 --register-secret abc123 \
+    --ssh-user root --ssh-pass 'secret' --name node-de --connect-host 5.6.7.8
+
+Example (interactive):
+  curl -fsSL http://1.2.3.4:8082/bin/install-node.sh -o install-node.sh
+  sudo bash install-node.sh
 HELP
+}
+
+can_prompt() {
+  [ -t 0 ] || { [ -r /dev/tty ] 2>/dev/null; }
+}
+
+read_fd() {
+  if [ -t 0 ]; then
+    echo "/dev/stdin"
+  elif [ -r /dev/tty ] 2>/dev/null; then
+    echo "/dev/tty"
+  else
+    echo ""
+  fi
+}
+
+all_required_set() {
+  for req in HUB_IP HUB_PORT REGISTER_SECRET SSH_USER SSH_PASS NODE_NAME CONNECT_HOST; do
+    local val
+    val=$(eval "echo \${$req}")
+    if [ -z "$val" ]; then
+      return 1
+    fi
+  done
+  return 0
+}
+
+show_missing_args_error() {
+  local hub="${HUB_IP:-HUB_IP}"
+  local port="${HUB_PORT:-8082}"
+  local scheme="${HUB_SCHEME:-http}"
+  cat <<EOF
+USK_ERR: missing_required_args (stdin is not a TTY — pipe mode cannot prompt)
+
+Pass all required flags after "bash -s --":
+
+  curl -fsSL ${scheme}://${hub}:${port}/bin/install-node.sh | sudo bash -s -- \\
+    --hub-ip ${hub} --hub-port ${port} \\
+    --register-secret 'SECRET_FROM_HUB_NODES_PAGE' \\
+    --ssh-user root --ssh-pass 'SSH_PASSWORD_ON_THIS_SERVER' \\
+    --name node-name --connect-host PUBLIC_IP_OR_DOMAIN
+
+Or download and run interactively:
+
+  curl -fsSL ${scheme}://${hub}:${port}/bin/install-node.sh -o install-node.sh
+  sudo bash install-node.sh
+EOF
 }
 
 while [ $# -gt 0 ]; do
@@ -74,16 +127,20 @@ prompt_if_empty() {
   local varname="$1"
   local prompt="$2"
   local default="${3:-}"
-  local current
+  local current fd input
   current=$(eval "echo \${$varname}")
   if [ -n "$current" ]; then
     return 0
   fi
+  if ! can_prompt; then
+    return 1
+  fi
+  fd=$(read_fd)
   if [ -n "$default" ]; then
-    read -r -p "$prompt [$default]: " input
+    read -r -p "$prompt [$default]: " input < "$fd"
     input=${input:-$default}
   else
-    read -r -p "$prompt: " input
+    read -r -p "$prompt: " input < "$fd"
   fi
   eval "$varname=\"\$input\""
 }
@@ -91,12 +148,16 @@ prompt_if_empty() {
 prompt_secret() {
   local varname="$1"
   local prompt="$2"
-  local current
+  local current fd input
   current=$(eval "echo \${$varname}")
   if [ -n "$current" ]; then
     return 0
   fi
-  read -r -s -p "$prompt: " input
+  if ! can_prompt; then
+    return 1
+  fi
+  fd=$(read_fd)
+  read -r -s -p "$prompt: " input < "$fd"
   echo ""
   eval "$varname=\"\$input\""
 }
@@ -108,24 +169,38 @@ detect_public_ip() {
 }
 
 echo "=== unlimitsky Node installer ==="
-prompt_if_empty HUB_IP "Hub panel IP or domain"
-prompt_if_empty HUB_PORT "Hub panel port" "8082"
-prompt_if_empty REGISTER_SECRET "Hub registration password (from Admin → Nodes)"
-prompt_if_empty SSH_USER "SSH username on THIS server" "root"
-prompt_secret SSH_PASS "SSH password on THIS server"
-prompt_if_empty NODE_NAME "Node name" "$(hostname -s 2>/dev/null || echo node)"
-if [ -z "$CONNECT_HOST" ]; then
-  def_ip=$(detect_public_ip)
-  prompt_if_empty CONNECT_HOST "Connect address for buyers (IP or domain)" "${def_ip:-}"
-fi
 
-for req in HUB_IP HUB_PORT REGISTER_SECRET SSH_USER SSH_PASS NODE_NAME CONNECT_HOST; do
-  val=$(eval "echo \${$req}")
-  if [ -z "$val" ]; then
-    echo "USK_ERR: missing_${req,,}"
+if ! all_required_set; then
+  if ! can_prompt; then
+    show_missing_args_error
     exit 1
   fi
-done
+  prompt_if_empty HUB_IP "Hub panel IP or domain" || true
+  prompt_if_empty HUB_PORT "Hub panel port" "8082" || true
+  prompt_if_empty REGISTER_SECRET "Hub registration password (from Admin → Nodes)" || true
+  prompt_if_empty SSH_USER "SSH username on THIS server" "root" || true
+  prompt_secret SSH_PASS "SSH password on THIS server" || true
+  prompt_if_empty NODE_NAME "Node name" "$(hostname -s 2>/dev/null || echo node)" || true
+  if [ -z "$CONNECT_HOST" ]; then
+    def_ip=$(detect_public_ip)
+    prompt_if_empty CONNECT_HOST "Connect address for buyers (IP or domain)" "${def_ip:-}" || true
+  fi
+fi
+
+if ! all_required_set; then
+  if ! can_prompt; then
+    show_missing_args_error
+  else
+    for req in HUB_IP HUB_PORT REGISTER_SECRET SSH_USER SSH_PASS NODE_NAME CONNECT_HOST; do
+      val=$(eval "echo \${$req}")
+      if [ -z "$val" ]; then
+        echo "USK_ERR: missing_${req,,}"
+        exit 1
+      fi
+    done
+  fi
+  exit 1
+fi
 
 NEED_APT=0
 for cmd in curl jq sshd; do

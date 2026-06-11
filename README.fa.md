@@ -311,13 +311,19 @@ sudo apt install -y sshpass
 sudo bash /var/www/unlimitsky/scripts/panel-self-update.sh
 ```
 
-**روی VPS Node:**
+**روی VPS Node** (placeholderها را عوض کن؛ رمز ثبت از **پنل → Node**):
 
 ```bash
-curl -fsSL http://IP_HUB:8082/bin/install-node.sh | sudo bash -s
+curl -fsSL http://IP_HUB:8082/bin/install-node.sh | sudo bash -s -- \
+  --hub-ip IP_HUB --hub-port 8082 \
+  --register-secret 'SECRET_FROM_PANEL' \
+  --ssh-user root --ssh-pass 'NODE_SSH_PASSWORD' \
+  --name node-1 --connect-host NODE_PUBLIC_IP_OR_DOMAIN
 ```
 
-IP Hub، پورت 8082، رمز ثبت از **پنل → Node**، یوزر/پسورد SSH Node را وارد کن. بعد **تست SSH** و ساخت Xray با **سرور ساخت کانفیگ → Node**.
+روش تعاملی: `curl -fsSL ... -o install-node.sh` سپس `sudo bash install-node.sh`.
+
+بعد **تست SSH** و ساخت Xray با **سرور ساخت کانفیگ → Node**.
 
 | مشکل | راه‌حل |
 |------|--------|

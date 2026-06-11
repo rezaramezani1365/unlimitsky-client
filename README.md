@@ -311,13 +311,19 @@ sudo apt install -y sshpass
 sudo bash /var/www/unlimitsky/scripts/panel-self-update.sh
 ```
 
-**On the Node VPS:**
+**On the Node VPS** (replace placeholders; registration password from **Panel → Nodes**):
 
 ```bash
-curl -fsSL http://HUB_IP:8082/bin/install-node.sh | sudo bash -s
+curl -fsSL http://HUB_IP:8082/bin/install-node.sh | sudo bash -s -- \
+  --hub-ip HUB_IP --hub-port 8082 \
+  --register-secret 'SECRET_FROM_PANEL' \
+  --ssh-user root --ssh-pass 'NODE_SSH_PASSWORD' \
+  --name node-1 --connect-host NODE_PUBLIC_IP_OR_DOMAIN
 ```
 
-Follow prompts (Hub IP, port 8082, registration password from **Panel → Nodes**, SSH user/password on the Node). Then **Test SSH** in the panel and create Xray configs with **Provisioning server → Node**.
+Interactive alternative: `curl -fsSL ... -o install-node.sh` then `sudo bash install-node.sh`.
+
+Then **Test SSH** in the panel and create Xray configs with **Provisioning server → Node**.
 
 | Issue | Fix |
 |-------|-----|

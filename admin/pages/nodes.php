@@ -61,11 +61,22 @@ $hubHost = !empty($hubCfg['domain_enabled']) && ($hubCfg['panel_domain'] ?? '') 
     : (USK_ConnectHost::detect_ip());
 $hubPort = (int) ($hubCfg['panel_port'] ?? 8082);
 $hubScheme = !empty($hubCfg['https_enabled']) ? 'https' : 'http';
+$hubBase = sprintf('%s://%s:%d', $hubScheme, $hubHost, $hubPort);
 $installCmd = sprintf(
-    'curl -fsSL %s://%s:%d/bin/install-node.sh | sudo bash -s',
-    $hubScheme,
+    "curl -fsSL %s/bin/install-node.sh | sudo bash -s -- \\\n" .
+    "  --hub-ip %s --hub-port %d \\\n" .
+    "  --register-secret '%s' \\\n" .
+    "  --ssh-user root --ssh-pass 'YOUR_SSH_PASSWORD' \\\n" .
+    "  --name YOUR_NODE_NAME --connect-host YOUR_PUBLIC_IP_OR_DOMAIN",
+    $hubBase,
     $hubHost,
-    $hubPort
+    $hubPort,
+    $registerSecret
+);
+$installCmdInteractive = sprintf(
+    "curl -fsSL %s/bin/install-node.sh -o install-node.sh\n" .
+    'sudo bash install-node.sh',
+    $hubBase
 );
 
 ?>
@@ -91,7 +102,7 @@ $installCmd = sprintf(
             <ol class="small">
                 <li><?= __('nodes_step_register_secret') ?></li>
                 <li><?= __('nodes_step_run_on_remote') ?></li>
-                <li><?= __('nodes_step_enter_credentials') ?></li>
+                <li><?= __('nodes_step_replace_placeholders') ?></li>
             </ol>
 
             <div class="mb-3">
@@ -107,7 +118,14 @@ $installCmd = sprintf(
 
             <div class="mb-3">
                 <label class="form-label small"><?= __('nodes_install_cmd') ?></label>
-                <code class="d-block p-3 user-select-all" dir="ltr" style="word-break:break-all;"><?= usk_esc($installCmd) ?></code>
+                <p class="small text-muted mb-1"><?= __('nodes_install_cmd_note') ?></p>
+                <code class="d-block p-3 user-select-all" dir="ltr" style="word-break:break-all; white-space:pre-wrap;"><?= usk_esc($installCmd) ?></code>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label small"><?= __('nodes_install_cmd_interactive') ?></label>
+                <p class="small text-muted mb-1"><?= __('nodes_install_interactive_note') ?></p>
+                <code class="d-block p-3 user-select-all" dir="ltr" style="word-break:break-all; white-space:pre-wrap;"><?= usk_esc($installCmdInteractive) ?></code>
             </div>
         <?php endif; ?>
     </div>
