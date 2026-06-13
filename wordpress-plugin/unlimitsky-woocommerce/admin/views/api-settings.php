@@ -47,15 +47,15 @@ $site_url = USK_Api_Settings::site_url();
                     <tr>
                         <th><label for="api_url"><?php esc_html_e('آدرس API پنل', 'unlimitsky-wc'); ?></label></th>
                         <td>
-                            <input type="url" name="api_url" id="api_url" class="regular-text" dir="ltr" placeholder="https://panel.example.com:8082" value="<?php echo esc_attr($api_url); ?>" required>
-                            <p class="description"><?php esc_html_e('آدرس پنل کلاینت — مسیر api/v1.php خودکار اضافه می‌شود.', 'unlimitsky-wc'); ?></p>
+                            <input type="url" name="api_url" id="api_url" class="regular-text" dir="ltr" placeholder="http://YOUR_IP:8082" value="<?php echo esc_attr($api_url); ?>" required>
+                            <p class="description"><?php esc_html_e('آدرس کامل (مثلاً http://31.15.16.154:8082). اگر تایم‌اوت داد، مطمئن شوید پورت ۸۰۸۲ در فایروال سرور باز است.', 'unlimitsky-wc'); ?></p>
                         </td>
                     </tr>
                     <tr>
                         <th><label for="api_key"><?php esc_html_e('کلید API', 'unlimitsky-wc'); ?></label></th>
                         <td>
                             <textarea name="api_key" id="api_key" class="large-text" rows="2" dir="ltr" placeholder="USK-API-..." required><?php echo esc_textarea($api_key); ?></textarea>
-                            <p class="description"><?php esc_html_e('از پنل کلاینت → کلید API (با دامنه همین سایت) ساخته می‌شود.', 'unlimitsky-wc'); ?></p>
+                            <p class="description"><?php esc_html_e('فقط کد کلید را وارد کنید (بدون عبارت Authorization: Bearer).', 'unlimitsky-wc'); ?></p>
                         </td>
                     </tr>
                     <tr>

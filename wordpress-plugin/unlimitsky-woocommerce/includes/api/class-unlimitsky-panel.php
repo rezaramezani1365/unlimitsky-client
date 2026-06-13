@@ -33,13 +33,19 @@ class USK_UnlimitSky_Panel
             return ['ok' => false, 'error' => __('آدرس API پنل unlimitsky خالی است.', 'unlimitsky-wc')];
         }
 
+        // Clean API key in case user pasted "Authorization: Bearer USK-API-..."
+        $api_key = trim($api_key);
+        $api_key = str_ireplace('Authorization:', '', $api_key);
+        $api_key = str_ireplace('Bearer', '', $api_key);
+        $api_key = trim($api_key);
+
         $url = add_query_arg([
             'action'       => $action,
             'usk_site_url' => USK_Api_Settings::site_url(),
         ], $url);
 
         $args = [
-            'timeout' => 60,
+            'timeout' => 25, // Lower timeout for testing to fail faster
             'headers' => [
                 'Authorization'   => 'Bearer ' . $api_key,
                 'Accept'          => 'application/json',
