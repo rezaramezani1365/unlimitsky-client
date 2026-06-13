@@ -33,7 +33,11 @@ class USK_UnlimitSky_Panel
             return ['ok' => false, 'error' => __('آدرس API پنل unlimitsky خالی است.', 'unlimitsky-wc')];
         }
 
-        $url = add_query_arg('action', $action, $url);
+        $url = add_query_arg([
+            'action'       => $action,
+            'usk_site_url' => USK_Api_Settings::site_url(),
+        ], $url);
+
         $args = [
             'timeout' => 60,
             'headers' => [

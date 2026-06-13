@@ -181,7 +181,7 @@ class USK_PanelAccess
         }
 
         $uri = (string) ($_SERVER['REQUEST_URI'] ?? '');
-        if (strpos($uri, '/install/') !== false) {
+        if (strpos($uri, '/install/') !== false || strpos($uri, '/api/') !== false) {
             return;
         }
 
