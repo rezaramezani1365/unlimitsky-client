@@ -135,9 +135,14 @@ class USK_Admin
         }
 
         $cfg = USK_Api_Settings::get();
-        $ok = USK_UnlimitSky_Panel::test_connection($cfg['api_url'], $cfg['api_key']);
+        $res = USK_UnlimitSky_Panel::test_connection($cfg['api_url'], $cfg['api_key']);
 
-        wp_safe_redirect(add_query_arg(['page' => 'unlimitsky', 'test' => $ok ? 'ok' : 'fail'], admin_url('admin.php')));
+        if (!empty($res['ok'])) {
+            wp_safe_redirect(add_query_arg(['page' => 'unlimitsky', 'test' => 'ok'], admin_url('admin.php')));
+        } else {
+            set_transient('usk_test_api_error', $res['error'] ?? '', 30);
+            wp_safe_redirect(add_query_arg(['page' => 'unlimitsky', 'test' => 'fail'], admin_url('admin.php')));
+        }
         exit;
     }
 

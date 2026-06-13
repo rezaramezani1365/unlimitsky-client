@@ -30,6 +30,9 @@ $site_url = USK_Api_Settings::site_url();
     <?php if (isset($_GET['test'])) : ?>
         <div class="notice notice-<?php echo $_GET['test'] === 'ok' ? 'success' : 'error'; ?> is-dismissible">
             <p><?php echo $_GET['test'] === 'ok' ? esc_html__('اتصال API موفق بود.', 'unlimitsky-wc') : esc_html__('اتصال API ناموفق بود — آدرس، کلید و دامنه را بررسی کنید.', 'unlimitsky-wc'); ?></p>
+            <?php if ($_GET['test'] === 'fail' && ($err = get_transient('usk_test_api_error'))) : delete_transient('usk_test_api_error'); ?>
+                <p dir="ltr" style="color:#b32d2e;"><code><?php echo esc_html($err); ?></code></p>
+            <?php endif; ?>
         </div>
     <?php endif; ?>
 

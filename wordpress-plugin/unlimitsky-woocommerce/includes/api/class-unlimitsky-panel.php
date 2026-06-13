@@ -76,15 +76,22 @@ class USK_UnlimitSky_Panel
         return ['ok' => true, 'data' => $data];
     }
 
-    public static function test_connection(string $api_url, string $api_key): bool
+    /**
+     * @return array{ok:bool, error?:string}
+     */
+    public static function test_connection(string $api_url, string $api_key): array
     {
         $health = self::request($api_url, '', 'health');
         if (empty($health['ok'])) {
-            return false;
+            return ['ok' => false, 'error' => $health['error'] ?? 'health_failed'];
         }
 
         $auth = self::request($api_url, $api_key, 'protocols');
-        return !empty($auth['ok']);
+        if (empty($auth['ok'])) {
+            return ['ok' => false, 'error' => $auth['error'] ?? 'auth_failed'];
+        }
+
+        return ['ok' => true];
     }
 
     /**
