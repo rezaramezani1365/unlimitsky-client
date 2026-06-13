@@ -5,8 +5,6 @@ define('USK_ROOT', dirname(__DIR__));
 
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/admin/lib/panel-access.php';
-// API allows direct IP access even if panel domain is locked (uses API Keys domain validation instead)
-// USK_PanelAccess::enforce_request_host();
 require_once dirname(__DIR__) . '/admin/lib/protocols/manager.php';
 require_once dirname(__DIR__) . '/admin/lib/protocols/provisioner.php';
 require_once dirname(__DIR__) . '/admin/lib/protocols/limits.php';
