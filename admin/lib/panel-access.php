@@ -176,12 +176,13 @@ class USK_PanelAccess
      */
     public static function enforce_request_host()
     {
-        if (PHP_SAPI === 'cli') {
+        if (PHP_SAPI === 'cli' || defined('USK_API')) {
             return;
         }
 
         $uri = (string) ($_SERVER['REQUEST_URI'] ?? '');
-        if (strpos($uri, '/install/') !== false || strpos($uri, '/api/') !== false) {
+        $script = (string) ($_SERVER['SCRIPT_NAME'] ?? '');
+        if (strpos($uri, '/install/') !== false || strpos($uri, '/api/') !== false || strpos($script, '/api/') !== false) {
             return;
         }
 
