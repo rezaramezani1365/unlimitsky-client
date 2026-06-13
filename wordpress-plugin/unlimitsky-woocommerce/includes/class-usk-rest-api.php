@@ -35,15 +35,15 @@ class USK_Rest_Api
 
     public function get_panel_ip(WP_REST_Request $request): WP_REST_Response
     {
-        $panel = USK_Panel_Manager::get_panel((int) $request['panel_id']);
+        $panel = USK_Api_Settings::get_connection();
         if (!$panel) {
-            return new WP_REST_Response(['error' => 'panel not found'], 404);
+            return new WP_REST_Response(['error' => 'api not configured'], 404);
         }
 
         return new WP_REST_Response([
             'connect_host' => USK_Dns_Settings::connect_host(),
             'backend_ip'   => USK_Dns_Settings::backend_ip_for_panel($panel),
-            'panel_name'   => $panel['name'],
+            'panel_name'   => 'unlimitsky',
         ], 200);
     }
 }

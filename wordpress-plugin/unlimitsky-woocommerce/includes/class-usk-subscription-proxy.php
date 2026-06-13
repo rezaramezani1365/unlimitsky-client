@@ -48,11 +48,7 @@ class USK_Subscription_Proxy
             exit('Upstream unavailable');
         }
 
-        $panel = USK_Panel_Manager::get_panel_by_name($service['panel_name']);
-        if (!$panel) {
-            status_header(500);
-            exit('Panel not configured');
-        }
+        $panel = USK_Api_Settings::get_connection() ?? [];
 
         $connect_host = USK_Dns_Settings::connect_host();
         $output       = USK_Config_Rewriter::rewrite_to_connect_domain($body, $connect_host, $panel);

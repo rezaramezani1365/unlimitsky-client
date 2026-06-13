@@ -7,134 +7,49 @@ class USK_Service_Creator
     /**
      * @return array{success:bool, subscription_url?:string, config_links?:string, username?:string, error?:string}
      */
-    public static function create(array $panel, int $volume_gb, int $duration_days, string $service_username, string $protocol = '', int $wc_order_id = 0, string $plan_code = '', string $openvpn_proto = 'tcp', string $wireguard_transport = 'tcp', string $external_panel_code = '', string $customer_email = ''): array
+    public static function create(array $panel, int $volume_gb, int $duration_days, string $service_username, string $protocol = '', int $wc_order_id = 0, string $plan_code = '', string $openvpn_proto = 'tcp', string $wireguard_transport = 'tcp', string $external_panel_code = '', string $customer_email = '', string $node_id = ''): array
     {
-        if ($panel['type'] === 'unlimitsky') {
-            return self::create_unlimitsky($panel, $volume_gb, $duration_days, $service_username, $protocol, $wc_order_id, $plan_code, $openvpn_proto, $wireguard_transport, $external_panel_code, $customer_email);
+        if (!empty($node_id)) {
+            $panel['provision_node_id'] = preg_replace('/[^a-z0-9]/', '', $node_id);
         }
 
-        $panel = USK_Panel_Manager::refresh_panel_token($panel);
-
-        if ($panel['type'] === 'marzban') {
-            return self::create_marzban($panel, $volume_gb, $duration_days, $service_username);
-        }
-
-        if ($panel['type'] === 'sanayi') {
-            return self::create_sanayi($panel, $volume_gb, $duration_days, $service_username);
-        }
-
-        return ['success' => false, 'error' => __('نوع پنل پشتیبانی نمی‌شود.', 'unlimitsky-wc')];
-    }
-
-    private static function create_unlimitsky(array $panel, int $volume_gb, int $duration_days, string $username, string $protocol = '', int $wc_order_id = 0, string $plan_code = '', string $openvpn_proto = 'tcp', string $wireguard_transport = 'tcp', string $external_panel_code = '', string $customer_email = ''): array
-    {
-        return USK_UnlimitSky_Panel::create_service($panel, $volume_gb, $duration_days, $username, $protocol, $wc_order_id, $plan_code, $openvpn_proto, $wireguard_transport, $external_panel_code, $customer_email);
-    }
-
-    private static function create_marzban(array $panel, int $volume_gb, int $duration_days, string $username): array
-    {
-        if (empty($panel['token'])) {
-            return ['success' => false, 'error' => __('اتصال به پنل Marzban ناموفق بود.', 'unlimitsky-wc')];
-        }
-
-        $protocols = array_filter(explode('|', $panel['protocols']));
-        $proxies     = USK_Marzban::build_proxies($protocols, $panel['flow']);
-        $inbound_rows = USK_Panel_Manager::get_marzban_inbounds($panel['code']);
-        $inbounds    = !empty($inbound_rows)
-            ? USK_Marzban::build_inbounds($protocols, $inbound_rows)
-            : 'null';
-
-        $result = USK_Marzban::create_user(
-            $username,
-            (int) USK_convert_to_bytes($volume_gb . 'GB'),
-            strtotime("+ {$duration_days} day"),
-            $proxies,
-            $inbounds,
-            $panel['token'],
-            $panel['login_link']
+        return USK_UnlimitSky_Panel::create_service(
+            $panel,
+            $volume_gb,
+            $duration_days,
+            $service_username,
+            $protocol,
+            $wc_order_id,
+            $plan_code,
+            $openvpn_proto,
+            $wireguard_transport,
+            $external_panel_code,
+            $customer_email
         );
-
-        if (empty($result['username'])) {
-            $msg = $result['detail'] ?? __('خطا در ساخت کاربر Marzban', 'unlimitsky-wc');
-            return ['success' => false, 'error' => is_array($msg) ? wp_json_encode($msg) : (string) $msg];
-        }
-
-        return [
-            'success'           => true,
-            'subscription_url'  => USK_Marzban::get_subscription_url($result, $panel['login_link']),
-            'config_links'      => USK_Marzban::extract_links($result),
-            'username'          => $username,
-            'panel'             => $panel,
-            'protocol'          => 'xray',
-        ];
-    }
-
-    private static function create_sanayi(array $panel, int $volume_gb, int $duration_days, string $username): array
-    {
-        $setting = USK_Panel_Manager::get_sanayi_setting($panel['code']);
-        if (!$setting || empty($setting['inbound_id'])) {
-            return ['success' => false, 'error' => __('تنظیمات inbound پنل سنایی ثبت نشده.', 'unlimitsky-wc')];
-        }
-
-        if (empty($panel['token'])) {
-            return ['success' => false, 'error' => __('اتصال به پنل Sanaei ناموفق بود.', 'unlimitsky-wc')];
-        }
-
-        $xui    = new USK_Sanayi($panel['login_link'], $panel['token']);
-        $result = $xui->add_client($username, $setting['inbound_id'], $duration_days, $volume_gb);
-
-        if (empty($result['status'])) {
-            return ['success' => false, 'error' => $result['msg'] ?? __('خطا در ساخت کلاینت Sanaei', 'unlimitsky-wc')];
-        }
-
-        $config_link = !empty($setting['example_link'])
-            ? $xui->build_config_link($setting['example_link'], $result['results'], $panel['login_link'], $setting['inbound_id'])
-            : '';
-
-        $links = trim($config_link . "\n\n" . ($result['results']['subscribe'] ?? ''));
-
-        return [
-            'success'          => true,
-            'subscription_url' => $result['results']['subscribe'] ?? $config_link,
-            'config_links'     => $links,
-            'username'         => $username,
-            'panel'            => $panel,
-            'protocol'         => 'xray',
-        ];
     }
 
     public static function apply_dns_wrap(array $result): array
     {
-        if (empty($result['success']) || empty($result['panel'])) {
+        if (empty($result['success'])) {
             return $result;
         }
 
-        if (($result['panel']['type'] ?? '') === 'unlimitsky') {
-            if (USK_Dns_Settings::is_enabled()) {
-                $connect_host = USK_Dns_Settings::connect_host();
-                $links = USK_Config_Rewriter::rewrite_to_connect_domain(
-                    $result['config_links'] ?? '',
-                    $connect_host,
-                    $result['panel']
-                );
-                $result['config_links'] = $links;
+        if (USK_Dns_Settings::is_enabled()) {
+            $connect_host = USK_Dns_Settings::connect_host();
+            $panel = $result['panel'] ?? USK_Api_Settings::get_connection() ?? [];
+            $links = USK_Config_Rewriter::rewrite_to_connect_domain(
+                $result['config_links'] ?? '',
+                $connect_host,
+                $panel
+            );
+            $result['config_links'] = $links;
+            if (!empty($result['portal_url'])) {
+                // Portal URL stays on client panel — do not rewrite.
+            } else {
                 $result['subscription_url'] = $links ?: ($result['subscription_url'] ?? '');
-                $result['connect_host'] = $connect_host;
             }
-            return $result;
+            $result['connect_host'] = $connect_host;
         }
-
-        $wrapped = USK_Subscription_Proxy::wrap_service_urls(
-            $result['panel'],
-            $result['subscription_url'],
-            $result['config_links'] ?? ''
-        );
-
-        $result['subscription_url']           = $wrapped['subscription_url'];
-        $result['config_links']               = $wrapped['config_links'];
-        $result['connect_host']               = $wrapped['connect_host'];
-        $result['proxy_token']                = $wrapped['proxy_token'];
-        $result['original_subscription_url']  = $wrapped['original_subscription_url'];
 
         return $result;
     }
@@ -175,11 +90,6 @@ class USK_Service_Creator
             'status'                      => 'active',
         ]);
 
-        $wpdb->query($wpdb->prepare(
-            'UPDATE ' . USK_table('panels') . ' SET count_create = count_create + 1 WHERE name = %s',
-            $data['panel_name']
-        ));
-
         return (int) $wpdb->insert_id;
     }
 
@@ -192,16 +102,16 @@ class USK_Service_Creator
             return;
         }
 
+        $panel = USK_Api_Settings::get_connection();
+        if (!$panel) {
+            return;
+        }
+
         foreach ($services as $service) {
             if (($service['status'] ?? '') === 'cancelled') {
                 continue;
             }
             if (($service['panel_type'] ?? '') !== 'unlimitsky') {
-                continue;
-            }
-
-            $panel = USK_Panel_Manager::get_panel_by_name($service['panel_name'] ?? '');
-            if (!$panel) {
                 continue;
             }
 
@@ -252,10 +162,6 @@ class USK_Service_Creator
      */
     public static function extend_existing(array $panel, string $serviceCode, string $planCode, string $protocol, string $renewSig, int $wcOrderId): array
     {
-        if (($panel['type'] ?? '') !== 'unlimitsky') {
-            return ['success' => false, 'error' => usk_wc__('Renewal is only supported for native unlimitsky services.')];
-        }
-
         $result = USK_UnlimitSky_Panel::extend_service($panel, $serviceCode, $planCode, $protocol, $renewSig, $wcOrderId);
         if (empty($result['success'])) {
             return $result;

@@ -27,8 +27,8 @@ class USK_Plugin
         require_once USK_WC_PLUGIN_DIR . 'includes/api/class-marzban.php';
         require_once USK_WC_PLUGIN_DIR . 'includes/class-usk-wc-i18n.php';
         require_once USK_WC_PLUGIN_DIR . 'includes/class-usk-order-display.php';
+        require_once USK_WC_PLUGIN_DIR . 'includes/class-usk-api-settings.php';
         require_once USK_WC_PLUGIN_DIR . 'includes/api/class-unlimitsky-panel.php';
-        require_once USK_WC_PLUGIN_DIR . 'includes/class-usk-panel-manager.php';
         require_once USK_WC_PLUGIN_DIR . 'includes/class-usk-service-creator.php';
         require_once USK_WC_PLUGIN_DIR . 'includes/class-usk-dns-settings.php';
         require_once USK_WC_PLUGIN_DIR . 'includes/class-usk-config-rewriter.php';

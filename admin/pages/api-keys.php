@@ -9,9 +9,14 @@ $new_key = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['create_key'])) {
         $name = trim($_POST['key_name'] ?? 'WooCommerce');
-        $created = USK_ApiKeys::create($name);
-        $_SESSION['usk_new_api_key'] = $created['key'];
-        usk_flash(__('api_key_created'));
+        $domain = trim($_POST['allowed_domain'] ?? '');
+        $created = USK_ApiKeys::create($name, $domain);
+        if (!empty($created['error'])) {
+            usk_flash(__('api_key_domain_required'), 'danger');
+        } else {
+            $_SESSION['usk_new_api_key'] = $created['key'];
+            usk_flash(__('api_key_created'));
+        }
     }
     if (isset($_POST['revoke_key'])) {
         $id = preg_replace('/[^a-f0-9]/', '', $_POST['revoke_key'] ?? '');
@@ -71,14 +76,21 @@ $installed = USK_ProtocolManager::installed_protocols();
         <div class="usk-card mb-3">
             <div class="usk-card-header"><?= __('api_create_key') ?></div>
             <div class="p-3">
-                <form method="post" class="d-flex gap-2 flex-wrap align-items-end">
-                    <div class="flex-grow-1">
+                <form method="post" class="row g-2 align-items-end">
+                    <div class="col-md-4">
                         <label class="form-label small"><?= __('api_key_name') ?></label>
                         <input type="text" name="key_name" class="form-control" placeholder="WooCommerce" value="WooCommerce">
                     </div>
-                    <button type="submit" name="create_key" value="1" class="btn btn-usk-primary">
-                        <i class="fa-solid fa-plus"></i> <?= __('api_create_key_btn') ?>
-                    </button>
+                    <div class="col-md-5">
+                        <label class="form-label small"><?= __('api_key_allowed_domain') ?></label>
+                        <input type="text" name="allowed_domain" class="form-control" placeholder="shop.example.com" required dir="ltr" style="text-align:left">
+                        <p class="form-text small mb-0"><?= __('api_key_allowed_domain_hint') ?></p>
+                    </div>
+                    <div class="col-md-3">
+                        <button type="submit" name="create_key" value="1" class="btn btn-usk-primary w-100">
+                            <i class="fa-solid fa-plus"></i> <?= __('api_create_key_btn') ?>
+                        </button>
+                    </div>
                 </form>
             </div>
         </div>
@@ -94,6 +106,7 @@ $installed = USK_ProtocolManager::installed_protocols();
                             <thead>
                                 <tr>
                                     <th><?= __('api_key_name') ?></th>
+                                    <th><?= __('api_key_allowed_domain') ?></th>
                                     <th><?= __('api_key_prefix') ?></th>
                                     <th><?= __('api_key_created_at') ?></th>
                                     <th><?= __('status') ?></th>
@@ -104,6 +117,7 @@ $installed = USK_ProtocolManager::installed_protocols();
                                 <?php foreach ($keys as $k) : ?>
                                 <tr>
                                     <td><?= usk_esc($k['name']) ?></td>
+                                    <td><code dir="ltr"><?= usk_esc($k['allowed_domain'] ?: '—') ?></code></td>
                                     <td><code><?= usk_esc($k['prefix']) ?></code></td>
                                     <td class="small text-muted"><?= usk_esc(substr($k['created_at'], 0, 10)) ?></td>
                                     <td>

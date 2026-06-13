@@ -26,8 +26,8 @@ usk_server_ip() {
     return
   fi
   local ip
-  ip=$(curl -4 -s --max-time 5 ifconfig.me 2>/dev/null || true)
-  if [ -n "$ip" ]; then
+  ip=$(curl -4 -s --max-time 5 ifconfig.me 2>/dev/null | tr -d '[:space:]' || true)
+  if [ -n "$ip" ] && echo "$ip" | grep -qE '^([0-9]{1,3}\.){3}[0-9]{1,3}$'; then
     echo "$ip"
     return
   fi

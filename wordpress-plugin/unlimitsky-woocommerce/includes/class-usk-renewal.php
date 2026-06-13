@@ -36,7 +36,7 @@ class USK_Renewal
 
         $panel = $this->resolve_panel_for_renew();
         if (!$panel) {
-            wc_add_notice(usk_wc__('No unlimitsky panel is configured for renewal.'), 'error');
+            wc_add_notice(usk_wc__('API connection is not configured for renewal.'), 'error');
             wp_safe_redirect(wc_get_cart_url());
             exit;
         }
@@ -148,11 +148,6 @@ class USK_Renewal
 
     private function resolve_panel_for_renew(): ?array
     {
-        global $wpdb;
-        $row = $wpdb->get_row(
-            "SELECT * FROM " . USK_table('panels') . " WHERE type = 'unlimitsky' AND status = 'active' ORDER BY id ASC LIMIT 1",
-            ARRAY_A
-        );
-        return $row ?: null;
+        return USK_Api_Settings::get_connection();
     }
 }

@@ -26,6 +26,61 @@ class USK_ApiKeys
         file_put_contents(self::file_path(), json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
     }
 
+    public static function normalize_site_domain($raw)
+    {
+        $raw = trim(strtolower((string) $raw));
+        if ($raw === '') {
+            return '';
+        }
+        $raw = preg_replace('#^https?://#i', '', $raw);
+        $raw = preg_replace('#/.*$#', '', $raw);
+        $raw = preg_replace('#:\d+$#', '', $raw);
+        return trim($raw, '. ');
+    }
+
+    private static function strip_www($domain)
+    {
+        $domain = self::normalize_site_domain($domain);
+        if (strpos($domain, 'www.') === 0) {
+            return substr($domain, 4);
+        }
+        return $domain;
+    }
+
+    public static function request_site_domain()
+    {
+        $site = trim((string) ($_SERVER['HTTP_X_USK_SITE_URL'] ?? ''));
+        if ($site === '' && function_exists('getallheaders')) {
+            $headers = getallheaders();
+            $site = $headers['X-USK-Site-URL'] ?? $headers['x-usk-site-url'] ?? '';
+        }
+        if ($site !== '') {
+            return self::normalize_site_domain($site);
+        }
+        $origin = trim((string) ($_SERVER['HTTP_ORIGIN'] ?? ''));
+        if ($origin !== '') {
+            return self::normalize_site_domain($origin);
+        }
+        $referer = trim((string) ($_SERVER['HTTP_REFERER'] ?? ''));
+        if ($referer !== '') {
+            return self::normalize_site_domain($referer);
+        }
+        return '';
+    }
+
+    public static function validate_domain(array $key)
+    {
+        $allowed = self::normalize_site_domain($key['allowed_domain'] ?? '');
+        if ($allowed === '') {
+            return true;
+        }
+        $request = self::request_site_domain();
+        if ($request === '') {
+            return false;
+        }
+        return self::strip_www($request) === self::strip_www($allowed);
+    }
+
     public static function list_keys()
     {
         $data = self::load();
@@ -35,6 +90,7 @@ class USK_ApiKeys
                 'id' => $key['id'],
                 'name' => $key['name'],
                 'prefix' => $key['prefix'],
+                'allowed_domain' => $key['allowed_domain'] ?? '',
                 'created_at' => $key['created_at'],
                 'status' => $key['status'],
             );
@@ -42,11 +98,16 @@ class USK_ApiKeys
         return $out;
     }
 
-    public static function create($name)
+    public static function create($name, $allowed_domain = '')
     {
         $name = trim($name);
         if ($name === '') {
             $name = 'WooCommerce';
+        }
+
+        $allowed_domain = self::normalize_site_domain($allowed_domain);
+        if ($allowed_domain === '') {
+            return array('error' => 'domain_required');
         }
 
         $raw = 'USK-API-' . bin2hex(random_bytes(24));
@@ -59,12 +120,19 @@ class USK_ApiKeys
             'name' => $name,
             'hash' => hash('sha256', $raw),
             'prefix' => $prefix,
+            'allowed_domain' => $allowed_domain,
             'created_at' => date('c'),
             'status' => 'active',
         );
         self::save($data);
 
-        return array('id' => $id, 'key' => $raw, 'prefix' => $prefix, 'name' => $name);
+        return array(
+            'id' => $id,
+            'key' => $raw,
+            'prefix' => $prefix,
+            'name' => $name,
+            'allowed_domain' => $allowed_domain,
+        );
     }
 
     public static function revoke($id)
@@ -116,6 +184,16 @@ class USK_ApiKeys
         if (!$key) {
             http_response_code(401);
             echo json_encode(array('ok' => false, 'error' => 'unauthorized'), JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        if (!self::validate_domain($key)) {
+            http_response_code(403);
+            echo json_encode(array(
+                'ok' => false,
+                'error' => 'domain_mismatch',
+                'allowed_domain' => self::normalize_site_domain($key['allowed_domain'] ?? ''),
+                'request_domain' => self::request_site_domain(),
+            ), JSON_UNESCAPED_UNICODE);
             exit;
         }
         return $key;

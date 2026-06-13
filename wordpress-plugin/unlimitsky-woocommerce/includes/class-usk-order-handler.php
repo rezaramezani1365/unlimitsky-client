@@ -36,6 +36,11 @@ class USK_Order_Handler
             return;
         }
 
+        $panel = USK_Api_Settings::get_connection();
+        if (!$panel) {
+            return;
+        }
+
         $has_vpn = false;
         $errors  = [];
 
@@ -56,23 +61,22 @@ class USK_Order_Handler
             $renewProtocol = sanitize_key((string) wc_get_order_item_meta($item_id, '_usk_renew_protocol', true));
             $renewSig = (string) wc_get_order_item_meta($item_id, '_usk_renew_sig', true);
 
-            $panel_id      = (int) $product->get_meta('_usk_panel_id');
             $volume_gb     = (int) $product->get_meta('_usk_volume_gb');
             $duration_days = (int) $product->get_meta('_usk_duration_days');
-            $protocol      = sanitize_text_field($product->get_meta('_usk_protocol') ?: '');
+            $protocol      = sanitize_key((string) $product->get_meta('_usk_protocol'));
             $provision_mode = sanitize_text_field($product->get_meta('_usk_provision_mode') ?: 'native');
             $external_panel_code = preg_replace('/[^0-9]/', '', (string) $product->get_meta('_usk_external_panel_code'));
             $openvpn_proto = sanitize_text_field($product->get_meta('_usk_openvpn_proto') ?: 'tcp');
             $wireguard_transport = sanitize_text_field($product->get_meta('_usk_wireguard_transport') ?: 'tcp');
             $plan_code     = preg_replace('/[^0-9]/', '', (string) $product->get_meta('_usk_plan_code'));
+            $node_id       = preg_replace('/[^a-z0-9]/', '', (string) $product->get_meta('_usk_node_id'));
 
-            $panel = USK_Panel_Manager::get_panel($panel_id);
-            if (!$panel) {
-                $errors[] = sprintf(usk_wc__('Panel for product "%s" not found.'), $item->get_name());
+            if ($plan_code === '') {
+                $errors[] = sprintf('%s: %s', $item->get_name(), __('پلن محصول تنظیم نشده است.', 'unlimitsky-wc'));
                 continue;
             }
 
-            if ($renewServiceCode !== '' && $panel['type'] === 'unlimitsky') {
+            if ($renewServiceCode !== '') {
                 $productProtocol = sanitize_key((string) $product->get_meta('_usk_protocol'));
                 if ($renewProtocol === '' || $productProtocol === '' || $renewProtocol !== $productProtocol) {
                     $errors[] = sprintf('%s: %s', $item->get_name(), usk_wc__('Renewal protocol does not match the service.'));
@@ -105,45 +109,63 @@ class USK_Order_Handler
                 continue;
             }
 
-            if ($panel['type'] === 'unlimitsky' && $provision_mode === 'external') {
+            if ($provision_mode === 'external') {
                 if ($external_panel_code === '') {
                     $errors[] = sprintf('%s: %s', $item->get_name(), usk_wc__('External panel (Marzban/Sanaei) not selected for this product.'));
                     continue;
                 }
-            } elseif (in_array($panel['type'], ['marzban', 'sanayi'], true)) {
                 $protocol = 'xray';
+            } elseif ($protocol === '') {
+                $errors[] = sprintf('%s: %s', $item->get_name(), __('پروتکل محصول تنظیم نشده است.', 'unlimitsky-wc'));
+                continue;
             }
 
-            $code     = USK_generate_code();
-            $username = USK_service_username($order_id, $item_id, $code);
+            $username = USK_service_username($order_id, $item_id, USK_generate_code());
             $customer_email = sanitize_email((string) $order->get_billing_email());
 
-            $extCode = ($panel['type'] === 'unlimitsky' && $provision_mode === 'external') ? $external_panel_code : '';
-            $result = USK_Service_Creator::create($panel, $volume_gb, $duration_days, $username, $protocol, $order_id, $plan_code, $openvpn_proto, $wireguard_transport, $extCode, $customer_email);
+            $extCode = ($provision_mode === 'external') ? $external_panel_code : '';
+            $result = USK_Service_Creator::create(
+                $panel,
+                $volume_gb,
+                $duration_days,
+                $username,
+                $protocol,
+                $order_id,
+                $plan_code,
+                $openvpn_proto,
+                $wireguard_transport,
+                $extCode,
+                $customer_email,
+                $node_id
+            );
             $result = USK_Service_Creator::apply_dns_wrap($result);
 
-            if (!$result['success']) {
+            if (empty($result['success'])) {
                 $errors[] = sprintf('%s: %s', $item->get_name(), $result['error'] ?? usk_wc__('Unknown error'));
                 $order->add_order_note(sprintf('[unlimitsky] %s: %s', $item->get_name(), $result['error'] ?? ''));
                 continue;
             }
 
+            $serviceCode = preg_replace('/[^0-9]/', '', (string) ($result['service_code'] ?? ''));
+            $portalUrl = trim((string) ($result['portal_url'] ?? ''));
+            $subscriptionUrl = $portalUrl !== '' ? $portalUrl : ($result['subscription_url'] ?? '');
+
             USK_Service_Creator::save_order_record([
                 'wc_order_id'               => $order_id,
                 'wc_order_item_id'          => $item_id,
                 'user_id'                   => $order->get_user_id(),
-                'panel_name'                => ($result['panel']['name'] ?? $panel['name']),
-                'panel_type'                => ($result['panel']['type'] ?? $panel['type']),
+                'panel_name'                => 'unlimitsky',
+                'panel_type'                => $result['panel']['type'] ?? 'unlimitsky',
                 'protocol'                  => $result['protocol'] ?? $protocol,
                 'volume_gb'                 => $volume_gb,
                 'duration_days'             => $duration_days,
-                'subscription_url'          => $result['subscription_url'],
-                'original_subscription_url' => $result['original_subscription_url'] ?? $result['subscription_url'],
+                'subscription_url'          => $subscriptionUrl,
+                'original_subscription_url' => $result['original_subscription_url'] ?? $subscriptionUrl,
                 'config_links'              => $result['config_links'] ?? '',
                 'connect_host'              => $result['connect_host'] ?? '',
                 'proxy_token'               => $result['proxy_token'] ?? '',
-                'service_username'          => $result['username'],
-                'service_code'              => !empty($result['service_code']) ? $result['service_code'] : $code,
+                'service_username'          => $result['username'] ?? $username,
+                'service_code'              => $serviceCode !== '' ? $serviceCode : USK_generate_code(),
                 'customer_email'            => $customer_email,
                 'usage_id'                  => $result['usage_id'] ?? '',
                 'xray_email'                => $result['xray_email'] ?? '',
@@ -153,23 +175,23 @@ class USK_Order_Handler
                 'qr_png'                    => $result['qr_png'] ?? '',
                 'vpn_uri'                   => $result['vpn_uri'] ?? '',
                 'download_url'              => $result['download_url'] ?? '',
-                'portal_url'                => $result['portal_url'] ?? '',
+                'portal_url'                => $portalUrl,
                 'conf_filename'             => $result['conf_filename'] ?? '',
                 'expires_at'                => $result['expires_at'] ?? null,
             ]);
 
             wc_update_order_item_meta($item_id, '_usk_provisioned', 'yes');
-            wc_update_order_item_meta($item_id, '_usk_subscription_url', $result['subscription_url']);
+            wc_update_order_item_meta($item_id, '_usk_subscription_url', $subscriptionUrl);
             wc_update_order_item_meta($item_id, '_usk_config_links', $result['config_links'] ?? '');
-            wc_update_order_item_meta($item_id, '_usk_service_code', $code);
-            if (!empty($result['portal_url'])) {
-                wc_update_order_item_meta($item_id, '_usk_portal_url', esc_url_raw($result['portal_url']));
+            wc_update_order_item_meta($item_id, '_usk_service_code', $serviceCode);
+            if ($portalUrl !== '') {
+                wc_update_order_item_meta($item_id, '_usk_portal_url', esc_url_raw($portalUrl));
             }
             if (!empty($result['qr_png'])) {
                 wc_update_order_item_meta($item_id, '_usk_qr_png', $result['qr_png']);
             }
 
-            $order->add_order_note(sprintf('[unlimitsky] Service "%s" created.', $item->get_name()));
+            $order->add_order_note(sprintf('[unlimitsky] Service "%s" created. Portal: %s', $item->get_name(), $portalUrl !== '' ? $portalUrl : $subscriptionUrl));
         }
 
         if ($has_vpn) {

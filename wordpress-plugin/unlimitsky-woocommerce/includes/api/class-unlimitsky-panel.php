@@ -37,8 +37,9 @@ class USK_UnlimitSky_Panel
         $args = [
             'timeout' => 60,
             'headers' => [
-                'Authorization' => 'Bearer ' . $api_key,
-                'Accept'        => 'application/json',
+                'Authorization'   => 'Bearer ' . $api_key,
+                'Accept'          => 'application/json',
+                'X-USK-Site-URL'  => USK_Api_Settings::site_url(),
             ],
             'sslverify' => false,
         ];
@@ -80,6 +81,19 @@ class USK_UnlimitSky_Panel
 
         $auth = self::request($api_url, $api_key, 'protocols');
         return !empty($auth['ok']);
+    }
+
+    /**
+     * @return array<int, array{id:string,name:string}>
+     */
+    public static function list_protocols(string $api_url, string $api_key): array
+    {
+        $result = self::request($api_url, $api_key, 'protocols');
+        if (empty($result['ok'])) {
+            return [];
+        }
+        $protocols = $result['data']['protocols'] ?? [];
+        return is_array($protocols) ? $protocols : [];
     }
 
     /**
@@ -255,6 +269,7 @@ class USK_UnlimitSky_Panel
             'xray_email'       => $data['xray_email'] ?? '',
             'panel'            => $panel,
             'protocol'         => $data['protocol'] ?? $protocol,
+            'service_code'     => $data['service_code'] ?? '',
             'qr_png'           => $data['qr_png'] ?? '',
             'vpn_uri'          => $data['vpn_uri'] ?? '',
             'wg_conf'          => $data['wg_conf'] ?? '',
