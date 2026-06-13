@@ -49,7 +49,12 @@ class USK_ApiKeys
 
     public static function request_site_domain()
     {
-        $site = trim((string) ($_SERVER['HTTP_X_USK_SITE_URL'] ?? ''));
+        // Try GET/POST fallback first (helps if headers are stripped by proxy/WAF)
+        $site = trim((string) ($_GET['usk_site_url'] ?? $_POST['usk_site_url'] ?? ''));
+
+        if ($site === '') {
+            $site = trim((string) ($_SERVER['HTTP_X_USK_SITE_URL'] ?? ''));
+        }
         if ($site === '' && function_exists('getallheaders')) {
             $headers = getallheaders();
             $site = $headers['X-USK-Site-URL'] ?? $headers['x-usk-site-url'] ?? '';
