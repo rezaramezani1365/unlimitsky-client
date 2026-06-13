@@ -3,7 +3,7 @@
  * Plugin Name: unlimitsky - WooCommerce
  * Plugin URI:  https://iranip.online
  * Description: فروش خودکار کانفیگ VPN از طریق API پنل کلاینت unlimitsky — پروتکل و پلن در سطح محصول
- * Version:     1.5.0
+ * Version:     1.5.1
  * Author:      unlimitsky
  * Text Domain: unlimitsky-wc
  * Requires at least: 5.8
@@ -14,7 +14,7 @@
 
 defined('ABSPATH') || exit;
 
-define('USK_WC_VERSION', '1.5.0');
+define('USK_WC_VERSION', '1.5.1');
 define('USK_WC_PLUGIN_FILE', __FILE__);
 define('USK_WC_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('USK_WC_PLUGIN_URL', plugin_dir_url(__FILE__));
