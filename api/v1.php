@@ -17,7 +17,7 @@ require_once dirname(__DIR__) . '/admin/lib/node-ssh.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Headers: Authorization, Content-Type, X-USK-Site-URL');
+header('Access-Control-Allow-Headers: Authorization, Content-Type, X-USK-Site-URL, usk-site-url');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
