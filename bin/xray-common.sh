@@ -246,6 +246,15 @@ usk_xray_write_config() {
         levels: { "0": { statsUserUplink: true, statsUserDownlink: true, statsUserOnline: true } },
         system: { statsInboundUplink: true, statsInboundDownlink: true }
       },
+      dns: {
+        servers: [
+          "https+local://8.8.8.8/dns-query",
+          "8.8.8.8",
+          "1.1.1.1",
+          "localhost"
+        ],
+        queryStrategy: "UseIPv4"
+      },
       inbounds: [
         {
           listen: "127.0.0.1",
@@ -272,19 +281,54 @@ usk_xray_write_config() {
               shortIds: $shortIds
             }
           },
-          sniffing: { enabled: true, destOverride: ["http", "tls"] }
+          sniffing: {
+            enabled: true,
+            destOverride: ["http", "tls", "quic"],
+            routeOnly: true
+          }
         }
       ],
       outbounds: [
-        { protocol: "freedom", tag: "direct", settings: { domainStrategy: "UseIPv4" } },
-        { protocol: "freedom", tag: "api", settings: {} },
-        { protocol: "blackhole", tag: "block" }
+        {
+          protocol: "freedom",
+          tag: "direct",
+          settings: {
+            domainStrategy: "UseIPv4"
+          }
+        },
+        {
+          protocol: "freedom",
+          tag: "api",
+          settings: {}
+        },
+        {
+          protocol: "blackhole",
+          tag: "block"
+        }
       ],
       routing: {
         domainStrategy: "IPIfNonMatch",
         rules: [
-          { type: "field", inboundTag: ["api"], outboundTag: "api" },
-          { type: "field", inboundTag: ["vless-reality-in"], outboundTag: "direct" }
+          {
+            type: "field",
+            inboundTag: ["api"],
+            outboundTag: "api"
+          },
+          {
+            type: "field",
+            outboundTag: "block",
+            ip: ["geoip:private"]
+          },
+          {
+            type: "field",
+            outboundTag: "block",
+            protocol: ["bittorrent"]
+          },
+          {
+            type: "field",
+            inboundTag: ["vless-reality-in"],
+            outboundTag: "direct"
+          }
         ]
       }
     }' > "$tmp"; then
@@ -545,13 +589,16 @@ usk_xray_build_client_json() {
     --argjson dnsServers "$dns_json" \
     '{
       log: { loglevel: "warning", access: "/var/lib/unlimitsky/xray/access.log" },
-      dns: (
-        if ($dnsServers | length) > 0 then
-          { servers: $dnsServers, queryStrategy: "UseIPv4" }
-        else
-          { queryStrategy: "UseIPv4" }
-        end
-      ),
+      dns: {
+        servers: (
+          if ($dnsServers | length) > 0 then
+            $dnsServers + ["https+local://8.8.8.8/dns-query", "localhost"]
+          else
+            ["https+local://8.8.8.8/dns-query", "8.8.8.8", "1.1.1.1", "localhost"]
+          end
+        ),
+        queryStrategy: "UseIPv4"
+      },
       inbounds: [
         { tag: "socks-in", port: 10808, listen: "127.0.0.1", protocol: "socks", settings: { udp: true } },
         { tag: "http-in", port: 10809, listen: "127.0.0.1", protocol: "http" }
@@ -833,22 +880,21 @@ usk_xray_strip_bad_routing() {
   local tmp
   tmp=$(mktemp)
   if ! jq '
-    .routing.rules = ([.routing.rules[]? | select(
-      (.outboundTag // "") != "block"
-      and ((.ip // []) | index("geoip:private") | not)
-      and (.protocol // "") != "blackhole"
-    )]) |
-    .outbounds = [.outbounds[]? | select(.tag != "block" or .protocol == "blackhole")] |
-    if ([.outbounds[]? | select(.tag == "block")] | length) == 0 then
-      .outbounds += [{protocol:"blackhole", tag:"block"}]
-    else . end |
-    .outbounds = [.outbounds[]? | select(.protocol != "freedom" or .tag == "direct" or .tag == "api")] |
-    if ([.outbounds[]? | select(.tag == "direct")] | length) == 0 then
-      .outbounds = [{protocol:"freedom", tag:"direct", settings:{domainStrategy:"UseIPv4"}}] + .outbounds
-    else . end |
-    if ([.outbounds[]? | select(.tag == "api")] | length) == 0 then
-      .outbounds += [{protocol:"freedom", tag:"api", settings:{}}]
-    else . end
+    .outbounds = (
+      if ([.outbounds[]? | select(.tag == "block")] | length) == 0 then
+        .outbounds + [{protocol:"blackhole", tag:"block"}]
+      else . end
+    ) |
+    .outbounds = (
+      if ([.outbounds[]? | select(.tag == "direct")] | length) == 0 then
+        [{protocol:"freedom", tag:"direct", settings:{domainStrategy:"UseIPv4"}}] + .outbounds
+      else . end
+    ) |
+    .outbounds = (
+      if ([.outbounds[]? | select(.tag == "api")] | length) == 0 then
+        .outbounds + [{protocol:"freedom", tag:"api", settings:{}}]
+      else . end
+    )
   ' "$cfg" > "$tmp"; then
     rm -f "$tmp"
     return 1
@@ -946,10 +992,6 @@ usk_xray_ensure_stats_policy() {
         $r1 + [{ type: "field", inboundTag: [$vt], outboundTag: "direct" }]
       end
     ) |
-    .routing.rules = ([.routing.rules[]? | select(
-      (.outboundTag // "") != "block"
-      and ((.ip // []) | index("geoip:private") | not)
-    )]) |
     .inbounds |= map(
       if .protocol == "vless" then
         .settings.clients = [.settings.clients[]? | . + {level: (.level // 0), flow: (.flow // "xtls-rprx-vision")}]
