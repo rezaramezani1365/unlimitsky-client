@@ -1,0 +1,261 @@
+:root, [data-bs-theme="light"] {
+    --usk-blue: #0088ff;
+    --usk-bg: #f5f5f5;
+    --usk-surface: #fff;
+    --usk-border: #ddd;
+    --usk-text: #0a0a0a;
+    --usk-muted: #666;
+    --usk-radius: 4px;
+}
+
+[data-bs-theme="dark"] {
+    --usk-blue: #0099ff;
+    --usk-bg: #000;
+    --usk-surface: #0a0a0a;
+    --usk-border: #222;
+    --usk-text: #f5f5f5;
+    --usk-muted: #888;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body.install-body {
+    width: 100%;
+    min-height: 100vh;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+body.install-body {
+    font-family: 'IRANSans', 'Segoe UI', Tahoma, sans-serif;
+    background: #000;
+    color: var(--usk-text);
+    font-size: 15px;
+    line-height: 1.65;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.install-wrap {
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+    margin: 0 auto;
+    background:
+        radial-gradient(ellipse at 50% 40%, rgba(0, 136, 255, 0.07) 0%, transparent 55%),
+        #000;
+}
+
+.install-card {
+    width: 100%;
+    max-width: 440px;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    margin-inline: auto !important;
+    flex-shrink: 0;
+    background: var(--usk-surface);
+    border: 1px solid var(--usk-border);
+    border-top: 2px solid var(--usk-blue);
+    border-radius: var(--usk-radius);
+    padding: 2rem;
+}
+
+.install-brand {
+    text-align: center;
+    font-weight: 800;
+    font-size: 1.35rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 0.35rem;
+}
+.install-brand span { color: var(--usk-blue); }
+
+.install-sub {
+    text-align: center;
+    color: var(--usk-muted);
+    font-size: 0.88rem;
+    margin-bottom: 1.5rem;
+}
+
+.lang-pick { text-align: center; }
+.lang-label {
+    display: block;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--usk-muted);
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.lang-switch { display: flex; justify-content: center; gap: 0.35rem; width: 100%; }
+.lang-switch-lg { flex-direction: column; align-items: center; width: 100%; gap: 0.5rem; }
+.lang-btn {
+    border: 1px solid var(--usk-border);
+    background: transparent;
+    color: var(--usk-muted);
+    padding: 0.35rem 0.85rem;
+    border-radius: var(--usk-radius);
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 0.82rem;
+    cursor: pointer;
+}
+.lang-btn.active {
+    border-color: var(--usk-blue);
+    color: var(--usk-blue);
+    background: rgba(0, 136, 255, 0.12);
+}
+
+.form-section { margin-bottom: 1.25rem; }
+.section-title {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--usk-blue);
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px solid var(--usk-border);
+}
+
+.form-group { margin-bottom: 0.85rem; }
+.form-group label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--usk-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin-bottom: 0.35rem;
+}
+.form-group label i { color: var(--usk-blue); width: 1rem; }
+
+input[type="text"], input[type="password"] {
+    width: 100%;
+    padding: 0.65rem 0.85rem;
+    border: 1px solid var(--usk-border);
+    border-radius: var(--usk-radius);
+    background: rgba(255,255,255,0.03);
+    color: var(--usk-text);
+    font-family: inherit;
+    font-size: 0.92rem;
+}
+input:focus {
+    outline: none;
+    border-color: var(--usk-blue);
+    box-shadow: 0 0 0 2px rgba(0, 136, 255, 0.2);
+}
+
+.btn-install {
+    width: 100%;
+    margin-top: 0.5rem;
+    padding: 0.75rem;
+    border: 1px solid #0077dd;
+    background: var(--usk-blue);
+    color: #fff;
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 0.88rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-radius: var(--usk-radius);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+.btn-install:hover {
+    background: #0077dd;
+    box-shadow: 0 0 16px rgba(0, 136, 255, 0.35);
+}
+
+.install-steps {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+}
+.step-dot {
+    width: 28px;
+    height: 28px;
+    border-radius: var(--usk-radius);
+    border: 1px solid var(--usk-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--usk-muted);
+}
+.step-dot.active {
+    border-color: var(--usk-blue);
+    background: rgba(0, 136, 255, 0.15);
+    color: var(--usk-blue);
+}
+.step-dot.done {
+    border-color: var(--usk-blue);
+    background: var(--usk-blue);
+    color: #fff;
+}
+.step-line {
+    width: 40px;
+    height: 1px;
+    background: var(--usk-border);
+}
+
+.install-step-panel.hidden { display: none; }
+
+.lang-btn-lg {
+    width: 100%;
+    padding: 0.85rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-size: 0.95rem;
+}
+
+.lang-hint {
+    text-align: center;
+    color: var(--usk-muted);
+    font-size: 0.8rem;
+    margin-bottom: 1.25rem;
+    line-height: 1.6;
+}
+
+.selected-lang-badge {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0.5rem;
+    padding: 0.65rem 0.85rem;
+    margin-bottom: 1.25rem;
+    background: rgba(0, 136, 255, 0.08);
+    border: 1px solid var(--usk-blue);
+    border-radius: var(--usk-radius);
+    font-size: 0.85rem;
+}
+.selected-lang-badge i { color: var(--usk-blue); }
+.selected-lang-badge strong { color: var(--usk-blue); }
+
+.lang-option { display: block; cursor: pointer; }
+.lang-option input { position: absolute; opacity: 0; pointer-events: none; }
+.lang-option input:checked + .lang-btn {
+    border-color: var(--usk-blue);
+    color: var(--usk-blue);
+    background: rgba(0, 136, 255, 0.12);
+}
+a.btn-link-back { margin-inline-start: auto; color: var(--usk-muted); font-size: 0.78rem; text-decoration: underline; }
+a.btn-link-back:hover { color: var(--usk-blue); }
+
+html[dir="ltr"] #btn-step1-next i.fa-arrow-left { display: none; }
+html[dir="rtl"] #btn-step1-next i.fa-arrow-right { display: none; }

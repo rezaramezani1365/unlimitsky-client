@@ -1,0 +1,535 @@
+<?php
+
+class USK_ProtocolManager
+{
+    public static function list()
+    {
+        return array(
+            'wireguard' => array(
+                'name' => 'WireGuard',
+                'port' => 51820,
+                'icon' => 'fa-shield',
+                'port_fields' => array(
+                    array('key' => 'port', 'label' => 'Listen port (UDP)', 'default' => 51820),
+                    array('key' => 'tcp_port', 'label' => 'TCP bridge port (udp2raw)', 'default' => 51822),
+                ),
+            ),
+            'openvpn' => array(
+                'name' => 'OpenVPN',
+                'port' => 1194,
+                'icon' => 'fa-lock',
+                'port_fields' => array(
+                    array('key' => 'udp_port', 'label' => 'UDP port', 'default' => 1194),
+                    array('key' => 'tcp_port', 'label' => 'TCP port', 'default' => 443),
+                ),
+            ),
+            'cisco' => array(
+                'name' => 'Cisco AnyConnect',
+                'port' => 4443,
+                'icon' => 'fa-building',
+                'port_fields' => array(
+                    array('key' => 'port', 'label' => 'Port (TCP/UDP)', 'default' => 4443),
+                ),
+            ),
+            'l2tp' => array(
+                'name' => 'L2TP/IPsec',
+                'port' => 1701,
+                'icon' => 'fa-network-wired',
+                'port_fields' => array(),
+                'fixed_ports' => '500, 4500, 1701 (UDP)',
+                'note_key' => 'protocol_l2tp_iran_note',
+            ),
+            'xray' => array(
+                'name' => 'Xray (VLESS Reality)',
+                'port' => 443,
+                'icon' => 'fa-bolt',
+                'port_fields' => array(
+                    array('key' => 'vless_port', 'label' => 'VLESS Reality port (TCP)', 'default' => 443),
+                ),
+                'note_key' => 'protocol_xray_iran_note',
+            ),
+        );
+    }
+
+    public static function sanitize_key($proto)
+    {
+        $proto = strtolower(trim((string) $proto));
+        $allowed = array_keys(self::list());
+        return in_array($proto, $allowed, true) ? $proto : '';
+    }
+
+    public static function status_file($proto)
+    {
+        return USK_ROOT . '/data/protocols/' . $proto . '.json';
+    }
+
+    public static function read_status($proto)
+    {
+        $f = self::status_file($proto);
+        if (!file_exists($f)) {
+            return array('installed' => false, 'status' => 'not_installed');
+        }
+        $d = json_decode(file_get_contents($f), true);
+        return is_array($d) ? $d : array('installed' => false, 'status' => 'not_installed');
+    }
+
+    public static function probe_marker($proto)
+    {
+        $marker = USK_ROOT . '/data/protocol-installed/' . self::sanitize_key($proto);
+        if ($marker === USK_ROOT . '/data/protocol-installed/') {
+            return false;
+        }
+        return is_file($marker);
+    }
+
+    public static function probe_via_sudo($proto)
+    {
+        $script = USK_ROOT . '/bin/probe-protocol.sh';
+        if (!file_exists($script)) {
+            return false;
+        }
+        $cmd = 'sudo -n bash ' . escapeshellarg($script) . ' '
+            . escapeshellarg($proto) . ' '
+            . escapeshellarg(USK_ROOT) . ' 2>&1';
+        $out = shell_exec($cmd);
+        return strpos((string) $out, 'USK_OK') !== false;
+    }
+
+    public static function is_installed($proto)
+    {
+        if (self::probe_marker($proto)) {
+            return true;
+        }
+        return self::probe_via_sudo($proto);
+    }
+
+    public static function default_status_fields($proto)
+    {
+        $out = array();
+        if ($proto === 'l2tp') {
+            $out['port'] = 1701;
+            $out['firewall_note'] = 'Open UDP 500, 4500, and 1701 in your VPS cloud firewall (security group).';
+        }
+        return $out;
+    }
+
+    public static function sync_installed_status($proto)
+    {
+        if (!self::is_installed($proto)) {
+            return false;
+        }
+        $st = self::read_status($proto);
+        self::set_status($proto, array_merge($st, self::default_status_fields($proto), array(
+            'installed' => true,
+            'status' => 'active',
+            'updated_at' => date('c'),
+            'verified_at' => date('c'),
+        )));
+        return true;
+    }
+
+    public static function refresh_all_status()
+    {
+        foreach (array_keys(self::list()) as $proto) {
+            self::get_status($proto);
+        }
+    }
+
+    public static function get_status($proto)
+    {
+        $st = self::read_status($proto);
+        $really = self::is_installed($proto);
+
+        if ($really) {
+            if (empty($st['installed'])) {
+                self::sync_installed_status($proto);
+                $st = self::read_status($proto);
+            }
+            return $st;
+        }
+
+        if (!empty($st['installed'])) {
+            $st['installed'] = false;
+            $st['status'] = 'not_installed';
+            $st['updated_at'] = date('c');
+            unset($st['synced_from_system']);
+            self::set_status($proto, $st);
+        }
+
+        return $st;
+    }
+
+    public static function set_status($proto, $data)
+    {
+        $dir = USK_ROOT . '/data/protocols';
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+        file_put_contents(self::status_file($proto), json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+    }
+
+    public static function bin_path($proto)
+    {
+        return USK_ROOT . '/bin/install-' . $proto . '.sh';
+    }
+
+    public static function effective_port($value, $default)
+    {
+        $v = (int) $value;
+        if ($v < 1 || $v > 65535) {
+            return (int) $default;
+        }
+        return $v;
+    }
+
+    public static function parse_ports($proto, array $input)
+    {
+        $meta = self::list()[$proto] ?? null;
+        if (!$meta) {
+            return array();
+        }
+        $ports = array();
+        foreach ($meta['port_fields'] ?? array() as $field) {
+            $key = $field['key'];
+            $raw = $input['port_' . $key] ?? ($input[$key] ?? null);
+            if ($raw === null || $raw === '') {
+                $st = self::get_status($proto);
+                if (isset($st[$key])) {
+                    $val = self::effective_port($st[$key], $field['default']);
+                } else {
+                    $val = (int) $field['default'];
+                }
+            } else {
+                $val = (int) $raw;
+            }
+            $val = self::effective_port($val, $field['default']);
+            $ports[$key] = $val;
+        }
+        return $ports;
+    }
+
+    public static function port_defaults_for_create($proto)
+    {
+        $meta = self::list()[$proto] ?? null;
+        if (!$meta) {
+            return array();
+        }
+        $st = self::get_status($proto);
+        $out = array();
+        foreach ($meta['port_fields'] ?? array() as $field) {
+            $key = $field['key'];
+            $out[$key] = isset($st[$key])
+                ? self::effective_port($st[$key], $field['default'])
+                : (int) $field['default'];
+        }
+        if (!empty($meta['fixed_ports'])) {
+            $out['fixed_ports'] = $meta['fixed_ports'];
+        }
+        return $out;
+    }
+
+    public static function build_install_argv($proto, array $ports)
+    {
+        switch ($proto) {
+            case 'xray':
+                return escapeshellarg($ports['vless_port'] ?? 443);
+            case 'openvpn':
+                return escapeshellarg($ports['udp_port'] ?? 1194) . ' ' . escapeshellarg($ports['tcp_port'] ?? 443);
+            case 'l2tp':
+                return escapeshellarg(USK_ROOT);
+            case 'wireguard':
+                return escapeshellarg($ports['port'] ?? 51820) . ' ' . escapeshellarg($ports['tcp_port'] ?? 51822);
+            default:
+                return isset($ports['port']) ? escapeshellarg($ports['port']) : '';
+        }
+    }
+
+    private static function write_install_log($proto, $cmd, $out, $extra = '')
+    {
+        $dir = USK_ROOT . '/data/protocols';
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+        $log = date('c') . "\nCMD: " . $cmd . "\n";
+        if ($extra !== '') {
+            $log .= $extra . "\n";
+        }
+        $log .= "---\n" . (string) $out . "\n";
+        @file_put_contents($dir . '/' . $proto . '-last.log', $log);
+    }
+
+    public static function async_install_protocols()
+    {
+        return array();
+    }
+
+    public static function uses_async_install($proto)
+    {
+        return in_array($proto, self::async_install_protocols(), true);
+    }
+
+    public static function install_job_file($proto)
+    {
+        return USK_ROOT . '/data/protocols/' . $proto . '-install.job';
+    }
+
+    public static function install_running_log($proto)
+    {
+        return USK_ROOT . '/data/protocols/' . $proto . '-install-running.log';
+    }
+
+    public static function is_install_job_running($proto)
+    {
+        $f = self::install_job_file($proto);
+        if (!is_file($f)) {
+            return false;
+        }
+        $line = trim((string) file_get_contents($f));
+        if (strpos($line, 'running') !== 0) {
+            return false;
+        }
+        if (preg_match('/^running\s+(.+)$/', $line, $m)) {
+            $started = strtotime($m[1]);
+            if ($started && (time() - $started) > 3600) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static function ports_from_status($proto, array $st)
+    {
+        $meta = self::list()[$proto] ?? null;
+        if (!$meta) {
+            return array();
+        }
+        $ports = array();
+        foreach ($meta['port_fields'] ?? array() as $field) {
+            $key = $field['key'];
+            if (isset($st[$key])) {
+                $ports[$key] = self::effective_port($st[$key], $field['default']);
+            }
+        }
+        return $ports;
+    }
+
+    private static function apply_install_output($proto, array $ports, $out, array $prev)
+    {
+        $scriptOk = (strpos((string) $out, 'USK_OK') !== false);
+        $systemOk = self::is_installed($proto);
+        $ok = $scriptOk || $systemOk;
+        $warn = !$scriptOk && $systemOk;
+
+        $status = array_merge($prev, self::default_status_fields($proto), array(
+            'installed' => $ok,
+            'status' => $ok ? 'active' : 'failed',
+            'updated_at' => date('c'),
+            'log' => substr((string) $out, -2000),
+        ));
+        unset($status['install_state'], $status['install_started_at']);
+        if ($ok) {
+            $status['verified_at'] = date('c');
+        }
+        if ($warn) {
+            $status['last_install_warning'] = substr((string) $out, -500);
+        } else {
+            unset($status['last_install_warning']);
+        }
+
+        foreach ($ports as $k => $v) {
+            $status[$k] = (int) $v;
+        }
+
+        if ($proto === 'xray' && preg_match('/USK_META:vless_port=(\d+)/', $out, $m)) {
+            $status['vless_port'] = (int) $m[1];
+            $status['port'] = (int) $m[1];
+            $sni = 'www.microsoft.com';
+            if (preg_match('/sni=([^;\s]+)/', $out, $sm)) {
+                $sni = $sm[1];
+            }
+            $status['reality_sni'] = $sni;
+            $status['transport'] = (strpos($out, 'reality=1') !== false) ? 'reality' : 'tcp';
+            $status['firewall_note'] = 'Open TCP ' . $m[1] . ' in VPS cloud firewall. VLESS + Reality (SNI: ' . $sni . '). Clients: v2rayN, Nekoray, Hiddify.';
+        } elseif ($proto === 'cisco' && preg_match('/USK_META:port=(\d+)/', $out, $m)) {
+            $status['port'] = (int) $m[1];
+            $status['firewall_note'] = 'Open TCP/UDP ' . $m[1] . ' in your VPS cloud firewall (security group).';
+        } elseif ($proto === 'openvpn' && preg_match('/USK_META:udp_port=(\d+);tcp_port=(\d+)/', $out, $m)) {
+            $status['udp_port'] = (int) $m[1];
+            $status['tcp_port'] = (int) $m[2];
+            $status['port'] = (int) $m[1];
+            $status['firewall_note'] = 'Open UDP ' . $m[1] . ' and TCP ' . $m[2] . ' in your VPS cloud firewall.';
+        } elseif ($proto === 'wireguard' && preg_match('/USK_META:port=(\d+);tcp_port=(\d+)/', $out, $m)) {
+            $status['port'] = (int) $m[1];
+            $requestedTcp = (int) $m[2];
+            if ($requestedTcp < 1 && isset($ports['tcp_port'])) {
+                $requestedTcp = self::effective_port($ports['tcp_port'], 51822);
+            }
+            $status['tcp_port'] = $requestedTcp > 0 ? $requestedTcp : self::effective_port($ports['tcp_port'] ?? 0, 51822);
+            if (strpos((string) $out, 'USK_WARN:wireguard_tcp_bridge') !== false) {
+                $status['tcp_bridge_active'] = false;
+                $status['last_install_warning'] = 'TCP bridge (udp2raw) did not start — check port conflict (OpenVPN TCP uses 443; use 51822 for WireGuard).';
+            } else {
+                $status['tcp_bridge_active'] = $requestedTcp > 0;
+            }
+            if ((int) $status['tcp_port'] > 0) {
+                $status['firewall_note'] = 'Open UDP ' . $status['port'] . ' and TCP ' . $status['tcp_port'] . ' (WireGuard TCP bridge) in your VPS cloud firewall.';
+            } else {
+                $status['firewall_note'] = 'Open UDP ' . $status['port'] . ' in your VPS cloud firewall (security group).';
+            }
+        } elseif ($proto === 'l2tp' && $ok) {
+            $status['port'] = 1701;
+            $status['firewall_note'] = 'Open UDP 500, 4500, and 1701 in your VPS cloud firewall (security group).';
+        } elseif (isset($status['port'])) {
+            $p = (int) $status['port'];
+            $protoLabel = $proto === 'openvpn' ? 'UDP' : 'TCP';
+            if ($proto === 'openvpn') {
+                $status['firewall_note'] = 'Open ' . $protoLabel . ' ' . $p . ' in your VPS cloud firewall (security group).';
+            }
+        }
+
+        self::set_status($proto, $status);
+        return array(
+            'ok' => $ok,
+            'warn' => $warn,
+            'msg' => $ok ? ($warn ? 'installed_with_warning' : 'installed') : 'failed',
+            'log' => $out,
+        );
+    }
+
+    public static function poll_install_job($proto)
+    {
+        if (!self::uses_async_install($proto)) {
+            return null;
+        }
+        $jobFile = self::install_job_file($proto);
+        if (!is_file($jobFile)) {
+            return null;
+        }
+        $line = trim((string) file_get_contents($jobFile));
+        if (strpos($line, 'running') === 0) {
+            if (!self::is_install_job_running($proto)) {
+                $prev = self::read_status($proto);
+                $failed = array_merge($prev, array(
+                    'status' => 'failed',
+                    'log' => 'Install timed out after 60 minutes.',
+                    'updated_at' => date('c'),
+                ));
+                unset($failed['install_state'], $failed['install_started_at']);
+                self::set_status($proto, $failed);
+                @unlink($jobFile);
+                return array('ok' => false, 'msg' => 'install_timed_out');
+            }
+            return array('ok' => false, 'async' => true, 'msg' => 'install_running');
+        }
+        $logFile = self::install_running_log($proto);
+        $out = is_file($logFile) ? (string) file_get_contents($logFile) : '';
+        $prev = self::read_status($proto);
+        $ports = self::ports_from_status($proto, $prev);
+        if (empty($ports)) {
+            $ports = self::parse_ports($proto, array());
+        }
+        self::write_install_log($proto, 'async:' . $proto, $out, $line);
+        $result = self::apply_install_output($proto, $ports, $out, $prev);
+        @unlink($jobFile);
+        return $result;
+    }
+
+    public static function poll_all_install_jobs()
+    {
+        foreach (self::async_install_protocols() as $proto) {
+            self::poll_install_job($proto);
+        }
+    }
+
+    public static function start_install_async($proto, array $ports)
+    {
+        $worker = USK_ROOT . '/bin/run-protocol-install.sh';
+        if (!file_exists($worker)) {
+            return array('ok' => false, 'msg' => 'script_missing', 'log' => 'run-protocol-install.sh missing');
+        }
+        $argv = self::build_install_argv($proto, $ports);
+        $inner = escapeshellarg($worker) . ' ' . escapeshellarg($proto) . ' ' . escapeshellarg(USK_ROOT);
+        if ($argv !== '') {
+            $inner .= ' ' . $argv;
+        }
+        $cmd = 'nohup sudo -n bash -c ' . escapeshellarg($inner) . ' </dev/null >/dev/null 2>&1 &';
+        shell_exec($cmd);
+
+        $prev = self::read_status($proto);
+        $status = array_merge($prev, self::default_status_fields($proto), array(
+            'installed' => false,
+            'status' => 'installing',
+            'install_state' => 'running',
+            'install_started_at' => date('c'),
+            'updated_at' => date('c'),
+        ));
+        foreach ($ports as $k => $v) {
+            $status[$k] = (int) $v;
+        }
+        self::set_status($proto, $status);
+        self::write_install_log($proto, $cmd, '', 'async_install_started');
+
+        return array('ok' => true, 'async' => true, 'msg' => 'install_started');
+    }
+
+    public static function install($proto, array $ports = array())
+    {
+        $allowed = array_keys(self::list());
+        if (!in_array($proto, $allowed, true)) {
+            return array('ok' => false, 'msg' => 'invalid_protocol', 'log' => 'invalid_protocol');
+        }
+        $script = self::bin_path($proto);
+        if (!file_exists($script)) {
+            self::write_install_log($proto, '', '', 'script_missing: ' . $script);
+            return array('ok' => false, 'msg' => 'script_missing', 'log' => 'script_missing');
+        }
+
+        if (empty($ports)) {
+            $ports = self::parse_ports($proto, array());
+        }
+
+        if (self::uses_async_install($proto)) {
+            if (self::is_install_job_running($proto)) {
+                return array('ok' => false, 'async' => true, 'msg' => 'install_already_running');
+            }
+            self::poll_install_job($proto);
+            if (self::is_install_job_running($proto)) {
+                return array('ok' => false, 'async' => true, 'msg' => 'install_already_running');
+            }
+            return self::start_install_async($proto, $ports);
+        }
+
+        $argv = self::build_install_argv($proto, $ports);
+        $cmd = 'sudo -n bash ' . escapeshellarg($script);
+        if ($argv !== '') {
+            $cmd .= ' ' . $argv;
+        }
+        $cmd .= ' 2>&1';
+
+        @set_time_limit(600);
+        $prev = self::read_status($proto);
+        $out = shell_exec($cmd);
+        if ($out === null) {
+            $out = '';
+        }
+        self::write_install_log($proto, $cmd, $out);
+
+        if (trim((string) $out) === '') {
+            $out = 'USK_ERR: sudo_denied or empty output — add probe-protocol.sh to /etc/sudoers.d/unlimitsky';
+        }
+
+        return self::apply_install_output($proto, $ports, $out, $prev);
+    }
+
+    public static function installed_protocols()
+    {
+        $out = array();
+        foreach (self::list() as $k => $meta) {
+            if (self::is_installed($k)) {
+                self::sync_installed_status($k);
+                $out[$k] = $meta;
+            }
+        }
+        return $out;
+    }
+}

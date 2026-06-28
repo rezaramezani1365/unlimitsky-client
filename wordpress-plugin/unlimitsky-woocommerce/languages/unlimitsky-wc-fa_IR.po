@@ -1,0 +1,90 @@
+﻿msgid ""
+msgstr ""
+"Project-Id-Version: unlimitsky WooCommerce 1.3.0\n"
+"Language: fa_IR\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "VPN Services"
+msgstr "سرویس‌های VPN"
+
+msgid "My VPN Services"
+msgstr "سرویس‌های VPN من"
+
+msgid "Server"
+msgstr "سرور"
+
+msgid "Volume"
+msgstr "حجم"
+
+msgid "Duration"
+msgstr "مدت"
+
+msgid "days"
+msgstr "روز"
+
+msgid "Connect host"
+msgstr "هاست اتصال"
+
+msgid "Subscription link"
+msgstr "لینک اشتراک"
+
+msgid "Config / subscription"
+msgstr "کانفیگ / اشتراک"
+
+msgid "WireGuard QR code"
+msgstr "QR Code وایرگارد"
+
+msgid "Scan with the WireGuard app on your phone."
+msgstr "با اپ WireGuard روی موبایل اسکن کنید."
+
+msgid "Protocol"
+msgstr "پروتکل"
+
+msgid "Expires"
+msgstr "انقضا"
+
+msgid "Code"
+msgstr "کد"
+
+msgid "Date"
+msgstr "تاریخ"
+
+msgid "Additional links"
+msgstr "لینک‌های اضافه"
+
+msgid "Config"
+msgstr "کانفیگ"
+
+msgid "You have not purchased any VPN service yet."
+msgstr "هنوز سرویسی خریداری نکرده‌اید."
+
+msgid "Panel for product \"%s\" not found."
+msgstr "پنل محصول «%s» یافت نشد."
+
+msgid "Unknown error"
+msgstr "خطای نامشخص"
+
+msgid "unlimitsky requires WooCommerce to be installed and active."
+msgstr "unlimitsky نیاز به نصب و فعال‌سازی ووکامرس دارد."
+
+msgid "Volume / duration"
+msgstr "حجم / مدت"
+
+msgid "Provisioning server"
+msgstr "سرور تأمین سرویس"
+
+msgid "Main server (Hub)"
+msgstr "سرور اصلی (هاب)"
+
+msgid "VPN runs on the hub; clients connect to the selected node IP (tunnel). Empty = hub only."
+msgstr "VPN روی هاب اجرا می‌شود؛ مشتری به IP نود انتخاب‌شده وصل می‌شود (تونل). خالی = فقط هاب."
+
+msgid "Save API URL and key first, then edit this panel to load registered nodes."
+msgstr "ابتدا آدرس API و کلید را ذخیره کنید، سپس پنل را ویرایش کنید تا نودها بارگذاری شوند."
+
+msgid "No nodes registered on this panel yet."
+msgstr "هنوز نودی در این پنل ثبت نشده است."
+
+msgid "Node relay protocols: %s"
+msgstr "پروتکل‌های رله نود: %s"

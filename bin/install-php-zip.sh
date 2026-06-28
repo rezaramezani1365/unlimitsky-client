@@ -1,0 +1,81 @@
+#!/bin/bash
+# Install PHP ZipArchive — background job from admin panel.
+# Safe: flock lock, apt timeout, no apt-get update, single FPM restart at end.
+set -uo pipefail
+
+WEB_ROOT="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+LIB="$WEB_ROOT/install/lib.sh"
+STATUS_FILE="$WEB_ROOT/data/settings/php-zip-install.json"
+LOG_FILE="$WEB_ROOT/data/settings/php-zip-install.log"
+LOCK_FILE="$WEB_ROOT/data/settings/php-zip-install.lock"
+
+write_status() {
+    local state="$1"
+    local message="$2"
+    mkdir -p "$(dirname "$STATUS_FILE")"
+    printf '{"state":"%s","message":"%s","at":"%s"}\n' \
+        "$state" "$(echo "$message" | sed 's/"/\\"/g')" "$(date -Iseconds)" > "$STATUS_FILE"
+    chmod 664 "$STATUS_FILE" 2>/dev/null || true
+    chown www-data:www-data "$STATUS_FILE" 2>/dev/null || true
+}
+
+on_exit() {
+    local code=$?
+    if [ "$code" -ne 0 ] && [ -f "$STATUS_FILE" ]; then
+        if grep -q '"state":"running"' "$STATUS_FILE" 2>/dev/null; then
+            write_status failed "script_exit_$code"
+        fi
+    fi
+}
+trap on_exit EXIT
+
+if [ ! -f "$LIB" ]; then
+    echo "USK_ERR: missing install/lib.sh"
+    write_status failed "missing install/lib.sh"
+    exit 1
+fi
+
+mkdir -p "$(dirname "$LOCK_FILE")" "$(dirname "$LOG_FILE")"
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+    echo "USK_ERR: install already running (lock busy)"
+    write_status failed "install_locked"
+    exit 1
+fi
+
+# shellcheck source=/dev/null
+source "$LIB"
+
+: >> "$LOG_FILE"
+exec >> "$LOG_FILE" 2>&1
+echo "=== php-zip install $(date -Iseconds) pid=$$ ==="
+
+write_status running "apt_install"
+
+export USK_APT_LOG="$LOG_FILE"
+
+if usk_zip_cli_ok; then
+    echo "USK_OK: ZipArchive already available"
+    write_status ok "already_installed"
+    exit 0
+fi
+
+if ! usk_ensure_php_zip; then
+    err_tail="$(tail -3 "$LOG_FILE" 2>/dev/null | tr '\n' ' ')"
+    echo "USK_ERR: usk_ensure_php_zip failed"
+    write_status failed "apt_failed ${err_tail}"
+    exit 1
+fi
+
+usk_restart_php_fpm
+sleep 1
+
+if usk_zip_cli_ok; then
+    echo "USK_OK: ZipArchive installed"
+    write_status ok "installed"
+    exit 0
+fi
+
+echo "USK_ERR: ZipArchive still missing after apt install"
+write_status failed "zip_still_missing"
+exit 1
