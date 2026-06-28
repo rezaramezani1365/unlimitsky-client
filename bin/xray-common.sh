@@ -195,9 +195,7 @@ usk_xray_load_clients() {
   fi
   jq -c '
     [.inbounds[]? | select(.protocol == "vless") | .settings.clients[]?
-     | select(.id != null and (.id | type) == "string"
-       and (.id | length) == 36
-       and ((.id | split("-") | map(length)) == [8,4,4,4,12]))
+     | select(.id != null and (.id | type) == "string" and (.id | length) > 0)
      | {id, email: ((.email // "user") | tostring), flow: ((.flow // "xtls-rprx-vision") | tostring)}
     ] | unique_by(.id)
   ' "$cfg" 2>/dev/null || echo '[]'
@@ -848,10 +846,12 @@ usk_xray_rebuild_clients_in_config() {
   cfg_clients=$(usk_xray_load_clients "$cfg")
   merged=$(jq -s '
     def by_id: reduce .[] as $c ({}; if ($c.id // "") != "" then . + {($c.id): $c} else . end);
-    (.[0] | by_id) + (.[1] | by_id) | to_entries | map(.value)
+    [ (.[0] | by_id) + (.[1] | by_id) | to_entries[].value ]
     | unique_by(.id) | group_by(.email) | map(last)
-  ' <(echo "$cfg_clients") <(echo "$clients_json") 2>/dev/null || echo "$clients_json")
-  [ -n "$merged" ] && [ "$merged" != "null" ] && clients_json="$merged"
+  ' <(echo "$cfg_clients") <(echo "$clients_json") 2>/dev/null)
+  if [ -n "$merged" ] && [ "$merged" != "null" ] && [ "$merged" != "[]" ]; then
+    clients_json="$merged"
+  fi
 
   local tmp
   tmp=$(mktemp)
@@ -981,12 +981,18 @@ usk_xray_ensure_stats_policy() {
     ) |
     .routing = (.routing // { domainStrategy: "IPIfNonMatch", rules: [] }) |
     .routing.rules = (
-      (if ([.routing.rules[]? | select(.inboundTag? != null and (.inboundTag | index("api")))] | length) > 0 then
+      (if ([.routing.rules[]? | select(.inboundTag? != null and (
+        if (.inboundTag | type == "array") then (.inboundTag | index("api"))
+        else (.inboundTag == "api") end
+      ))] | length) > 0 then
         .routing.rules
       else
         [{ type: "field", inboundTag: ["api"], outboundTag: "api" }] + (.routing.rules // [])
       end) as $r1 |
-      if ([$r1[]? | select(.inboundTag? != null and (.inboundTag | index($vt)))] | length) > 0 then
+      if ([$r1[]? | select(.inboundTag? != null and (
+        if (.inboundTag | type == "array") then (.inboundTag | index($vt))
+        else (.inboundTag == $vt) end
+      ))] | length) > 0 then
         $r1
       else
         $r1 + [{ type: "field", inboundTag: [$vt], outboundTag: "direct" }]
