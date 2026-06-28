@@ -9,22 +9,24 @@ mkdir -p "$USK_DATA_ROOT/xray" /usr/local/etc/xray
 chmod 755 "$USK_DATA_ROOT" "$USK_DATA_ROOT/xray" 2>/dev/null || true
 
 VLESS_PORT="${1:-${USK_XRAY_VLESS_PORT:-443}}"
-VLESS_PORT=$(echo "$VLESS_PORT" | tr -dc '0-9')
-[ -n "$VLESS_PORT" ] && [ "$VLESS_PORT" -ge 1 ] && [ "$VLESS_PORT" -le 65535 ] 2>/dev/null || VLESS_PORT=443
+VMESS_PORT="${2:-8080}"
+TROJAN_PORT="${3:-2083}"
+SS_PORT="${4:-444}"
 
-PANEL_ROOT="${PANEL_ROOT:-$(dirname "$DIR")}"
-if [ -f "$XRAY_CFG" ]; then
-  EXISTING_PORT=$(usk_xray_vless_port_from_config "$XRAY_CFG" 2>/dev/null || true)
-  if [ -n "$EXISTING_PORT" ] && [ "$EXISTING_PORT" -ge 1 ] 2>/dev/null && [ "$EXISTING_PORT" -le 65535 ] 2>/dev/null; then
-    VLESS_PORT="$EXISTING_PORT"
-    echo "USK_INFO: xray_reinstall_preserve_port=${VLESS_PORT}"
-  else
-    VLESS_PORT=$(usk_xray_pick_free_port "$VLESS_PORT")
-  fi
-else
-  VLESS_PORT=$(usk_xray_pick_free_port "$VLESS_PORT")
-fi
+VLESS_PORT=$(echo "$VLESS_PORT" | tr -dc '0-9')
+VMESS_PORT=$(echo "$VMESS_PORT" | tr -dc '0-9')
+TROJAN_PORT=$(echo "$TROJAN_PORT" | tr -dc '0-9')
+SS_PORT=$(echo "$SS_PORT" | tr -dc '0-9')
+
+[ -n "$VLESS_PORT" ] && [ "$VLESS_PORT" -ge 1 ] && [ "$VLESS_PORT" -le 65535 ] 2>/dev/null || VLESS_PORT=443
+[ -n "$VMESS_PORT" ] && [ "$VMESS_PORT" -ge 1 ] && [ "$VMESS_PORT" -le 65535 ] 2>/dev/null || VMESS_PORT=8080
+[ -n "$TROJAN_PORT" ] && [ "$TROJAN_PORT" -ge 1 ] && [ "$TROJAN_PORT" -le 65535 ] 2>/dev/null || TROJAN_PORT=2083
+[ -n "$SS_PORT" ] && [ "$SS_PORT" -ge 1 ] && [ "$SS_PORT" -le 65535 ] 2>/dev/null || SS_PORT=444
+
 export USK_XRAY_VLESS_PORT="$VLESS_PORT"
+export USK_XRAY_VMESS_PORT="$VMESS_PORT"
+export USK_XRAY_TROJAN_PORT="$TROJAN_PORT"
+export USK_XRAY_SS_PORT="$SS_PORT"
 
 NEED_APT=0
 for cmd in curl jq openssl; do
@@ -59,7 +61,7 @@ usk_xray_ensure_reality_params || usk_fail "xray_reality_keygen_failed"
 
 EXISTING_VLESS=$(usk_xray_normalize_clients "$EXISTING_VLESS")
 
-if ! usk_xray_write_config "$XRAY_CFG" "$EXISTING_VLESS" "$VLESS_PORT"; then
+if ! usk_xray_write_config "$XRAY_CFG" "$EXISTING_VLESS" "$VLESS_PORT" "$VMESS_PORT" "$TROJAN_PORT" "$SS_PORT"; then
   usk_fail "xray_config_json_failed"
 fi
 
@@ -75,6 +77,9 @@ systemctl enable xray 2>/dev/null || systemctl enable xray.service 2>/dev/null |
 systemctl daemon-reload 2>/dev/null || true
 
 usk_xray_open_firewall "$VLESS_PORT" "xray-vless-reality"
+usk_xray_open_firewall "$VMESS_PORT" "xray-vmess-ws"
+usk_xray_open_firewall "$TROJAN_PORT" "xray-trojan-grpc"
+usk_xray_open_firewall "$SS_PORT" "xray-shadowsocks"
 
 if ! usk_xray_verify_or_fail "$XRAY_CFG"; then
   echo "USK_WARN: xray_verify_retry"
@@ -97,5 +102,5 @@ echo "USK_INFO: xray_links_refreshed=${REFRESHED:-0} config_clients=${CFG_N:-0}"
 
 # shellcheck disable=SC1090
 . "$USK_XRAY_REALITY_FILE"
-echo "USK_META:vless_port=${VLESS_PORT};reality=1;sni=${REALITY_SNI:-www.microsoft.com}"
+echo "USK_META:vless_port=${VLESS_PORT};vmess_port=${VMESS_PORT};trojan_port=${TROJAN_PORT};ss_port=${SS_PORT};reality=1;sni=${REALITY_SNI:-www.microsoft.com}"
 usk_ok

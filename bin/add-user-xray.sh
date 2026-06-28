@@ -81,12 +81,22 @@ fi
 
 SID=$(usk_xray_reality_short_id_for_client)
 FP="${REALITY_FINGERPRINT:-chrome}"
+
+VMESS_PORT=$(jq -r '(.inbounds[]? | select(.protocol=="vmess") | .port) // 8080' "$XRAY_CFG" 2>/dev/null | head -1)
+TROJAN_PORT=$(jq -r '(.inbounds[]? | select(.protocol=="trojan") | .port) // 2083' "$XRAY_CFG" 2>/dev/null | head -1)
+SS_PORT=$(jq -r '(.inbounds[]? | select(.protocol=="shadowsocks") | .port) // 444' "$XRAY_CFG" 2>/dev/null | head -1)
+
 VLESS=$(usk_xray_build_vless_uri "$UUID" "$SERVER_IP" "$VLESS_PORT" "${USERNAME}-vless" \
   "$REALITY_PUBLIC_KEY" "$REALITY_SNI" "$SID" "$FP")
+VMESS=$(usk_xray_build_vmess_uri "$UUID" "$SERVER_IP" "$VMESS_PORT" "${USERNAME}-vmess")
+TROJAN=$(usk_xray_build_trojan_uri "$UUID" "$SERVER_IP" "$TROJAN_PORT" "${USERNAME}-trojan")
+SS=$(usk_xray_build_ss_uri "$UUID" "$SERVER_IP" "$SS_PORT" "${USERNAME}-ss")
+
+LINKS="${VLESS}\n${VMESS}\n${TROJAN}\n${SS}"
 
 QR_B64=""
 if command -v qrencode >/dev/null 2>&1; then
-  QR_B64=$(qrencode -t PNG -o - "$VLESS" 2>/dev/null | base64 -w0 2>/dev/null || qrencode -t PNG -o - "$VLESS" 2>/dev/null | base64)
+  QR_B64=$(echo -e "$LINKS" | qrencode -t PNG -o - 2>/dev/null | base64 -w0 2>/dev/null || echo -e "$LINKS" | qrencode -t PNG -o - 2>/dev/null | base64)
 fi
 
 CLIENT_JSON=$(usk_xray_build_client_json "$UUID" "$SERVER_IP" "$VLESS_PORT" "$USERNAME" "$CLIENT_DNS" 2>/dev/null || echo "")
@@ -109,18 +119,25 @@ else
   DNS_NOTE="DNS: system default (IPv4 only — set custom DNS in panel if 1.1.1.1/8.8.8.8 fails on national network)"
 fi
 
-CONFIG="=== VLESS + Reality (Iran) ===
-Import vless:// link in v2rayN / Nekoray / Hiddify / Streisand.
-Or import the JSON profile (recommended — includes DNS settings).
-
+CONFIG="=== Multi-Protocol Xray (Iran) ===
+VLESS Reality:
 ${VLESS}
+
+VMess WS:
+${VMESS}
+
+Trojan gRPC:
+${TROJAN}
+
+Shadowsocks:
+${SS}
 
 ${DNS_NOTE}
 
 === JSON profile ===
 ${CLIENT_JSON}"
 
-LINKS="${VLESS}"
+LINKS=$(echo -e "$LINKS")
 
 REGISTRY="$DATA_ROOT/xray/clients.json"
 mkdir -p "$(dirname "$REGISTRY")"

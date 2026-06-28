@@ -72,12 +72,15 @@ unset($_pk, $s);
                 <p class="text-muted small mb-2"><?= __('protocol_port') ?>: <code class="usk-code"><?= (int) $meta['port'] ?></code></p>
                 <?php if ($installed) : ?>
                     <?php if ($key === 'xray' && !empty($st['vless_port'])) : ?>
-                    <p class="text-muted small mb-2">
+                    <p class="text-muted small mb-1">
                         VLESS Reality: <code class="usk-code">TCP <?= (int) $st['vless_port'] ?></code>
                         <?php if (!empty($st['reality_sni'])) : ?>
                         · SNI: <code class="usk-code"><?= usk_esc($st['reality_sni']) ?></code>
                         <?php endif; ?>
                     </p>
+                    <p class="text-muted small mb-1">VMess WS: <code class="usk-code">TCP <?= (int) ($st['vmess_port'] ?? 8080) ?></code></p>
+                    <p class="text-muted small mb-1">Trojan gRPC: <code class="usk-code">TCP <?= (int) ($st['trojan_port'] ?? 2083) ?></code></p>
+                    <p class="text-muted small mb-2">Shadowsocks: <code class="usk-code">TCP <?= (int) ($st['ss_port'] ?? 444) ?></code></p>
                     <?php elseif ($key === 'openvpn' && (!empty($st['udp_port']) || !empty($st['tcp_port']))) : ?>
                     <p class="text-muted small mb-2">
                         UDP: <code class="usk-code"><?= (int) ($st['udp_port'] ?? 1194) ?></code>
