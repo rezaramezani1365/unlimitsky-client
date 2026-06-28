@@ -178,10 +178,28 @@ $lastSync = USK_ProtocolLimits::get_last_run();
         <code class="d-block p-3" style="white-space:pre-wrap;word-break:break-all;direction:ltr;text-align:left;"><?= usk_esc($portalUrl) ?></code>
     <?php endif; ?>
 
-    <?php if ($protocol === 'xray' && $primaryConfig !== '') : ?>
+    <?php if ($protocol === 'xray' && $primaryConfig !== '') :
+        $xlinks = explode("\n", trim($primaryConfig));
+        if (count($xlinks) >= 4) :
+    ?>
+        <p class="mt-3"><strong><?= __('xray_vless_link') ?>:</strong></p>
+        <code class="d-block p-3" style="white-space:pre-wrap;word-break:break-all;direction:ltr;text-align:left;"><?= usk_esc($xlinks[0]) ?></code>
+
+        <p class="mt-2"><strong><?= __('xray_vmess_link') ?>:</strong></p>
+        <code class="d-block p-3" style="white-space:pre-wrap;word-break:break-all;direction:ltr;text-align:left;"><?= usk_esc($xlinks[1]) ?></code>
+
+        <p class="mt-2"><strong><?= __('xray_trojan_link') ?>:</strong></p>
+        <code class="d-block p-3" style="white-space:pre-wrap;word-break:break-all;direction:ltr;text-align:left;"><?= usk_esc($xlinks[2]) ?></code>
+
+        <p class="mt-2"><strong><?= __('xray_ss_link') ?>:</strong></p>
+        <code class="d-block p-3" style="white-space:pre-wrap;word-break:break-all;direction:ltr;text-align:left;"><?= usk_esc($xlinks[3]) ?></code>
+
+        <p class="text-muted small mt-2"><?= __('xray_vless_hint') ?></p>
+    <?php else : ?>
         <p class="mt-3"><strong><?= __('xray_vless_link') ?>:</strong></p>
         <code class="d-block p-3" style="white-space:pre-wrap;word-break:break-all;direction:ltr;text-align:left;"><?= usk_esc($primaryConfig) ?></code>
         <p class="text-muted small"><?= __('xray_vless_hint') ?></p>
+    <?php endif; ?>
     <?php elseif ($primaryConfig !== '') : ?>
         <p class="mt-3"><strong><?= __('config_label') ?>:</strong></p>
         <code class="d-block p-3" style="white-space:pre-wrap;word-break:break-all;direction:ltr;text-align:left;"><?= usk_esc($primaryConfig) ?></code>
