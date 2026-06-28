@@ -183,12 +183,63 @@ function portal_esc($s)
 <?php if (!empty($view['show_copy_link']) && !empty($view['primary_link'])) : ?>
     <div class="portal-card">
         <h2><i class="fa-solid fa-link"></i> <?= portal_esc(__('portal_connection_link')) ?></h2>
+        <?php if ($protocol === 'xray') :
+            $xlinks = explode("\n", trim($view['primary_link']));
+            if (count($xlinks) >= 4) :
+        ?>
+            <div class="mb-3">
+                <label class="small text-muted mb-1"><?= portal_esc(__('xray_vless_link')) ?></label>
+                <div class="portal-link-box">
+                    <input type="text" class="portal-link-input" id="portal-x-vless" readonly value="<?= portal_esc($xlinks[0]) ?>">
+                    <button type="button" class="btn-portal-copy" data-copy-target="portal-x-vless">
+                        <i class="fa-regular fa-copy"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="small text-muted mb-1"><?= portal_esc(__('xray_vmess_link')) ?></label>
+                <div class="portal-link-box">
+                    <input type="text" class="portal-link-input" id="portal-x-vmess" readonly value="<?= portal_esc($xlinks[1]) ?>">
+                    <button type="button" class="btn-portal-copy" data-copy-target="portal-x-vmess">
+                        <i class="fa-regular fa-copy"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="small text-muted mb-1"><?= portal_esc(__('xray_trojan_link')) ?></label>
+                <div class="portal-link-box">
+                    <input type="text" class="portal-link-input" id="portal-x-trojan" readonly value="<?= portal_esc($xlinks[2]) ?>">
+                    <button type="button" class="btn-portal-copy" data-copy-target="portal-x-trojan">
+                        <i class="fa-regular fa-copy"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="mb-1">
+                <label class="small text-muted mb-1"><?= portal_esc(__('xray_ss_link')) ?></label>
+                <div class="portal-link-box">
+                    <input type="text" class="portal-link-input" id="portal-x-ss" readonly value="<?= portal_esc($xlinks[3]) ?>">
+                    <button type="button" class="btn-portal-copy" data-copy-target="portal-x-ss">
+                        <i class="fa-regular fa-copy"></i>
+                    </button>
+                </div>
+            </div>
+            <input type="hidden" id="portal-primary-link" value="<?= portal_esc($xlinks[0]) ?>">
+        <?php else : ?>
+            <div class="portal-link-box">
+                <input type="text" class="portal-link-input" id="portal-primary-link" readonly value="<?= portal_esc($view['primary_link']) ?>">
+                <button type="button" class="btn-portal-copy" id="portal-copy-btn" data-copy-target="portal-primary-link">
+                    <i class="fa-regular fa-copy"></i> <?= portal_esc(__('portal_copy')) ?>
+                </button>
+            </div>
+        <?php endif; ?>
+        <?php else : ?>
         <div class="portal-link-box">
             <input type="text" class="portal-link-input" id="portal-primary-link" readonly value="<?= portal_esc($view['primary_link']) ?>">
             <button type="button" class="btn-portal-copy" id="portal-copy-btn" data-copy-target="portal-primary-link">
                 <i class="fa-regular fa-copy"></i> <?= portal_esc(__('portal_copy')) ?>
             </button>
         </div>
+        <?php endif; ?>
         <?php if (!empty($view['show_qr'])) : ?>
         <div class="text-center mt-3">
             <p class="small text-muted mb-2"><?= portal_esc(__('portal_qr_hint')) ?></p>
@@ -329,6 +380,15 @@ function portal_esc($s)
     document.querySelectorAll('.portal-copy-mini').forEach(function (btn) {
         btn.addEventListener('click', function () {
             copyText(btn.getAttribute('data-copy-text'), btn);
+        });
+    });
+    document.querySelectorAll('.btn-portal-copy').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var targetId = btn.getAttribute('data-copy-target');
+            if (targetId) {
+                var el = document.getElementById(targetId);
+                if (el) copyText(el.value, btn);
+            }
         });
     });
     var themeBtn = document.getElementById('portal-theme-toggle');
