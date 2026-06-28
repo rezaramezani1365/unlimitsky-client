@@ -194,9 +194,10 @@ usk_xray_load_clients() {
     return
   fi
   jq -c '
-    [.inbounds[]? | select(.protocol == "vless") | .settings.clients[]?
-     | select(.id != null and (.id | type) == "string" and (.id | length) > 0)
-     | {id, email: ((.email // "user") | tostring), flow: ((.flow // "xtls-rprx-vision") | tostring)}
+    [.inbounds[]? | .settings.clients[]?
+     | (.id // .password) as $uid
+     | select($uid != null and ($uid | type) == "string" and ($uid | length) > 0)
+     | {id: $uid, email: ((.email // "user") | tostring), flow: ((.flow // "xtls-rprx-vision") | tostring)}
     ] | unique_by(.id)
   ' "$cfg" 2>/dev/null || echo '[]'
 }
@@ -217,7 +218,10 @@ usk_xray_normalize_clients() {
 usk_xray_write_config() {
   local cfg="$1"
   local vless_json="$2"
-  local vless_port="$3"
+  local vless_port="${3:-443}"
+  local vmess_port="${4:-8080}"
+  local trojan_port="${5:-2083}"
+  local ss_port="${6:-444}"
   local tmp short_ids_json
 
   usk_xray_load_reality || return 1
@@ -225,10 +229,22 @@ usk_xray_write_config() {
   usk_xray_validate_clients_json "$vless_json" || vless_json='[]'
   short_ids_json=$(usk_xray_reality_short_ids_json)
 
+  # Convert simple client list to other protocol formats
+  local vmess_clients trojan_clients ss_clients
+  vmess_clients=$(echo "$vless_json" | jq -c 'map({id: .id, alterId: 0, email: .email})')
+  trojan_clients=$(echo "$vless_json" | jq -c 'map({password: .id, email: .email})')
+  ss_clients=$(echo "$vless_json" | jq -c 'map({password: .id, email: .email, method: "aes-128-gcm"})')
+
   tmp=$(mktemp)
   if ! jq -n \
     --argjson vless "$vless_json" \
+    --argjson vmess "$vmess_clients" \
+    --argjson trojan "$trojan_clients" \
+    --argjson ss "$ss_clients" \
     --argjson vless_port "$vless_port" \
+    --argjson vmess_port "$vmess_port" \
+    --argjson trojan_port "$trojan_port" \
+    --argjson ss_port "$ss_port" \
     --arg dest "$REALITY_DEST" \
     --arg sni "$REALITY_SNI" \
     --arg priv "$REALITY_PRIVATE_KEY" \
@@ -284,6 +300,47 @@ usk_xray_write_config() {
             destOverride: ["http", "tls", "quic"],
             routeOnly: true
           }
+        },
+        {
+          listen: "0.0.0.0",
+          port: $vmess_port,
+          protocol: "vmess",
+          tag: "vmess-ws-in",
+          settings: { clients: $vmess },
+          streamSettings: {
+            network: "ws",
+            wsSettings: { path: "/vmess" }
+          },
+          sniffing: { enabled: true, destOverride: ["http", "tls", "quic"], routeOnly: true }
+        },
+        {
+          listen: "0.0.0.0",
+          port: $trojan_port,
+          protocol: "trojan",
+          tag: "trojan-grpc-in",
+          settings: { clients: $trojan },
+          streamSettings: {
+            network: "grpc",
+            security: "reality",
+            realitySettings: {
+              show: false,
+              dest: $dest,
+              xver: 0,
+              serverNames: [$sni],
+              privateKey: $priv,
+              shortIds: $shortIds
+            },
+            grpcSettings: { serviceName: "trojan-grpc" }
+          },
+          sniffing: { enabled: true, destOverride: ["http", "tls", "quic"], routeOnly: true }
+        },
+        {
+          listen: "0.0.0.0",
+          port: $ss_port,
+          protocol: "shadowsocks",
+          tag: "ss-tcp-in",
+          settings: { clients: $ss, network: "tcp,udp" },
+          sniffing: { enabled: true, destOverride: ["http", "tls", "quic"], routeOnly: true }
         }
       ],
       outbounds: [
@@ -324,7 +381,7 @@ usk_xray_write_config() {
           },
           {
             type: "field",
-            inboundTag: ["vless-reality-in"],
+            inboundTag: ["vless-reality-in", "vmess-ws-in", "trojan-grpc-in", "ss-tcp-in"],
             outboundTag: "direct"
           }
         ]
@@ -410,6 +467,48 @@ usk_xray_build_vless_uri() {
     "$uuid" "$host" "$port" "$sni" "$fp" "$pub" "$sid" "$name"
 }
 
+usk_xray_build_vmess_uri() {
+  local uuid="$1"
+  local host="$2"
+  local port="$3"
+  local name="$4"
+  local path="${5:-/vmess}"
+  local json
+  json=$(jq -cn --arg v "2" --arg ps "$name" --arg add "$host" --arg port "$port" --arg id "$uuid" --arg aid "0" --arg net "ws" --arg type "none" --arg host "" --arg path "$path" --arg tls "none" \
+    '{v: $v, ps: $ps, add: $add, port: $port, id: $id, aid: $aid, net: $net, type: $type, host: $host, path: $path, tls: $tls}')
+  printf 'vmess://%s' "$(echo -n "$json" | base64 -w 0)"
+}
+
+usk_xray_build_trojan_uri() {
+  local password="$1"
+  local host="$2"
+  local port="$3"
+  local name="$4"
+  local pub="$5"
+  local sni="$6"
+  local sid="$7"
+  local fp="${8:-chrome}"
+  name=$(usk_xray_uri_encode "$name")
+  sni=$(usk_xray_uri_encode "$sni")
+  pub=$(usk_xray_uri_encode "$pub")
+  sid=$(usk_xray_uri_encode "$sid")
+  fp=$(usk_xray_uri_encode "$fp")
+  printf 'trojan://%s@%s:%s?security=reality&sni=%s&fp=%s&pbk=%s&sid=%s&spx=%%2F&type=grpc&serviceName=trojan-grpc#%s' \
+    "$password" "$host" "$port" "$sni" "$fp" "$pub" "$sid" "$name"
+}
+
+usk_xray_build_ss_uri() {
+  local password="$1"
+  local host="$2"
+  local port="$3"
+  local name="$4"
+  local method="${5:-aes-128-gcm}"
+  local auth
+  auth=$(echo -n "${method}:${password}" | base64 -w 0)
+  name=$(usk_xray_uri_encode "$name")
+  printf 'ss://%s@%s:%s#%s' "$auth" "$host" "$port" "$name"
+}
+
 usk_xray_collect_all_clients_json() {
   local cfg="${1:-$XRAY_CFG}"
   local panel_root="${2:-${PANEL_ROOT:-}}"
@@ -465,19 +564,27 @@ usk_xray_collect_all_clients_json() {
 
 usk_xray_link_for_uuid() {
   local uuid="$1"
-  local label="${2:-user-vless}"
+  local label="${2:-user}"
   local host="${3:-}"
   usk_xray_load_reality || return 1
-  local port sid fp
-  port=$(usk_xray_vless_port_from_config "$XRAY_CFG" 2>/dev/null || echo 443)
+  local vless_p vmess_p trojan_p ss_p sid fp links
+  vless_p=$(jq -r '(.inbounds[]? | select(.protocol=="vless") | .port) // 443' "$XRAY_CFG" 2>/dev/null | head -1)
+  vmess_p=$(jq -r '(.inbounds[]? | select(.protocol=="vmess") | .port) // 8080' "$XRAY_CFG" 2>/dev/null | head -1)
+  trojan_p=$(jq -r '(.inbounds[]? | select(.protocol=="trojan") | .port) // 2083' "$XRAY_CFG" 2>/dev/null | head -1)
+  ss_p=$(jq -r '(.inbounds[]? | select(.protocol=="shadowsocks") | .port) // 444' "$XRAY_CFG" 2>/dev/null | head -1)
+
   sid=$(usk_xray_reality_short_id_for_client)
   fp="${REALITY_FINGERPRINT:-chrome}"
   if [ -z "$host" ]; then
     host=$(usk_xray_resolve_connect_host "${PANEL_ROOT:-}") || true
   fi
   [ -n "$host" ] || return 1
-  usk_xray_build_vless_uri "$uuid" "$host" "$port" "$label" \
-    "$REALITY_PUBLIC_KEY" "$REALITY_SNI" "$sid" "$fp"
+
+  links=$(usk_xray_build_vless_uri "$uuid" "$host" "$vless_p" "${label}-vless" "$REALITY_PUBLIC_KEY" "$REALITY_SNI" "$sid" "$fp")
+  links="${links}\n$(usk_xray_build_vmess_uri "$uuid" "$host" "$vmess_p" "${label}-vmess")"
+  links="${links}\n$(usk_xray_build_trojan_uri "$uuid" "$host" "$trojan_p" "${label}-trojan" "$REALITY_PUBLIC_KEY" "$REALITY_SNI" "$sid" "$fp")"
+  links="${links}\n$(usk_xray_build_ss_uri "$uuid" "$host" "$ss_p" "${label}-ss")"
+  echo -e "$links"
 }
 
 usk_xray_refresh_stored_links() {
@@ -641,8 +748,8 @@ usk_xray_add_client() {
   local email="$3"
   local tmp existing_id
   existing_id=$(jq -r --arg email "$email" '
-    [.inbounds[]? | select(.protocol == "vless") | .settings.clients[]?
-     | select(.email == $email) | .id] | first // empty
+    [.inbounds[]? | .settings.clients[]?
+     | select(.email == $email) | (.id // .password)] | first // empty
   ' "$cfg" 2>/dev/null || true)
   if [ -n "$existing_id" ] && [ "$existing_id" != "$uuid" ]; then
     uuid="$existing_id"
@@ -654,6 +761,18 @@ usk_xray_add_client() {
         .settings.clients = ((.settings.clients // [])
           | map(select(.id != $id and .email != $email))
           | . + [{id: $id, email: $email, flow: "xtls-rprx-vision", level: 0}])
+      elif .protocol == "vmess" then
+        .settings.clients = ((.settings.clients // [])
+          | map(select(.id != $id and .email != $email))
+          | . + [{id: $id, email: $email, alterId: 0, level: 0}])
+      elif .protocol == "trojan" then
+        .settings.clients = ((.settings.clients // [])
+          | map(select(.password != $id and .email != $email))
+          | . + [{password: $id, email: $email, level: 0}])
+      elif .protocol == "shadowsocks" then
+        .settings.clients = ((.settings.clients // [])
+          | map(select(.password != $id and .email != $email))
+          | . + [{password: $id, email: $email, method: "aes-128-gcm", level: 0}])
       else . end
     )' "$cfg" > "$tmp"; then
     rm -f "$tmp"
@@ -670,8 +789,10 @@ usk_xray_remove_client() {
   tmp=$(mktemp)
   if ! jq --arg id "$uuid" '
     .inbounds |= map(
-      if .protocol == "vless" then
+      if .protocol == "vless" or .protocol == "vmess" then
         .settings.clients = [.settings.clients[]? | select(.id != $id)]
+      elif .protocol == "trojan" or .protocol == "shadowsocks" then
+        .settings.clients = [.settings.clients[]? | select(.password != $id)]
       else . end
     )' "$cfg" > "$tmp"; then
     rm -f "$tmp"
@@ -832,7 +953,7 @@ usk_xray_rebuild_clients_in_config() {
   fi
 
   local current_count new_count
-  current_count=$(jq '[.inbounds[]? | select(.protocol=="vless") | .settings.clients[]?] | length' "$cfg" 2>/dev/null || echo 0)
+  current_count=$(jq '[.inbounds[]? | .settings.clients[]?] | length' "$cfg" 2>/dev/null || echo 0)
   new_count=$(echo "$clients_json" | jq 'length' 2>/dev/null || echo 0)
   if [ "${new_count:-0}" -lt 1 ]; then
     return 1
@@ -858,7 +979,13 @@ usk_xray_rebuild_clients_in_config() {
   if ! jq --argjson clients "$clients_json" '
     .inbounds |= map(
       if .protocol == "vless" then
-        .settings.clients = $clients
+        .settings.clients = ($clients | map({id, email, flow: "xtls-rprx-vision", level: 0}))
+      elif .protocol == "vmess" then
+        .settings.clients = ($clients | map({id, email, alterId: 0, level: 0}))
+      elif .protocol == "trojan" then
+        .settings.clients = ($clients | map({password: .id, email, level: 0}))
+      elif .protocol == "shadowsocks" then
+        .settings.clients = ($clients | map({password: .id, email, method: "aes-128-gcm", level: 0}))
       else . end
     )' "$cfg" > "$tmp"; then
     rm -f "$tmp"
@@ -941,11 +1068,12 @@ usk_xray_ensure_stats_policy() {
   [ -f "$cfg" ] || return 1
   command -v jq >/dev/null 2>&1 || return 1
   usk_xray_ensure_access_log "$cfg" 2>/dev/null || true
-  local tmp vless_tag
-  vless_tag=$(jq -r '(.inbounds[]? | select(.protocol=="vless") | .tag) // "vless-reality-in"' "$cfg" 2>/dev/null | head -1)
-  [ -n "$vless_tag" ] || vless_tag="vless-reality-in"
+  local tmp tags
+  tags=$(jq -c '[.inbounds[]? | select(.protocol == "vless" or .protocol == "vmess" or .protocol == "trojan" or .protocol == "shadowsocks") | .tag] | unique' "$cfg" 2>/dev/null)
+  [ -n "$tags" ] && [ "$tags" != "[]" ] || tags='["vless-reality-in"]'
+
   tmp=$(mktemp)
-  if ! jq --arg vt "$vless_tag" '
+  if ! jq --argjson tags "$tags" '
     .stats = (.stats // {}) |
     .api = ((.api // {tag:"api"}) + {tag:"api", services: ((.api.services // ["StatsService"]) | map(select(. == "StatsService")) | if length == 0 then ["StatsService"] else . end)}) |
     .policy = (.policy // {}) |
@@ -990,17 +1118,21 @@ usk_xray_ensure_stats_policy() {
         [{ type: "field", inboundTag: ["api"], outboundTag: "api" }] + (.routing.rules // [])
       end) as $r1 |
       if ([$r1[]? | select(.inboundTag? != null and (
-        if (.inboundTag | type == "array") then (.inboundTag | index($vt))
-        else (.inboundTag == $vt) end
+        if (.inboundTag | type == "array") then (.inboundTag | any(. as $t | $tags | index($t) != null))
+        else (.inboundTag as $it | $tags | index($it) != null) end
       ))] | length) > 0 then
         $r1
       else
-        $r1 + [{ type: "field", inboundTag: [$vt], outboundTag: "direct" }]
+        $r1 + [{ type: "field", inboundTag: $tags, outboundTag: "direct" }]
       end
     ) |
     .inbounds |= map(
       if .protocol == "vless" then
         .settings.clients = [.settings.clients[]? | . + {level: (.level // 0), flow: (.flow // "xtls-rprx-vision")}]
+      elif .protocol == "vmess" then
+        .settings.clients = [.settings.clients[]? | . + {level: (.level // 0), alterId: (.alterId // 0)}]
+      elif .protocol == "trojan" or .protocol == "shadowsocks" then
+        .settings.clients = [.settings.clients[]? | . + {level: (.level // 0)}]
       else . end
     )' "$cfg" > "$tmp"; then
     rm -f "$tmp"
@@ -1013,12 +1145,15 @@ usk_xray_ensure_stats_policy() {
 usk_xray_rewrite_from_clients() {
   local cfg="${1:-$XRAY_CFG}"
   [ -f "$cfg" ] || return 1
-  local clients port
+  local clients vless_p vmess_p trojan_p ss_p
   clients=$(usk_xray_load_clients "$cfg")
-  port=$(usk_xray_vless_port_from_config "$cfg")
-  port=${port:-443}
+  vless_p=$(jq -r '(.inbounds[]? | select(.protocol=="vless") | .port) // empty' "$cfg" 2>/dev/null | head -1)
+  vmess_p=$(jq -r '(.inbounds[]? | select(.protocol=="vmess") | .port) // empty' "$cfg" 2>/dev/null | head -1)
+  trojan_p=$(jq -r '(.inbounds[]? | select(.protocol=="trojan") | .port) // empty' "$cfg" 2>/dev/null | head -1)
+  ss_p=$(jq -r '(.inbounds[]? | select(.protocol=="shadowsocks") | .port) // empty' "$cfg" 2>/dev/null | head -1)
+
   [ "$clients" != "[]" ] && [ -n "$clients" ] || return 1
-  usk_xray_write_config "$cfg" "$clients" "$port"
+  usk_xray_write_config "$cfg" "$clients" "${vless_p:-443}" "${vmess_p:-8080}" "${trojan_p:-2083}" "${ss_p:-444}"
 }
 
 usk_xray_verify_stats_api() {
@@ -1057,7 +1192,14 @@ usk_xray_test_config() {
 usk_xray_ports_from_config() {
   local cfg="$1"
   USK_XRAY_VLESS_PORT=$(jq -r '(.inbounds[]? | select(.protocol=="vless") | .port) // empty' "$cfg" 2>/dev/null | head -1)
+  USK_XRAY_VMESS_PORT=$(jq -r '(.inbounds[]? | select(.protocol=="vmess") | .port) // empty' "$cfg" 2>/dev/null | head -1)
+  USK_XRAY_TROJAN_PORT=$(jq -r '(.inbounds[]? | select(.protocol=="trojan") | .port) // empty' "$cfg" 2>/dev/null | head -1)
+  USK_XRAY_SS_PORT=$(jq -r '(.inbounds[]? | select(.protocol=="shadowsocks") | .port) // empty' "$cfg" 2>/dev/null | head -1)
+
   USK_XRAY_VLESS_PORT=${USK_XRAY_VLESS_PORT:-443}
+  USK_XRAY_VMESS_PORT=${USK_XRAY_VMESS_PORT:-8080}
+  USK_XRAY_TROJAN_PORT=${USK_XRAY_TROJAN_PORT:-2083}
+  USK_XRAY_SS_PORT=${USK_XRAY_SS_PORT:-444}
 }
 
 usk_xray_port_listening() {

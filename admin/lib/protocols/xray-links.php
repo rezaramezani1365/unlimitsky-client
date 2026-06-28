@@ -107,7 +107,7 @@ class USK_XrayLinks
         return USK_ConnectHost::detect_ip();
     }
 
-    public static function build_uri($uuid, $label = 'user-vless', $host = null)
+    public static function build_uri($uuid, $label = 'user', $host = null)
     {
         $uuid = trim((string) $uuid);
         if ($uuid === '' || !preg_match('/^[0-9a-fA-F-]{36}$/', $uuid)) {
@@ -120,24 +120,46 @@ class USK_XrayLinks
         }
 
         $host = $host !== null && $host !== '' ? (string) $host : self::connect_host();
-        $port = self::vless_port();
-        $sni = rawurlencode($reality['sni']);
-        $fp = rawurlencode($reality['fingerprint']);
-        $pbk = rawurlencode($reality['public_key']);
-        $sid = rawurlencode($reality['short_id']);
         $name = rawurlencode(preg_replace('/[#?&]/', '_', (string) $label));
 
-        return sprintf(
+        $cfgPaths = array('/usr/local/etc/xray/config.json', getenv('XRAY_CFG') ?: '');
+        $ports = array('vless' => 443, 'vmess' => 8080, 'trojan' => 2083, 'shadowsocks' => 444);
+        foreach ($cfgPaths as $path) {
+            if ($path !== '' && is_readable($path)) {
+                $cfg = json_decode((string) file_get_contents($path), true);
+                if (is_array($cfg)) {
+                    foreach ($cfg['inbounds'] ?? array() as $ib) {
+                        if (isset($ib['protocol']) && isset($ports[$ib['protocol']])) {
+                            $ports[$ib['protocol']] = (int) $ib['port'];
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        $vless = sprintf(
             'vless://%s@%s:%d?encryption=none&flow=xtls-rprx-vision&security=reality&sni=%s&fp=%s&pbk=%s&sid=%s&spx=%%2F&type=tcp#%s',
-            $uuid,
-            $host,
-            $port,
-            $sni,
-            $fp,
-            $pbk,
-            $sid,
-            $name
+            $uuid, $host, $ports['vless'], rawurlencode($reality['sni']), rawurlencode($reality['fingerprint']),
+            rawurlencode($reality['public_key']), rawurlencode($reality['short_id']), $name . '-vless'
         );
+
+        $vmess_json = json_encode(array(
+            'v' => '2', 'ps' => $label . '-vmess', 'add' => $host, 'port' => $ports['vmess'],
+            'id' => $uuid, 'aid' => '0', 'net' => 'ws', 'type' => 'none', 'host' => '', 'path' => '/vmess', 'tls' => 'none'
+        ));
+        $vmess = 'vmess://' . base64_encode($vmess_json);
+
+        $trojan = sprintf(
+            'trojan://%s@%s:%d?security=reality&sni=%s&fp=%s&pbk=%s&sid=%s&spx=%%2F&type=grpc&serviceName=trojan-grpc#%s',
+            $uuid, $host, $ports['trojan'], rawurlencode($reality['sni']), rawurlencode($reality['fingerprint']),
+            rawurlencode($reality['public_key']), rawurlencode($reality['short_id']), $name . '-trojan'
+        );
+
+        $ss_auth = base64_encode('aes-128-gcm:' . $uuid);
+        $ss = sprintf('ss://%s@%s:%d#%s', $ss_auth, $host, $ports['shadowsocks'], $name . '-ss');
+
+        return $vless . "\n" . $vmess . "\n" . $trojan . "\n" . $ss;
     }
 
     public static function live_uri_for_client(array $rec, $username = '')
