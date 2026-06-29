@@ -80,11 +80,11 @@ function usk_service_primary_config($order, $client)
         require_once __DIR__ . '/protocols/xray-links.php';
         $username = is_array($client) ? (string) ($client['username'] ?? '') : '';
         $live = USK_XrayLinks::live_uri_for_client(is_array($client) ? $client : array(), $username);
-        if ($live !== '') {
+        if ($live !== '' && strpos($live, '://') !== false) {
             return $live;
         }
         $vless = usk_client_meta_string($client, 'vless');
-        if ($vless !== '') {
+        if ($vless !== '' && strpos($vless, '://') !== false) {
             return $vless;
         }
     }

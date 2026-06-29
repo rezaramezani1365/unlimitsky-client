@@ -184,7 +184,9 @@ function portal_esc($s)
     <div class="portal-card">
         <h2><i class="fa-solid fa-link"></i> <?= portal_esc(__('portal_connection_link')) ?></h2>
         <?php if ($protocol === 'xray') :
-            $xlinks = explode("\n", trim($view['primary_link']));
+            $xlinks = array_values(array_filter(explode("\n", trim($view['primary_link'])), function($l) {
+                return strpos($l, '://') !== false;
+            }));
             if (count($xlinks) >= 4) :
         ?>
             <div class="mb-3">
