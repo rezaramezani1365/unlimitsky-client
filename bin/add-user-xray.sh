@@ -159,7 +159,7 @@ jq -cn \
   --arg email "$XRAY_EMAIL" \
   --arg cfg "$CONFIG" \
   --arg links "$LINKS" \
-  --arg vless "$VLESS" \
+  --arg vless "$LINKS" \
   --arg json "$CLIENT_JSON" \
   --arg id "$UUID" \
   --arg exp "$EXPIRES" \
