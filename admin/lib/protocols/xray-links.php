@@ -164,7 +164,7 @@ class USK_XrayLinks
 
     public static function live_uri_for_client(array $rec, $username = '')
     {
-        $uuid = trim((string) ($rec['uuid'] ?? ($rec['meta']['uuid'] ?? '')));
+        $uuid = trim((string) ($rec['uuid'] ?? ($rec['id'] ?? ($rec['meta']['uuid'] ?? ($rec['meta']['id'] ?? '')))));
         if ($uuid === '') {
             return '';
         }
